@@ -8,6 +8,7 @@ import {
 } from "./data/blueprint.js";
 import { getCurrentRoute, navigate, subscribeToRouteChanges } from "./core/router.js";
 import {
+  getNodeRuntime,
   loadState,
   markNodeSeen,
   markNodeSolved,
@@ -16,9 +17,11 @@ import {
   saveState,
   serializeStateForSave,
   setHintLevel,
+  updateNodeRuntime,
   updateSystemState,
 } from "./core/state.js";
 import { computeSectionProgress, computeUnlockedNodeIds, frontierNodes } from "./core/unlock.js";
+import { getNodeExperience } from "./nodes/index.js";
 import { getTemplateRenderer } from "./templates/index.js";
 import { renderRegionHub } from "./templates/regionHub.js";
 import { escapeHtml } from "./templates/shared.js";
@@ -46,6 +49,9 @@ let widgetState = {
 };
 let nexusSelectionIndex = 0;
 let lastNexusSections = [];
+let sectionNodeSelectionIndex = 0;
+let lastSectionNodes = [];
+let activeNodeContext = null;
 
 function setBanner(text) {
   bannerMessage = text;
@@ -83,6 +89,44 @@ function cycleNexus(step) {
   }
   nexusSelectionIndex += step;
   normalizeNexusSelection();
+}
+
+function normalizeSectionNodeSelection() {
+  if (!lastSectionNodes.length) {
+    sectionNodeSelectionIndex = 0;
+    return;
+  }
+
+  if (sectionNodeSelectionIndex < 0) {
+    sectionNodeSelectionIndex = lastSectionNodes.length - 1;
+    return;
+  }
+
+  if (sectionNodeSelectionIndex >= lastSectionNodes.length) {
+    sectionNodeSelectionIndex = 0;
+  }
+}
+
+function cycleSectionNodes(step) {
+  if (!lastSectionNodes.length) {
+    return;
+  }
+
+  sectionNodeSelectionIndex += step;
+  normalizeSectionNodeSelection();
+}
+
+function openSelectedSectionNode() {
+  if (!lastSectionNodes.length) {
+    return;
+  }
+
+  const node = lastSectionNodes[sectionNodeSelectionIndex];
+  if (!node) {
+    return;
+  }
+
+  navigate(node.route);
 }
 
 function openSelectedNexusSection() {
@@ -125,8 +169,238 @@ function buildDeskNodePool(unlockedNodeIds) {
   ).slice(0, 80);
 }
 
+function currentActiveNodeContext() {
+  if (!activeNodeContext) {
+    return null;
+  }
+
+  if (getCurrentRoute() !== activeNodeContext.node.route) {
+    return null;
+  }
+
+  return activeNodeContext;
+}
+
+function ensureNodeRuntime(state, node, experience) {
+  return updateNodeRuntime(
+    state,
+    node.node_id,
+    (runtime) => runtime,
+    () => experience.initialState({ node, state }),
+  );
+}
+
+function readNodeRuntime(state, node, experience) {
+  return getNodeRuntime(state, node.node_id, () => experience.initialState({ node, state }));
+}
+
+function dispatchActiveNodeAction(action) {
+  const context = currentActiveNodeContext();
+  if (!context || !action) {
+    return false;
+  }
+
+  const { node, experience } = context;
+
+  withState((current) => {
+    let next = updateNodeRuntime(
+      current,
+      node.node_id,
+      (runtime) => experience.reduceRuntime(runtime, action),
+      () => experience.initialState({ node, state: current }),
+    );
+
+    const runtime = readNodeRuntime(next, node, experience);
+    const solvedNow =
+      typeof experience.validateRuntime === "function"
+        ? Boolean(experience.validateRuntime(runtime))
+        : Boolean(runtime && runtime.solved);
+    const solvedBefore = (next.solvedNodeIds || []).includes(node.node_id);
+
+    if (solvedNow && !solvedBefore) {
+      next = markNodeSolved(next, node);
+      setBanner(`${node.node_id} solved. Reward added: ${node.reward || "(none)"}.`);
+    }
+
+    return next;
+  });
+
+  renderApp();
+  return true;
+}
+
+function handleNodeActionClick(target) {
+  const context = currentActiveNodeContext();
+  if (!context) {
+    return false;
+  }
+
+  if (target.getAttribute("data-node-id") !== context.node.node_id) {
+    return false;
+  }
+
+  if (typeof context.experience.buildActionFromElement !== "function") {
+    return false;
+  }
+
+  const runtime = readNodeRuntime(appState, context.node, context.experience);
+  const action = context.experience.buildActionFromElement(target, runtime);
+  if (!action) {
+    return false;
+  }
+
+  return dispatchActiveNodeAction(action);
+}
+
+function handleNodeKeyDown(event) {
+  const context = currentActiveNodeContext();
+  if (!context || typeof context.experience.buildKeyAction !== "function") {
+    return false;
+  }
+
+  const runtime = readNodeRuntime(appState, context.node, context.experience);
+  const action = context.experience.buildKeyAction(event, runtime);
+  if (!action) {
+    return false;
+  }
+
+  event.preventDefault();
+  return dispatchActiveNodeAction(action);
+}
+
+function handleNodeWheel(event) {
+  const context = currentActiveNodeContext();
+  if (!context || typeof context.experience.buildWheelAction !== "function") {
+    return false;
+  }
+
+  const runtime = readNodeRuntime(appState, context.node, context.experience);
+  const action = context.experience.buildWheelAction(event, runtime);
+  if (!action) {
+    return false;
+  }
+
+  event.preventDefault();
+  return dispatchActiveNodeAction(action);
+}
+
+function handleDragStart(event) {
+  const context = currentActiveNodeContext();
+  if (!context) {
+    return;
+  }
+
+  const source = event.target instanceof HTMLElement ? event.target.closest("[data-node-piece]") : null;
+  if (!source) {
+    return;
+  }
+
+  if (source.getAttribute("data-node-id") !== context.node.node_id) {
+    return;
+  }
+
+  const pieceId = source.getAttribute("data-piece-id");
+  if (!pieceId || !event.dataTransfer) {
+    return;
+  }
+
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", pieceId);
+  event.dataTransfer.setData("application/x-nexus-piece-id", pieceId);
+  source.classList.add("is-dragging");
+}
+
+function handleDragOver(event) {
+  const context = currentActiveNodeContext();
+  if (!context || typeof context.experience.buildDropAction !== "function") {
+    return;
+  }
+
+  const dropZone =
+    event.target instanceof HTMLElement ? event.target.closest("[data-node-dropzone]") : null;
+  if (!dropZone) {
+    return;
+  }
+
+  if (dropZone.getAttribute("data-node-id") !== context.node.node_id) {
+    return;
+  }
+
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = "move";
+  }
+}
+
+function clearDraggingStyles() {
+  root.querySelectorAll(".is-dragging").forEach((element) => {
+    element.classList.remove("is-dragging");
+  });
+}
+
+function handleDrop(event) {
+  const context = currentActiveNodeContext();
+  if (!context || typeof context.experience.buildDropAction !== "function") {
+    return;
+  }
+
+  const dropZone =
+    event.target instanceof HTMLElement ? event.target.closest("[data-node-dropzone]") : null;
+  if (!dropZone) {
+    clearDraggingStyles();
+    return;
+  }
+
+  if (dropZone.getAttribute("data-node-id") !== context.node.node_id) {
+    clearDraggingStyles();
+    return;
+  }
+
+  const transfer = event.dataTransfer;
+  if (!transfer) {
+    clearDraggingStyles();
+    return;
+  }
+
+  const pieceId =
+    transfer.getData("application/x-nexus-piece-id") || transfer.getData("text/plain");
+  if (!pieceId) {
+    clearDraggingStyles();
+    return;
+  }
+
+  const rect = dropZone.getBoundingClientRect();
+  if (!rect.width || !rect.height) {
+    clearDraggingStyles();
+    return;
+  }
+
+  const xPercent = ((event.clientX - rect.left) / rect.width) * 100;
+  const yPercent = ((event.clientY - rect.top) / rect.height) * 100;
+  const action = context.experience.buildDropAction({
+    pieceId,
+    xPercent,
+    yPercent,
+  });
+
+  event.preventDefault();
+  clearDraggingStyles();
+
+  if (action) {
+    dispatchActiveNodeAction(action);
+  }
+}
+
+function handleDragEnd() {
+  clearDraggingStyles();
+}
+
 function contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress) {
+  activeNodeContext = null;
+
   if (route === "/") {
+    lastSectionNodes = [];
+    sectionNodeSelectionIndex = 0;
     return {
       html: renderNexusView({
         sectionProgress,
@@ -153,15 +427,22 @@ function contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress) {
   const section = sectionFromRoute(route);
   if (section) {
     const nodes = blueprintIndex.sectionNodes.get(section) || [];
+    lastSectionNodes = nodes;
+    normalizeSectionNodeSelection();
+
     return {
       html: renderRegionHub({
         section,
         nodes,
         solvedSet,
         unlockedNodeIds,
+        selectedIndex: sectionNodeSelectionIndex,
       }),
     };
   }
+
+  lastSectionNodes = [];
+  sectionNodeSelectionIndex = 0;
 
   const node = blueprintIndex.nodesByRoute.get(route);
   if (node) {
@@ -175,6 +456,28 @@ function contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress) {
           unlockedNodes: pool,
           selectedNodeId: deskFocusNodeId,
           hintLevels: appState.hintLevels,
+        }),
+      };
+    }
+
+    const customExperience = getNodeExperience(node.node_id);
+    if (customExperience) {
+      appState = ensureNodeRuntime(appState, node, customExperience);
+      const runtime = readNodeRuntime(appState, node, customExperience);
+      const templateSpec = templateSpecByNode(node);
+
+      activeNodeContext = {
+        node,
+        experience: customExperience,
+      };
+
+      return {
+        html: customExperience.render({
+          node,
+          state: appState,
+          runtime,
+          templateSpec,
+          solved: solvedSet.has(node.node_id),
         }),
       };
     }
@@ -245,6 +548,12 @@ function downloadSaveFile() {
 }
 
 function handleClick(event) {
+  const nodeActionTarget =
+    event.target instanceof HTMLElement ? event.target.closest("[data-node-action]") : null;
+  if (nodeActionTarget && handleNodeActionClick(nodeActionTarget)) {
+    return;
+  }
+
   const button = event.target.closest("[data-action]");
   if (!button) {
     return;
@@ -444,7 +753,7 @@ function handleChange(event) {
 }
 
 function handleKeyDown(event) {
-  if (getCurrentRoute() !== "/") {
+  if (handleNodeKeyDown(event)) {
     return;
   }
 
@@ -456,28 +765,65 @@ function handleKeyDown(event) {
     return;
   }
 
-  if (!lastNexusSections.length) {
+  const route = getCurrentRoute();
+
+  if (route === "/") {
+    if (!lastNexusSections.length) {
+      return;
+    }
+
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      event.preventDefault();
+      cycleNexus(-1);
+      renderApp();
+      return;
+    }
+
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      event.preventDefault();
+      cycleNexus(1);
+      renderApp();
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      openSelectedNexusSection();
+    }
+
     return;
   }
 
-  if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
-    event.preventDefault();
-    cycleNexus(-1);
-    renderApp();
+  if (sectionFromRoute(route)) {
+    if (!lastSectionNodes.length) {
+      return;
+    }
+
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      event.preventDefault();
+      cycleSectionNodes(-1);
+      renderApp();
+      return;
+    }
+
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      event.preventDefault();
+      cycleSectionNodes(1);
+      renderApp();
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      openSelectedSectionNode();
+    }
+
     return;
   }
+}
 
-  if (event.key === "ArrowRight" || event.key === "ArrowDown") {
-    event.preventDefault();
-    cycleNexus(1);
-    renderApp();
-    return;
-  }
-
-  if (event.key === "Enter") {
-    event.preventDefault();
-    openSelectedNexusSection();
-  }
+function handleWheel(event) {
+  handleNodeWheel(event);
 }
 
 async function bootstrap() {
@@ -491,6 +837,11 @@ async function bootstrap() {
 
     root.addEventListener("click", handleClick);
     root.addEventListener("change", handleChange);
+    root.addEventListener("dragstart", handleDragStart);
+    root.addEventListener("dragover", handleDragOver);
+    root.addEventListener("drop", handleDrop);
+    root.addEventListener("dragend", handleDragEnd);
+    root.addEventListener("wheel", handleWheel, { passive: false });
     window.addEventListener("keydown", handleKeyDown);
 
     subscribeToRouteChanges((route) => renderApp(route));

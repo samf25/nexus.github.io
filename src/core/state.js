@@ -32,6 +32,7 @@ export function createDefaultState() {
     solvedNodeIds: [],
     seenNodeIds: [],
     hintLevels: {},
+    nodeRuntime: {},
     inventory: {
       rewards: {},
     },
@@ -71,6 +72,8 @@ export function mergeWithDefaults(candidate) {
       incoming.hintLevels && typeof incoming.hintLevels === "object"
         ? incoming.hintLevels
         : {},
+    nodeRuntime:
+      incoming.nodeRuntime && typeof incoming.nodeRuntime === "object" ? incoming.nodeRuntime : {},
     inventory: {
       ...base.inventory,
       ...(incoming.inventory || {}),
@@ -188,6 +191,52 @@ export function setHintLevel(state, nodeId, level) {
       ...(state.requestHistory || []),
     ].slice(0, 120),
   };
+}
+
+export function getNodeRuntime(state, nodeId, initialStateFactory = () => ({})) {
+  const runtimeRoot = state && state.nodeRuntime && typeof state.nodeRuntime === "object"
+    ? state.nodeRuntime
+    : {};
+  const existing = runtimeRoot[nodeId];
+  if (existing && typeof existing === "object") {
+    return existing;
+  }
+  return initialStateFactory();
+}
+
+export function setNodeRuntime(state, nodeId, nextRuntime) {
+  if (!nodeId || !nextRuntime || typeof nextRuntime !== "object") {
+    return state;
+  }
+
+  return {
+    ...state,
+    nodeRuntime: {
+      ...(state.nodeRuntime || {}),
+      [nodeId]: nextRuntime,
+    },
+  };
+}
+
+export function updateNodeRuntime(state, nodeId, updater, initialStateFactory = () => ({})) {
+  if (!nodeId || typeof updater !== "function") {
+    return state;
+  }
+
+  const currentRuntime = getNodeRuntime(state, nodeId, initialStateFactory);
+  const nextRuntime = updater(currentRuntime);
+
+  if (!nextRuntime || typeof nextRuntime !== "object") {
+    return state;
+  }
+
+  const existingRuntime =
+    state.nodeRuntime && typeof state.nodeRuntime === "object" ? state.nodeRuntime[nodeId] : undefined;
+  if (existingRuntime === nextRuntime) {
+    return state;
+  }
+
+  return setNodeRuntime(state, nodeId, nextRuntime);
 }
 
 export function updateSystemState(state, systemKey, nextSystemState) {

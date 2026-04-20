@@ -39,25 +39,22 @@ export function renderNexusView({ sectionProgress, selectedIndex }) {
       }
 
       return `
-        <button
+        <div
           class="${classes.join(" ")}"
           style="left:${position.x}%; top:${position.y}%;"
-          data-action="nexus-focus"
-          data-index="${index}"
-          aria-label="${escapeHtml(sector.section)}"
-          title="${escapeHtml(sector.section)}"
-        ></button>
+          aria-hidden="true"
+        ></div>
       `;
     })
     .join("");
 
   return `
-    <article class="nexus-page animated-fade">
+    <article class="nexus-page">
       <div class="nexus-stage" aria-label="Nexus Sector Map">
         <div class="nexus-core">
           <h2>Nexus</h2>
           <p>${escapeHtml(String(sectors.length))} sectors indexed</p>
-          <p class="key-hint">Use left/right arrows to cycle sectors. Press Enter to jump.</p>
+          <p class="key-hint">Arrows to roam. Enter to descend.</p>
         </div>
         <div class="nexus-orbit">${orbit}</div>
       </div>
@@ -66,11 +63,7 @@ export function renderNexusView({ sectionProgress, selectedIndex }) {
         <h3>${escapeHtml(selected.section)}</h3>
         <p>${escapeHtml(String(selected.solved))}/${escapeHtml(String(selected.total))} solved</p>
         <div class="progress-bar"><span style="width:${selected.percent}%"></span></div>
-        <div class="nexus-focus-actions">
-          <button data-action="nexus-prev">Previous Sector</button>
-          <button data-action="nexus-next">Next Sector</button>
-          <button class="ghost" data-action="nexus-open" data-section-slug="${escapeHtml(selectedSlug)}">Open Sector</button>
-        </div>
+        <p class="key-hint" style="margin-top: 8px;">Focused sector: ${escapeHtml(selectedSlug.toUpperCase())}</p>
       </section>
     </article>
   `;

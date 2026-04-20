@@ -18,7 +18,9 @@ function polarPosition(index, total, radiusPercent) {
 }
 
 export function renderRegionHub(context) {
-  const { section, nodes, solvedSet, unlockedNodeIds } = context;
+  const { section, nodes, solvedSet, unlockedNodeIds, selectedIndex } = context;
+  const safeIndex = Math.min(Math.max(Number(selectedIndex) || 0, 0), Math.max(nodes.length - 1, 0));
+  const selectedNode = nodes[safeIndex] || null;
   const solved = nodes.filter((node) => solvedSet.has(node.node_id)).length;
   const percent = nodes.length ? Math.round((solved / nodes.length) * 100) : 0;
 
@@ -27,32 +29,45 @@ export function renderRegionHub(context) {
       const isSolved = solvedSet.has(node.node_id);
       const isUnlocked = unlockedNodeIds.has(node.node_id);
       const position = polarPosition(index, nodes.length, 38);
+      const classes = [nodeClass(isSolved, isUnlocked)];
+      if (index === safeIndex) {
+        classes.push("active");
+      }
 
       return `
-        <a
-          class="${nodeClass(isSolved, isUnlocked)}"
+        <div
+          class="${classes.join(" ")}"
           style="left:${position.x}%; top:${position.y}%;"
-          href="#${escapeHtml(node.route)}"
-          title="${escapeHtml(node.node_id)} | ${escapeHtml(node.title)}"
-          aria-label="${escapeHtml(node.title)}"
-        ></a>
+          aria-hidden="true"
+        ></div>
       `;
     })
     .join("");
 
+  const selectedStatus = selectedNode
+    ? solvedSet.has(selectedNode.node_id)
+      ? "Solved"
+      : unlockedNodeIds.has(selectedNode.node_id)
+        ? "Unlocked"
+        : "Locked"
+    : "No nodes";
+
   return `
-    <article class="nexus-page animated-fade">
+    <article class="nexus-page">
       <section class="nexus-stage">
         <div class="nexus-core">
           <h2>${escapeHtml(section)}</h2>
           <p>${escapeHtml(String(solved))}/${escapeHtml(String(nodes.length))} solved</p>
-          <p class="key-hint">Select a star to enter a node.</p>
+          <p class="key-hint">Arrows to choose a node. Enter to enter.</p>
         </div>
         <div class="nexus-orbit">${stars}</div>
       </section>
 
       <section class="nexus-focus-card">
-        <h3>Section Progress</h3>
+        <h3>${escapeHtml(selectedNode ? selectedNode.title : "No Node Selected")}</h3>
+        <p class="muted" style="margin-bottom: 8px;">${escapeHtml(selectedNode ? selectedNode.node_id : "")}
+          ${selectedNode ? ` | ${escapeHtml(selectedStatus)}` : ""}
+        </p>
         <div class="progress-bar"><span style="width:${percent}%"></span></div>
         <p class="muted" style="margin-top: 8px;">Green: solved, blue: unlocked, dark: locked.</p>
       </section>
