@@ -1,4 +1,5 @@
 import { escapeHtml } from "../../templates/shared.js";
+import { renderRegionSymbol, symbolLabelForKey } from "../../core/symbology.js";
 
 const NODE_ID = "HUB01";
 const SOLVED_PHRASE = "ARCHIVE OF WAYS";
@@ -13,18 +14,22 @@ const SNAP_DISTANCE = 5.2;
 const NUDGE_STEP = 1.6;
 const ROTATION_STEP = 90;
 
-const RUNES = Object.freeze(["CR", "WI", "WR", "ML", "LG", "NT", "AA", "AL", "CS", "DC", "DG", "PG"]);
-
-const HORIZONTAL_EDGE_PATTERN = Object.freeze([
-  [1, -1, 1],
-  [-1, 1, -1],
-  [1, -1, 1],
+const SHARD_SYMBOL_KEYS = Object.freeze([
+  "cradle",
+  "wandering-inn",
+  "worm",
+  "mother-of-learning",
+  "hall-of-proofs",
+  "prime-vault",
+  "arcane-ascension",
+  "symmetry-forge",
+  "cosmere",
+  "dungeon-crawler-carl",
+  "curved-atlas",
+  "practical-guide",
 ]);
 
-const VERTICAL_EDGE_PATTERN = Object.freeze([
-  [1, -1, 1, -1],
-  [-1, 1, -1, 1],
-]);
+const FLAT_SHARD_CLIP_PATH = "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)";
 
 function seededValue(seed) {
   const value = Math.sin(seed * 91.731 + 13.17) * 43758.5453;
@@ -42,133 +47,6 @@ function randomScatter(index) {
   return { x, y, rotation };
 }
 
-function edgePointsTop(type) {
-  if (type === 0) {
-    return [
-      [0, 0],
-      [100, 0],
-    ];
-  }
-
-  if (type > 0) {
-    return [
-      [0, 0],
-      [30, 0],
-      [40, -12],
-      [60, -12],
-      [70, 0],
-      [100, 0],
-    ];
-  }
-
-  return [
-    [0, 0],
-    [30, 0],
-    [40, 12],
-    [60, 12],
-    [70, 0],
-    [100, 0],
-  ];
-}
-
-function edgePointsRight(type) {
-  if (type === 0) {
-    return [
-      [100, 0],
-      [100, 100],
-    ];
-  }
-
-  if (type > 0) {
-    return [
-      [100, 0],
-      [100, 30],
-      [112, 40],
-      [112, 60],
-      [100, 70],
-      [100, 100],
-    ];
-  }
-
-  return [
-    [100, 0],
-    [100, 30],
-    [88, 40],
-    [88, 60],
-    [100, 70],
-    [100, 100],
-  ];
-}
-
-function edgePointsBottom(type) {
-  if (type === 0) {
-    return [
-      [100, 100],
-      [0, 100],
-    ];
-  }
-
-  if (type > 0) {
-    return [
-      [100, 100],
-      [70, 100],
-      [60, 112],
-      [40, 112],
-      [30, 100],
-      [0, 100],
-    ];
-  }
-
-  return [
-    [100, 100],
-    [70, 100],
-    [60, 88],
-    [40, 88],
-    [30, 100],
-    [0, 100],
-  ];
-}
-
-function edgePointsLeft(type) {
-  if (type === 0) {
-    return [
-      [0, 100],
-      [0, 0],
-    ];
-  }
-
-  if (type > 0) {
-    return [
-      [0, 100],
-      [0, 70],
-      [-12, 60],
-      [-12, 40],
-      [0, 30],
-      [0, 0],
-    ];
-  }
-
-  return [
-    [0, 100],
-    [0, 70],
-    [12, 60],
-    [12, 40],
-    [0, 30],
-    [0, 0],
-  ];
-}
-
-function buildClipPath(top, right, bottom, left) {
-  const points = [
-    ...edgePointsTop(top),
-    ...edgePointsRight(right).slice(1),
-    ...edgePointsBottom(bottom).slice(1),
-    ...edgePointsLeft(left).slice(1),
-  ];
-
-  return `polygon(${points.map(([x, y]) => `${x}% ${y}%`).join(",")})`;
-}
-
 function buildPieceDefinitions() {
   const definitions = [];
 
@@ -177,20 +55,15 @@ function buildPieceDefinitions() {
       const index = row * COLS + col;
       const id = `shard-${index + 1}`;
 
-      const top = row === 0 ? 0 : -VERTICAL_EDGE_PATTERN[row - 1][col];
-      const right = col === COLS - 1 ? 0 : HORIZONTAL_EDGE_PATTERN[row][col];
-      const bottom = row === ROWS - 1 ? 0 : VERTICAL_EDGE_PATTERN[row][col];
-      const left = col === 0 ? 0 : -HORIZONTAL_EDGE_PATTERN[row][col - 1];
-
       definitions.push({
         id,
         row,
         col,
-        rune: RUNES[index],
+        symbolKey: SHARD_SYMBOL_KEYS[index],
         targetX: BOARD_ORIGIN_X + col * PIECE_WIDTH,
         targetY: BOARD_ORIGIN_Y + row * PIECE_HEIGHT,
         targetRotation: 0,
-        clipPath: buildClipPath(top, right, bottom, left),
+        clipPath: FLAT_SHARD_CLIP_PATH,
       });
     }
   }
@@ -352,7 +225,7 @@ function replacePiece(runtime, pieceId, updater) {
 }
 
 function selectedPieceIdFromRuntime(runtime, eventTarget) {
-  const target = eventTarget instanceof HTMLElement ? eventTarget.closest("[data-node-piece]") : null;
+  const target = eventTarget instanceof Element ? eventTarget.closest("[data-node-piece]") : null;
   const pieceId = target && target.getAttribute("data-piece-id");
   if (pieceId && PIECE_IDS.includes(pieceId)) {
     return pieceId;
@@ -389,9 +262,16 @@ function piecesMarkup(runtime, solved) {
           data-piece-id="${piece.id}"
           draggable="${solved ? "false" : "true"}"
           ${solved ? "disabled" : ""}
-          aria-label="${escapeHtml(piece.id.toUpperCase())}, rotation ${piece.rotation} degrees"
+          aria-label="${escapeHtml(
+            `${piece.id.toUpperCase()}, ${symbolLabelForKey(definition.symbolKey)} symbol, rotation ${piece.rotation} degrees`,
+          )}"
         >
-          <span class="hub01-piece-rune" aria-hidden="true">${escapeHtml(definition.rune)}</span>
+          <span class="hub01-piece-symbol" aria-hidden="true">
+            ${renderRegionSymbol({
+              symbolKey: definition.symbolKey,
+              className: "hub01-symbol",
+            })}
+          </span>
         </button>
       `;
     })

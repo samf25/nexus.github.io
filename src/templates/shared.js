@@ -1,3 +1,5 @@
+import { renderRegionSymbol } from "../core/symbology.js";
+
 export function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -41,7 +43,13 @@ export function renderNodeScaffold({ node, templateSpec, solved, bodyHtml }) {
 
   return `
     <article class="animated-fade">
-      <h2>${escapeHtml(node.title)} <small>${escapeHtml(node.node_id)}</small></h2>
+      <h2 class="node-heading-with-symbol">
+        ${renderRegionSymbol({
+          section: node.section,
+          className: "node-heading-symbol",
+        })}
+        <span>${escapeHtml(node.title)} <small>${escapeHtml(node.node_id)}</small></span>
+      </h2>
       <p class="muted">Route: ${escapeHtml(node.route)} | Template alias: ${escapeHtml(node.template)} | Canonical: ${escapeHtml(templateSpec.canonical)}</p>
       ${renderLoreRails(node)}
 

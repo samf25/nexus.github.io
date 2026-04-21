@@ -1,20 +1,35 @@
 import { escapeHtml } from "../templates/shared.js";
+import { renderRegionSymbol } from "../core/symbology.js";
+import { renderArtifactSymbol } from "../core/artifacts.js";
 
-function renderInventory(state) {
+function renderInventory(state, selectedArtifactReward) {
   const rewards = Object.entries(state.inventory.rewards || {});
   if (!rewards.length) {
     return `<div class="widget-empty">No artifacts collected yet.</div>`;
   }
 
   return `
-    <ul class="widget-list">
+    <ul class="widget-list widget-artifact-list">
       ${rewards
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(
-          ([reward, data]) => `
+          ([reward]) => `
             <li class="widget-item">
-              <strong>${escapeHtml(reward)}</strong>
-              <small>${escapeHtml(data.source || "unknown")}</small>
+              <button
+                type="button"
+                class="widget-artifact-chip ${selectedArtifactReward === reward ? "is-selected" : ""}"
+                data-action="artifact-select"
+                data-reward="${escapeHtml(reward)}"
+                aria-label="${escapeHtml(`Select artifact ${reward}`)}"
+              >
+                ${renderArtifactSymbol({
+                  artifactName: reward,
+                  className: "widget-artifact-symbol artifact-symbol",
+                })}
+                <span class="widget-artifact-labels">
+                  <strong>${escapeHtml(reward)}</strong>
+                </span>
+              </button>
             </li>
           `,
         )
@@ -30,7 +45,13 @@ function renderSignals(frontierNodes, requestHistory) {
         .map(
           (node) => `
             <li class="widget-item">
-              <a class="widget-link" href="#${escapeHtml(node.route)}">${escapeHtml(node.title)}</a>
+              <div class="widget-node-line">
+                ${renderRegionSymbol({
+                  section: node.section,
+                  className: "widget-node-symbol",
+                })}
+                <a class="widget-link" href="#${escapeHtml(node.route)}">${escapeHtml(node.title)}</a>
+              </div>
               <small>${escapeHtml(node.section)}</small>
             </li>
           `,
@@ -71,6 +92,10 @@ function widgetClass(isOpen) {
 export function renderShellLayout({
   summary,
   state,
+  selectedArtifactReward,
+  deskUnlocked,
+  backRoute,
+  backLabel,
   frontierNodes,
   contentHtml,
   widgetState,
@@ -84,8 +109,17 @@ export function renderShellLayout({
           <p>${escapeHtml(String(summary.nodeCount || 0))} nodes | ${escapeHtml(String(summary.sections?.length || 0))} arcs</p>
         </div>
         <nav class="space-controls">
+          ${
+            backRoute
+              ? `<button class="ghost" data-action="go-back" data-route="${escapeHtml(backRoute)}">${escapeHtml(backLabel || "Back")}</button>`
+              : ""
+          }
           <button class="ghost" data-action="go-home" ${currentRoute === "/" ? "disabled" : ""}>Nexus</button>
-          <button class="ghost" data-action="go-desk" ${currentRoute === "/desk" ? "disabled" : ""}>Desk</button>
+          ${
+            deskUnlocked
+              ? `<button class="ghost" data-action="go-desk" ${currentRoute === "/desk" ? "disabled" : ""}>Desk</button>`
+              : ""
+          }
           <button data-action="toggle-widget" data-widget="artifacts">Artifacts</button>
           <button data-action="toggle-widget" data-widget="signals">Signals</button>
           <button data-action="toggle-widget" data-widget="save">Save</button>
@@ -103,7 +137,7 @@ export function renderShellLayout({
             <h3>Artifacts</h3>
             <button class="ghost" data-action="toggle-widget" data-widget="artifacts">Close</button>
           </header>
-          ${renderInventory(state)}
+          ${renderInventory(state, selectedArtifactReward)}
         </section>
 
         <section class="${widgetClass(widgetState.signals)}">

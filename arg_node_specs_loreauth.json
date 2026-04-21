@@ -376,9 +376,9 @@
         "inventory.wave_1_passkey"
       ],
       "writes_state": [
-        "inventory.aura_thread"
+        "inventory.seven_year_festival_tournament_pass"
       ],
-      "reward": "Aura Thread",
+      "reward": "Seven-Year Festival Tournament Pass",
       "surface": "Aura Atlas of Cradle is a canon geography / route reconstruction page built from major cradle locations and the aura signatures associated with them.",
       "mechanics": "Use canon knowledge of location-to-aura association, scene memory, route implications to map aura traces to locations and follow the solved site chain; then extract from solved site chain.",
       "validation": "Require the correct canonical mapping or state plus extraction from solved site chain.",
@@ -443,7 +443,7 @@
         "state.hint_threads",
         "state.correspondence_flags"
       ],
-      "reward": "Reply Protocol; diegetic hint ladder",
+      "reward": "",
       "surface": "The desk is a permanent inbox page with openable threads, a typewriter reply box, and a visible record of earlier help requests.",
       "mechanics": "Each node can register up to three hint letters; when the player has seen the node and owns its prereqs, the desk can issue escalating clues, nudge toward adjacent open fronts, and occasionally surface diegetic reminders about overlooked tools.",
       "validation": "Completion condition is first successful thread unlock after HUB05; afterward it remains a persistent system rather than a one-shot puzzle. Award Reply Protocol on first use.",
@@ -1011,7 +1011,7 @@
     },
     {
       "node_id": "CRD04",
-      "title": "Uncrowned Bracket",
+      "title": "Seven-Year Festival Tournament",
       "category": "Literary",
       "section": "Cradle",
       "sheet": "Cradle",
@@ -1031,12 +1031,13 @@
         "PGE09"
       ],
       "reads_state": [
-        "inventory.aura_thread"
+        "inventory.seven_year_festival_tournament_pass"
       ],
       "writes_state": [
-        "inventory.bracket_thread"
+        "inventory.cultivation_potion",
+        "inventory.suriels_marble"
       ],
-      "reward": "Bracket Thread",
+      "reward": "Cultivation Potion",
       "surface": "Uncrowned Bracket is a canon tactical or social board page built from cradle tournament contenders, factions, and duel memories.",
       "mechanics": "Use canon knowledge of contender identity, faction ties, duel outcome memory to rebuild the bracket and assign remembered duel cards; then extract from semifinal lane order.",
       "validation": "Require the correct canonical mapping or state plus extraction from semifinal lane order.",

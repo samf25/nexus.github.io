@@ -35,6 +35,12 @@ export function createDefaultState() {
     nodeRuntime: {},
     inventory: {
       rewards: {},
+      keySlots: {
+        wave1: null,
+        wave2: null,
+        wave3: null,
+      },
+      usedRewards: {},
     },
     systems: defaultSystemState(),
     requestHistory: [],
@@ -80,6 +86,16 @@ export function mergeWithDefaults(candidate) {
       rewards:
         incoming.inventory && incoming.inventory.rewards && typeof incoming.inventory.rewards === "object"
           ? incoming.inventory.rewards
+          : {},
+      keySlots: {
+        ...base.inventory.keySlots,
+        ...(incoming.inventory && incoming.inventory.keySlots && typeof incoming.inventory.keySlots === "object"
+          ? incoming.inventory.keySlots
+          : {}),
+      },
+      usedRewards:
+        incoming.inventory && incoming.inventory.usedRewards && typeof incoming.inventory.usedRewards === "object"
+          ? incoming.inventory.usedRewards
           : {},
     },
     systems: {

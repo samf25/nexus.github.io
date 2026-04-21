@@ -1,4 +1,5 @@
 import { escapeHtml } from "./shared.js";
+import { renderRegionSymbol } from "../core/symbology.js";
 
 function nodeClass(isSolved, isUnlocked) {
   if (isSolved) {
@@ -39,7 +40,12 @@ export function renderRegionHub(context) {
           class="${classes.join(" ")}"
           style="left:${position.x}%; top:${position.y}%;"
           aria-hidden="true"
-        ></div>
+        >
+          ${renderRegionSymbol({
+            section: node.section,
+            className: "sector-symbol",
+          })}
+        </div>
       `;
     })
     .join("");
@@ -56,6 +62,10 @@ export function renderRegionHub(context) {
     <article class="nexus-page">
       <section class="nexus-stage">
         <div class="nexus-core">
+          ${renderRegionSymbol({
+            section,
+            className: "nexus-core-symbol",
+          })}
           <h2>${escapeHtml(section)}</h2>
           <p>${escapeHtml(String(solved))}/${escapeHtml(String(nodes.length))} solved</p>
           <p class="key-hint">Arrows to choose a node. Enter to enter.</p>
@@ -64,7 +74,17 @@ export function renderRegionHub(context) {
       </section>
 
       <section class="nexus-focus-card">
-        <h3>${escapeHtml(selectedNode ? selectedNode.title : "No Node Selected")}</h3>
+        <h3 class="nexus-focus-heading">
+          ${
+            selectedNode
+              ? renderRegionSymbol({
+                  section: selectedNode.section,
+                  className: "nexus-focus-symbol",
+                })
+              : ""
+          }
+          <span>${escapeHtml(selectedNode ? selectedNode.title : "No Node Selected")}</span>
+        </h3>
         <p class="muted" style="margin-bottom: 8px;">${escapeHtml(selectedNode ? selectedNode.node_id : "")}
           ${selectedNode ? ` | ${escapeHtml(selectedStatus)}` : ""}
         </p>

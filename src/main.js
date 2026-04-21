@@ -28,6 +28,7 @@ import { escapeHtml } from "./templates/shared.js";
 import { renderShellLayout } from "./ui/shell.js";
 import { renderDesk } from "./ui/desk.js";
 import { renderNexusView } from "./ui/nexus.js";
+import { consumeReward, hasWaveOnePasskey, keySlotsFromState, socketRewardKey } from "./core/artifacts.js";
 import { convertMadraToCharge, setMadraPreset, tickMadraWell } from "./systems/madraWell.js";
 import {
   buildDeliveryDay,
@@ -47,14 +48,47 @@ let widgetState = {
   signals: false,
   save: false,
 };
+let selectedArtifactReward = "";
 let nexusSelectionIndex = 0;
 let lastNexusSections = [];
 let sectionNodeSelectionIndex = 0;
 let lastSectionNodes = [];
 let activeNodeContext = null;
+const AUTO_RENDER_INTERVAL_MS = 2000;
 
 function setBanner(text) {
   bannerMessage = text;
+}
+
+function grantSupplementalReward(state, rewardName, node) {
+  const reward = String(rewardName || "");
+  if (!reward) {
+    return state;
+  }
+
+  const rewards =
+    state && state.inventory && state.inventory.rewards && typeof state.inventory.rewards === "object"
+      ? state.inventory.rewards
+      : {};
+
+  if (rewards[reward]) {
+    return state;
+  }
+
+  return {
+    ...state,
+    inventory: {
+      ...(state.inventory || {}),
+      rewards: {
+        ...rewards,
+        [reward]: {
+          source: node && node.node_id ? node.node_id : "SYSTEM",
+          section: node && node.section ? node.section : "Nexus Hub",
+          awardedAt: Date.now(),
+        },
+      },
+    },
+  };
 }
 
 function withState(updater) {
@@ -62,9 +96,87 @@ function withState(updater) {
   saveState(appState);
 }
 
-function withMadraTick() {
+function isDeskUnlocked(state) {
+  const solved = new Set(state && Array.isArray(state.solvedNodeIds) ? state.solvedNodeIds : []);
+  return solved.has("HUB06");
+}
+
+function withMadraTick(route = getCurrentRoute()) {
+  if (route !== "/cradle/madra-well") {
+    return;
+  }
   const ticked = tickMadraWell(appState.systems.madraWell, Date.now());
   appState = updateSystemState(appState, "madraWell", ticked);
+}
+
+function ensureDerivedRewards(state) {
+  const solved = new Set(state.solvedNodeIds || []);
+  if (!solved.has("HUB05")) {
+    return state;
+  }
+
+  if (hasWaveOnePasskey(state)) {
+    return state;
+  }
+
+  const rewards =
+    state && state.inventory && state.inventory.rewards && typeof state.inventory.rewards === "object"
+      ? state.inventory.rewards
+      : {};
+  if (rewards["Wave-I Passkey"] || rewards["Wave 1 Passkey"]) {
+    return state;
+  }
+
+  return grantSupplementalReward(state, "Wave-I Passkey", {
+    node_id: "HUB05",
+    section: "Nexus Hub",
+  });
+}
+
+function ensureSelectedArtifactStillAvailable() {
+  if (!selectedArtifactReward) {
+    return;
+  }
+
+  const rewards =
+    appState && appState.inventory && appState.inventory.rewards && typeof appState.inventory.rewards === "object"
+      ? appState.inventory.rewards
+      : {};
+
+  if (!rewards[selectedArtifactReward]) {
+    selectedArtifactReward = "";
+  }
+}
+
+function backLinkForRoute(route) {
+  if (!route || route === "/") {
+    return null;
+  }
+
+  const node = blueprintIndex && blueprintIndex.nodesByRoute ? blueprintIndex.nodesByRoute.get(route) : null;
+  if (node) {
+    return {
+      route: `/section/${sectionRouteSlug(node.section)}`,
+      label: "Back to Region",
+    };
+  }
+
+  const section = sectionFromRoute(route);
+  if (section) {
+    return {
+      route: "/",
+      label: "Back to Nexus",
+    };
+  }
+
+  if (route === "/desk") {
+    return {
+      route: "/",
+      label: "Back to Nexus",
+    };
+  }
+
+  return null;
 }
 
 function normalizeNexusSelection() {
@@ -203,11 +315,57 @@ function dispatchActiveNodeAction(action) {
   const { node, experience } = context;
 
   withState((current) => {
-    let next = updateNodeRuntime(
-      current,
+    let next = current;
+
+    if (
+      node.node_id === "HUB04" &&
+      action.type === "arm-bearings" &&
+      String(action.artifact || "") === "Nexus Bearings"
+    ) {
+      next = consumeReward(next, "Nexus Bearings", "HUB04");
+    }
+
+    if (
+      node.node_id === "CRD02" &&
+      action.type === "crd02-origin-test" &&
+      String(action.artifact || "") === "Starter Core"
+    ) {
+      next = consumeReward(next, "Starter Core", "CRD02");
+    }
+
+    if (
+      node.node_id === "CRD02" &&
+      action.type === "crd02-breakthrough" &&
+      action.ready === true &&
+      String(action.artifact || "") === "Cultivation Potion"
+    ) {
+      next = consumeReward(next, "Cultivation Potion", "CRD02");
+    }
+
+    if (
+      node.node_id === "CRD04" &&
+      action.type === "crd04-enter-tournament" &&
+      action.consumePass === true &&
+      String(action.artifact || "") === "Seven-Year Festival Tournament Pass"
+    ) {
+      next = consumeReward(next, "Seven-Year Festival Tournament Pass", "CRD04");
+    }
+
+    if (
+      node.node_id === "HUB05" &&
+      action.type === "hub05-scan-archive" &&
+      action.ready === true &&
+      String(action.artifact || "") === "Archive Address"
+    ) {
+      next = consumeReward(next, "Archive Address", "HUB05");
+    }
+
+    const runtimeState = next;
+    next = updateNodeRuntime(
+      runtimeState,
       node.node_id,
       (runtime) => experience.reduceRuntime(runtime, action),
-      () => experience.initialState({ node, state: current }),
+      () => experience.initialState({ node, state: runtimeState }),
     );
 
     const runtime = readNodeRuntime(next, node, experience);
@@ -219,7 +377,13 @@ function dispatchActiveNodeAction(action) {
 
     if (solvedNow && !solvedBefore) {
       next = markNodeSolved(next, node);
-      setBanner(`${node.node_id} solved. Reward added: ${node.reward || "(none)"}.`);
+      let bonusReward = "";
+      if (node.node_id === "CRD04") {
+        next = grantSupplementalReward(next, "Suriel's Marble", node);
+        bonusReward = `${bonusReward} + Suriel's Marble`;
+      }
+
+      setBanner(`${node.node_id} solved. Reward added: ${node.reward || "(none)"}${bonusReward}.`);
     }
 
     return next;
@@ -258,6 +422,12 @@ function handleNodeKeyDown(event) {
     return false;
   }
 
+  const isRhythmNode = context.node.node_id === "CRD01" || context.node.node_id === "CRD02";
+  const isSpace = event.code === "Space" || event.key === " ";
+  if (isRhythmNode && isSpace) {
+    event.preventDefault();
+  }
+
   const runtime = readNodeRuntime(appState, context.node, context.experience);
   const action = context.experience.buildKeyAction(event, runtime);
   if (!action) {
@@ -290,7 +460,7 @@ function handleDragStart(event) {
     return;
   }
 
-  const source = event.target instanceof HTMLElement ? event.target.closest("[data-node-piece]") : null;
+  const source = event.target instanceof Element ? event.target.closest("[data-node-piece]") : null;
   if (!source) {
     return;
   }
@@ -316,8 +486,7 @@ function handleDragOver(event) {
     return;
   }
 
-  const dropZone =
-    event.target instanceof HTMLElement ? event.target.closest("[data-node-dropzone]") : null;
+  const dropZone = event.target instanceof Element ? event.target.closest("[data-node-dropzone]") : null;
   if (!dropZone) {
     return;
   }
@@ -344,8 +513,7 @@ function handleDrop(event) {
     return;
   }
 
-  const dropZone =
-    event.target instanceof HTMLElement ? event.target.closest("[data-node-dropzone]") : null;
+  const dropZone = event.target instanceof Element ? event.target.closest("[data-node-dropzone]") : null;
   if (!dropZone) {
     clearDraggingStyles();
     return;
@@ -377,11 +545,12 @@ function handleDrop(event) {
 
   const xPercent = ((event.clientX - rect.left) / rect.width) * 100;
   const yPercent = ((event.clientY - rect.top) / rect.height) * 100;
+  const runtime = readNodeRuntime(appState, context.node, context.experience);
   const action = context.experience.buildDropAction({
     pieceId,
     xPercent,
     yPercent,
-  });
+  }, runtime);
 
   event.preventDefault();
   clearDraggingStyles();
@@ -397,6 +566,7 @@ function handleDragEnd() {
 
 function contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress) {
   activeNodeContext = null;
+  const deskUnlocked = isDeskUnlocked(appState);
 
   if (route === "/") {
     lastSectionNodes = [];
@@ -405,11 +575,24 @@ function contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress) {
       html: renderNexusView({
         sectionProgress,
         selectedIndex: nexusSelectionIndex,
+        state: appState,
+        selectedArtifactReward,
       }),
     };
   }
 
   if (route === "/desk") {
+    if (!deskUnlocked) {
+      return {
+        html: `
+          <article class="animated-fade">
+            <h2>Desk Unanchored</h2>
+            <p class="muted">Anchor the Correspondence Desk in HUB06 before this route becomes available.</p>
+          </article>
+        `,
+      };
+    }
+
     const pool = buildDeskNodePool(unlockedNodeIds);
     if (!deskFocusNodeId && pool[0]) {
       deskFocusNodeId = pool[0].node_id;
@@ -448,21 +631,23 @@ function contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress) {
   if (node) {
     appState = markNodeSeen(appState, node.node_id);
 
-    if (node.node_id === "HUB06" || node.template === "correspondence_desk") {
-      deskFocusNodeId = node.node_id;
-      const pool = buildDeskNodePool(unlockedNodeIds);
-      return {
-        html: renderDesk({
-          unlockedNodes: pool,
-          selectedNodeId: deskFocusNodeId,
-          hintLevels: appState.hintLevels,
-        }),
-      };
-    }
-
     const customExperience = getNodeExperience(node.node_id);
     if (customExperience) {
       appState = ensureNodeRuntime(appState, node, customExperience);
+      if (typeof customExperience.synchronizeRuntime === "function") {
+        appState = updateNodeRuntime(
+          appState,
+          node.node_id,
+          (runtime) =>
+            customExperience.synchronizeRuntime(runtime, {
+              now: Date.now(),
+              node,
+              state: appState,
+              selectedArtifactReward,
+            }),
+          () => customExperience.initialState({ node, state: appState }),
+        );
+      }
       const runtime = readNodeRuntime(appState, node, customExperience);
       const templateSpec = templateSpecByNode(node);
 
@@ -475,6 +660,8 @@ function contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress) {
         html: customExperience.render({
           node,
           state: appState,
+          selectedArtifactReward,
+          artifactPanelOpen: Boolean(widgetState.artifacts),
           runtime,
           templateSpec,
           solved: solvedSet.has(node.node_id),
@@ -505,24 +692,32 @@ function renderApp(route = getCurrentRoute()) {
     return;
   }
 
-  withMadraTick();
+  withMadraTick(route);
+  appState = ensureDerivedRewards(appState);
+  ensureSelectedArtifactStillAvailable();
 
   const unlockedNodeIds = computeUnlockedNodeIds(blueprintIndex, appState);
   const solvedSet = new Set(appState.solvedNodeIds || []);
   const sectionProgress = computeSectionProgress(blueprintIndex, appState, unlockedNodeIds);
+  const visibleNexusSections = sectionProgress.filter((section) => section.unlocked > 0);
   const frontier = frontierNodes(blueprintIndex, appState, unlockedNodeIds, 12);
 
-  lastNexusSections = sectionProgress;
+  lastNexusSections = visibleNexusSections;
   normalizeNexusSelection();
 
-  const content = contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress);
+  const content = contentForRoute(route, unlockedNodeIds, solvedSet, visibleNexusSections);
   const banner = bannerMessage
     ? `<section class="card note" style="margin-bottom: 12px;"><strong>Update:</strong> ${escapeHtml(bannerMessage)}</section>`
     : "";
+  const backLink = backLinkForRoute(route);
 
   root.innerHTML = renderShellLayout({
     summary: blueprintIndex.summary,
     state: appState,
+    selectedArtifactReward,
+    deskUnlocked: isDeskUnlocked(appState),
+    backRoute: backLink ? backLink.route : "",
+    backLabel: backLink ? backLink.label : "",
     frontierNodes: frontier,
     contentHtml: `${banner}${content.html}`,
     widgetState,
@@ -548,9 +743,12 @@ function downloadSaveFile() {
 }
 
 function handleClick(event) {
-  const nodeActionTarget =
-    event.target instanceof HTMLElement ? event.target.closest("[data-node-action]") : null;
+  const nodeActionTarget = event.target instanceof Element ? event.target.closest("[data-node-action]") : null;
   if (nodeActionTarget && handleNodeActionClick(nodeActionTarget)) {
+    return;
+  }
+
+  if (!(event.target instanceof Element)) {
     return;
   }
 
@@ -566,7 +764,20 @@ function handleClick(event) {
     return;
   }
 
+  if (action === "go-back") {
+    const route = button.getAttribute("data-route");
+    if (route) {
+      navigate(route);
+    }
+    return;
+  }
+
   if (action === "go-desk") {
+    if (!isDeskUnlocked(appState)) {
+      setBanner("Correspondence Desk is not yet anchored.");
+      renderApp();
+      return;
+    }
     navigate("/desk");
     return;
   }
@@ -580,6 +791,50 @@ function handleClick(event) {
       };
       renderApp();
     }
+    return;
+  }
+
+  if (action === "artifact-select") {
+    const reward = button.getAttribute("data-reward") || "";
+    selectedArtifactReward = selectedArtifactReward === reward ? "" : reward;
+    renderApp();
+    return;
+  }
+
+  if (action === "nexus-slot-key") {
+    const slotId = button.getAttribute("data-slot-id") || "";
+    const selectedReward = String(selectedArtifactReward || "");
+    if (!selectedReward) {
+      setBanner("Select a key artifact before socketing.");
+      renderApp();
+      return;
+    }
+
+    const beforeSlots = keySlotsFromState(appState);
+    const beforeRewards =
+      appState && appState.inventory && appState.inventory.rewards && typeof appState.inventory.rewards === "object"
+        ? appState.inventory.rewards
+        : {};
+
+    withState((current) => socketRewardKey(current, selectedReward, slotId));
+
+    const afterSlots = keySlotsFromState(appState);
+    const afterRewards =
+      appState && appState.inventory && appState.inventory.rewards && typeof appState.inventory.rewards === "object"
+        ? appState.inventory.rewards
+        : {};
+    const socketed =
+      !beforeSlots[slotId] &&
+      Boolean(afterSlots[slotId]) &&
+      Object.keys(afterRewards).length < Object.keys(beforeRewards).length;
+
+    if (socketed) {
+      selectedArtifactReward = "";
+      setBanner(`${selectedReward} socketed into ${slotId.toUpperCase()}.`);
+    } else {
+      setBanner("Selected artifact does not fit this slot.");
+    }
+    renderApp();
     return;
   }
 
@@ -635,12 +890,18 @@ function handleClick(event) {
     }
     appState = resetState();
     deskFocusNodeId = null;
+    selectedArtifactReward = "";
     setBanner("Progress reset.");
     renderApp();
     return;
   }
 
   if (action === "open-desk") {
+    if (!isDeskUnlocked(appState)) {
+      setBanner("Correspondence Desk is not yet anchored.");
+      renderApp();
+      return;
+    }
     deskFocusNodeId = button.getAttribute("data-node-id");
     navigate("/desk");
     return;
@@ -707,6 +968,10 @@ function handleClick(event) {
 }
 
 function handleChange(event) {
+  if (!(event.target instanceof Element)) {
+    return;
+  }
+
   const presetSelector = event.target.closest("[data-madra-preset]");
   if (presetSelector) {
     withState((current) =>
@@ -741,6 +1006,7 @@ function handleChange(event) {
         appState = parseStateFromSaveText(text);
         saveState(appState);
         deskFocusNodeId = null;
+        selectedArtifactReward = "";
         setBanner(`Save imported from ${file.name}.`);
         renderApp();
       })
@@ -759,8 +1025,9 @@ function handleKeyDown(event) {
 
   const target = event.target;
   if (
-    target instanceof HTMLElement &&
-    (target.isContentEditable || target.closest("input, textarea, select"))
+    target instanceof Element &&
+    ((target instanceof HTMLElement && target.isContentEditable) ||
+      target.closest("input, textarea, select"))
   ) {
     return;
   }
@@ -846,6 +1113,16 @@ async function bootstrap() {
 
     subscribeToRouteChanges((route) => renderApp(route));
     renderApp();
+    window.setInterval(() => {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+      const route = getCurrentRoute();
+      if (route !== "/cradle/madra-well" && route !== "/cradle/sacred-valley-tournament") {
+        return;
+      }
+      renderApp();
+    }, AUTO_RENDER_INTERVAL_MS);
   } catch (error) {
     root.innerHTML = `
       <div class="focus-surface">

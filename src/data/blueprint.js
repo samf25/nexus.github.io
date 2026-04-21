@@ -2,6 +2,29 @@ import { CANONICAL_TEMPLATE_SPECS, TEMPLATE_ALIASES } from "./templateCatalog.js
 
 const DEFAULT_BLUEPRINT_PATH = "./arg_node_specs_loreauth.json";
 
+function numericNodeSuffix(nodeId) {
+  const match = String(nodeId || "").match(/(\d+)$/);
+  if (!match) {
+    return null;
+  }
+  return Number.parseInt(match[1], 10);
+}
+
+function compareSectionNodes(section, a, b) {
+  if (section === "Cradle") {
+    const cradleA = numericNodeSuffix(a.node_id);
+    const cradleB = numericNodeSuffix(b.node_id);
+    if (cradleA != null && cradleB != null && cradleA !== cradleB) {
+      return cradleA - cradleB;
+    }
+  }
+
+  if (a.layer !== b.layer) {
+    return a.layer - b.layer;
+  }
+  return String(a.node_id).localeCompare(String(b.node_id));
+}
+
 export async function loadBlueprint(path = DEFAULT_BLUEPRINT_PATH) {
   const response = await fetch(path, { cache: "no-cache" });
   if (!response.ok) {
@@ -33,13 +56,8 @@ export function buildBlueprintIndex(blueprint) {
     sectionNodes.get(section).push(node);
   }
 
-  for (const nodeList of sectionNodes.values()) {
-    nodeList.sort((a, b) => {
-      if (a.layer !== b.layer) {
-        return a.layer - b.layer;
-      }
-      return String(a.node_id).localeCompare(String(b.node_id));
-    });
+  for (const [section, nodeList] of sectionNodes.entries()) {
+    nodeList.sort((a, b) => compareSectionNodes(section, a, b));
   }
 
   return {

@@ -1,0 +1,1312 @@
+import { escapeHtml } from "../../templates/shared.js";
+import {
+  CRD02_MANUAL_RHYTHM_PATTERNS,
+  cycleLength,
+  nearestPulse,
+  normalizePatternIndex,
+  patternByIndex,
+  patternCadence,
+  pulsePhaseDelaySeconds,
+} from "./rhythmCore.js";
+
+const NODE_ID = "CRD02";
+const REQUIRED_ARTIFACT = "Starter Core";
+const MANUAL_STREAK_TARGET = 5;
+const MANUAL_HIT_TOLERANCE_MS = 180;
+const OFFLINE_CAP_SECONDS = 60 * 60 * 12;
+const DEBUG_MADRA_STEP = 2500;
+const MANUAL_PATTERNS = CRD02_MANUAL_RHYTHM_PATTERNS;
+const BREAKTHROUGH_COSTS = Object.freeze({
+  foundation: 200,
+  copper: 1000,
+});
+const IRON_BREAKTHROUGH_ARTIFACT = "Cultivation Potion";
+const CULTIVATION_STAGES = Object.freeze(["foundation", "copper", "iron"]);
+const STAGE_LABELS = Object.freeze({
+  foundation: "Foundation",
+  copper: "Copper",
+  iron: "Iron",
+});
+const STAGE_PASSIVE_MULTIPLIER = Object.freeze({
+  foundation: 1,
+  copper: 2,
+  iron: 3.8,
+});
+const STAGE_MANUAL_MULTIPLIER = Object.freeze({
+  foundation: 1,
+  copper: 1.8,
+  iron: 3,
+});
+
+const COMBAT_UPGRADES = Object.freeze([
+  {
+    id: "empty-palm",
+    label: "The Empty Palm",
+    baseCost: 100,
+    maxLevel: 1,
+    requires: [{ id: "manual-refinement", minLevel: 1 }],
+  },
+  {
+    id: "blood-forged-iron-body",
+    label: "Blood Forged Iron Body",
+    baseCost: 500,
+    maxLevel: 1,
+    requires: [{ id: "empty-palm", minLevel: 1 }],
+  },
+  {
+    id: "soul-cloak",
+    label: "Soul Cloak",
+    baseCost: 1000,
+    maxLevel: 1,
+    requires: [{ id: "blood-forged-iron-body", minLevel: 1 }],
+  },
+  {
+    id: "consume",
+    label: "Consume",
+    baseCost: 10000,
+    maxLevel: 1,
+    requires: [{ id: "soul-cloak", minLevel: 1 }],
+  },
+  {
+    id: "hollow-domain",
+    label: "Hollow Domain",
+    baseCost: 100000,
+    maxLevel: 1,
+    requires: [{ id: "consume", minLevel: 1 }],
+  },
+  {
+    id: "heart-of-twin-stars-combat",
+    label: "Heart of Twin Stars",
+    baseCost: 1000000,
+    maxLevel: 1,
+    minStage: "copper",
+    requires: [
+      { id: "hollow-domain", minLevel: 1 },
+      { id: "skyline-annulus", minLevel: 1 },
+    ],
+  },
+]);
+
+const WELL_UPGRADES = Object.freeze([
+  {
+    id: "manual-refinement",
+    label: "Cycling Resonance",
+    baseCost: 25,
+    growth: 2.2,
+    maxLevel: 4,
+    repeatable: true,
+    effect: "x2 manual madra per level",
+    requires: [],
+  },
+  {
+    id: "cycle-refinement",
+    label: "Twin-Star Compression",
+    baseCost: 180,
+    growth: 2.4,
+    maxLevel: 4,
+    repeatable: true,
+    effect: "Heart of Twin Stars base: +0.005 per level",
+    requires: [
+      { id: "manual-refinement", minLevel: 1 },
+      { id: "empty-palm", minLevel: 1 },
+    ],
+  },
+  {
+    id: "well-reservoir",
+    label: "Deep-Well Lining",
+    baseCost: 650,
+    growth: 2.8,
+    maxLevel: 3,
+    repeatable: true,
+    effect: "+35% passive gain per level",
+    requires: [
+      { id: "manual-refinement", minLevel: 1 },
+      { id: "blood-forged-iron-body", minLevel: 1 },
+    ],
+  },
+  {
+    id: "core-harmonization",
+    label: "Core Harmonization",
+    baseCost: 2200,
+    growth: 1,
+    maxLevel: 1,
+    repeatable: false,
+    effect: "+1 manual madra and branch unlock",
+    requires: [
+      { id: "soul-cloak", minLevel: 1 },
+      { id: "cycle-refinement", minLevel: 2 },
+    ],
+  },
+  {
+    id: "spiral-confluence",
+    label: "Spiral Confluence",
+    baseCost: 8200,
+    growth: 3.1,
+    maxLevel: 3,
+    repeatable: true,
+    effect: "+25% passive gain and Heaven/Earth scale",
+    minStage: "copper",
+    requires: [
+      { id: "core-harmonization", minLevel: 1 },
+      { id: "consume", minLevel: 1 },
+    ],
+  },
+  {
+    id: "skyline-annulus",
+    label: "Skyline Annulus",
+    baseCost: 25000,
+    growth: 1,
+    maxLevel: 1,
+    repeatable: false,
+    effect: "Unlocks deeper well optimization",
+    minStage: "copper",
+    requires: [
+      { id: "hollow-domain", minLevel: 1 },
+      { id: "well-reservoir", minLevel: 2 },
+      { id: "spiral-confluence", minLevel: 1 },
+    ],
+  },
+]);
+
+const ALL_UPGRADES = Object.freeze([...COMBAT_UPGRADES, ...WELL_UPGRADES]);
+const UPGRADE_BY_ID = Object.freeze(
+  Object.fromEntries(ALL_UPGRADES.map((upgrade) => [upgrade.id, upgrade])),
+);
+const TECH_TREE_LAYOUT = Object.freeze([
+  { id: "manual-refinement", col: 1, row: 2, shape: "circle" },
+  { id: "empty-palm", col: 2, row: 1, shape: "diamond" },
+  { id: "cycle-refinement", col: 2, row: 3, shape: "hex" },
+  { id: "blood-forged-iron-body", col: 3, row: 1, shape: "diamond" },
+  { id: "well-reservoir", col: 3, row: 3, shape: "triangle" },
+  { id: "soul-cloak", col: 4, row: 1, shape: "diamond" },
+  { id: "core-harmonization", col: 4, row: 2, shape: "hex" },
+  { id: "consume", col: 5, row: 1, shape: "diamond" },
+  { id: "spiral-confluence", col: 5, row: 3, shape: "triangle" },
+  { id: "hollow-domain", col: 6, row: 1, shape: "diamond" },
+  { id: "skyline-annulus", col: 6, row: 3, shape: "triangle" },
+  { id: "heart-of-twin-stars-combat", col: 6, row: 2, shape: "circle" },
+]);
+const TECH_LAYOUT_BY_ID = Object.freeze(
+  Object.fromEntries(TECH_TREE_LAYOUT.map((node) => [node.id, node])),
+);
+
+function normalizeText(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
+function rewardMatches(name, expected) {
+  return normalizeText(name) === normalizeText(expected);
+}
+
+function stageIndex(stageId) {
+  return CULTIVATION_STAGES.indexOf(stageId);
+}
+
+function normalizeStage(stageId) {
+  const candidate = normalizeText(stageId);
+  return CULTIVATION_STAGES.includes(candidate) ? candidate : "foundation";
+}
+
+function stageLabel(stageId) {
+  return STAGE_LABELS[stageId] || STAGE_LABELS.foundation;
+}
+
+function nowMs() {
+  return Date.now();
+}
+
+function roundMadra(value) {
+  return Number(Number(value || 0).toFixed(3));
+}
+
+function manualPatternByIndex(patternIndex) {
+  return patternByIndex(MANUAL_PATTERNS, patternIndex);
+}
+
+function manualNearestPulse(manualRuntime, atMs) {
+  const pattern = manualPatternByIndex(manualRuntime.patternIndex);
+  return nearestPulse(pattern, manualRuntime.startedAt, atMs, MANUAL_HIT_TOLERANCE_MS);
+}
+
+function manualPulsePhaseDelaySeconds(manualRuntime, atMs = nowMs()) {
+  const pattern = manualPatternByIndex(manualRuntime.patternIndex);
+  return pulsePhaseDelaySeconds(pattern, manualRuntime.startedAt, atMs);
+}
+
+function emptyManualRuntime() {
+  return {
+    open: false,
+    patternIndex: 0,
+    startedAt: nowMs(),
+    streak: 0,
+    lastBeatOrdinal: -1,
+    flashUntil: 0,
+  };
+}
+
+function defaultUpgradeLevels() {
+  return Object.fromEntries(ALL_UPGRADES.map((upgrade) => [upgrade.id, 0]));
+}
+
+function normalizeUpgradeLevels(candidate) {
+  const base = defaultUpgradeLevels();
+  const incoming = candidate && typeof candidate === "object" ? candidate : {};
+  for (const [upgradeId, level] of Object.entries(incoming)) {
+    if (!Object.prototype.hasOwnProperty.call(base, upgradeId)) {
+      continue;
+    }
+    const upgrade = UPGRADE_BY_ID[upgradeId];
+    const numeric = Math.max(0, Math.floor(Number(level) || 0));
+    base[upgradeId] = Math.min(numeric, upgrade.maxLevel || numeric);
+  }
+  return base;
+}
+
+function normalizeRuntime(runtime) {
+  const source = runtime && typeof runtime === "object" ? runtime : {};
+  const manualSource = source.manual && typeof source.manual === "object" ? source.manual : {};
+  const introPhase = source.introPhase === "well" || source.introPhase === "rejected" ? source.introPhase : "origin";
+  const upgrades = normalizeUpgradeLevels(source.upgrades);
+  const manual = {
+    ...emptyManualRuntime(),
+    ...manualSource,
+    patternIndex: normalizePatternIndex(manualSource.patternIndex, MANUAL_PATTERNS.length - 1),
+    startedAt: Number.isFinite(manualSource.startedAt) ? Number(manualSource.startedAt) : nowMs(),
+    streak: Math.max(0, Number(manualSource.streak) || 0),
+    lastBeatOrdinal: Number.isFinite(manualSource.lastBeatOrdinal) ? Number(manualSource.lastBeatOrdinal) : -1,
+    flashUntil: Number.isFinite(manualSource.flashUntil) ? Number(manualSource.flashUntil) : 0,
+  };
+
+  return {
+    introPhase,
+    starterCoreUsed: Boolean(source.starterCoreUsed),
+    starterSeedGranted: Boolean(source.starterSeedGranted),
+    wellUnlocked: Boolean(source.wellUnlocked) || introPhase === "well",
+    cultivationStage: normalizeStage(source.cultivationStage),
+    madra: roundMadra(source.madra),
+    totalMadraGenerated: roundMadra(source.totalMadraGenerated),
+    manualCompletions: Math.max(0, Number(source.manualCompletions) || 0),
+    lastTickAt: Number.isFinite(source.lastTickAt) ? Number(source.lastTickAt) : nowMs(),
+    cycling: {
+      twinStarsLevel: Math.max(0, Math.floor(Number(source.cycling && source.cycling.twinStarsLevel) || 0)),
+      heavenEarthLevel: Math.max(0, Math.floor(Number(source.cycling && source.cycling.heavenEarthLevel) || 0)),
+    },
+    upgrades,
+    manual,
+    techniquesOpen: Boolean(source.techniquesOpen) && Math.max(0, Number(source.manualCompletions) || 0) > 0,
+    lastMessage: String(source.lastMessage || ""),
+    solved: Boolean(source.solved),
+  };
+}
+
+function levelOf(runtime, upgradeId) {
+  return Number(runtime.upgrades[upgradeId] || 0);
+}
+
+function requirementsMet(runtime, requirements) {
+  return (requirements || []).every((requirement) => levelOf(runtime, requirement.id) >= (requirement.minLevel || 1));
+}
+
+function upgradeCost(runtime, upgrade) {
+  const currentLevel = levelOf(runtime, upgrade.id);
+  if (currentLevel >= upgrade.maxLevel) {
+    return null;
+  }
+
+  const growth = Number(upgrade.growth || 1);
+  const cost = Number(upgrade.baseCost || 0) * Math.pow(growth, currentLevel);
+  return Math.round(cost);
+}
+
+function manualMadraGain(runtime) {
+  const resonanceLevel = levelOf(runtime, "manual-refinement");
+  const harmonized = levelOf(runtime, "core-harmonization") > 0 ? 1 : 0;
+  const base = Math.max(1, Math.pow(2, resonanceLevel) + harmonized);
+  const stageMultiplier = STAGE_MANUAL_MULTIPLIER[runtime.cultivationStage] || 1;
+  return Math.max(1, Math.round(base * stageMultiplier));
+}
+
+function heartOfTwinStarsBase(runtime) {
+  return 1.01 + levelOf(runtime, "cycle-refinement") * 0.005;
+}
+
+function passiveMadraPerSecond(runtime) {
+  const twinBase = heartOfTwinStarsBase(runtime);
+  const twinRate = Math.pow(twinBase, runtime.cycling.twinStarsLevel) - 1;
+
+  const confluence = levelOf(runtime, "spiral-confluence");
+  const annulus = levelOf(runtime, "skyline-annulus");
+  const heavenBase = 1.035 + confluence * 0.007 + annulus * 0.006;
+  const heavenRate = (Math.pow(heavenBase, runtime.cycling.heavenEarthLevel) - 1) * 7;
+
+  const reservoirMultiplier = 1 + levelOf(runtime, "well-reservoir") * 0.35;
+  const confluenceMultiplier = 1 + confluence * 0.25;
+  const annulusMultiplier = 1 + annulus * 0.15;
+  const stageMultiplier = STAGE_PASSIVE_MULTIPLIER[runtime.cultivationStage] || 1;
+
+  return (
+    (twinRate + heavenRate) *
+    reservoirMultiplier *
+    confluenceMultiplier *
+    annulusMultiplier *
+    stageMultiplier
+  );
+}
+
+function twinStarsCost(level) {
+  return 10 + Math.max(0, Math.floor(Number(level) || 0)) * 10;
+}
+
+function heavenEarthCost(level) {
+  return 100 + Math.max(0, Math.floor(Number(level) || 0)) * 10;
+}
+
+function applyPassiveTick(runtime, now) {
+  if (!runtime.wellUnlocked) {
+    return runtime;
+  }
+
+  const elapsedMs = Math.max(0, now - runtime.lastTickAt);
+  if (elapsedMs < 1000) {
+    if (runtime.lastTickAt === now) {
+      return runtime;
+    }
+    return {
+      ...runtime,
+      lastTickAt: now,
+    };
+  }
+
+  const elapsedSeconds = Math.min(OFFLINE_CAP_SECONDS, elapsedMs / 1000);
+  const mps = passiveMadraPerSecond(runtime);
+  const produced = mps * elapsedSeconds;
+  if (produced <= 0) {
+    return {
+      ...runtime,
+      lastTickAt: now,
+    };
+  }
+
+  return {
+    ...runtime,
+    madra: roundMadra(runtime.madra + produced),
+    totalMadraGenerated: roundMadra(runtime.totalMadraGenerated + produced),
+    lastTickAt: now,
+  };
+}
+
+function randomPatternIndex(seed) {
+  const numeric = Math.abs(Math.floor(Number(seed) || 0));
+  return numeric % MANUAL_PATTERNS.length;
+}
+
+function patternName(index) {
+  return manualPatternByIndex(index).label || "Unknown Rhythm";
+}
+
+function patternLabel(index) {
+  return patternCadence(manualPatternByIndex(index));
+}
+
+function solveState(runtime) {
+  return runtime.wellUnlocked && runtime.cycling.twinStarsLevel >= 1;
+}
+
+function upgradeVisible(runtime, upgrade) {
+  const minimumStage = normalizeStage(upgrade.minStage || "foundation");
+  if (stageIndex(runtime.cultivationStage) < stageIndex(minimumStage)) {
+    return false;
+  }
+
+  const level = levelOf(runtime, upgrade.id);
+  if (level > 0) {
+    return true;
+  }
+
+  const nextCost = upgradeCost(runtime, upgrade);
+  if (nextCost == null) {
+    return false;
+  }
+
+  const prereqsReady = requirementsMet(runtime, upgrade.requires);
+  if (!prereqsReady && level === 0) {
+    return false;
+  }
+  return level > 0 || runtime.madra >= nextCost / 100;
+}
+
+export function initialCrd02Runtime(context = {}) {
+  const solvedIds = new Set(
+    context && context.state && Array.isArray(context.state.solvedNodeIds)
+      ? context.state.solvedNodeIds
+      : [],
+  );
+  const seedFromCrd01 = solvedIds.has("CRD01");
+  const startingMadra = seedFromCrd01 ? 5 : 0;
+  const now = nowMs();
+  return {
+    introPhase: "origin",
+    starterCoreUsed: false,
+    starterSeedGranted: seedFromCrd01,
+    wellUnlocked: false,
+    cultivationStage: "foundation",
+    madra: startingMadra,
+    totalMadraGenerated: startingMadra,
+    manualCompletions: seedFromCrd01 ? 1 : 0,
+    lastTickAt: now,
+    cycling: {
+      twinStarsLevel: 0,
+      heavenEarthLevel: 0,
+    },
+    upgrades: defaultUpgradeLevels(),
+    manual: emptyManualRuntime(),
+    techniquesOpen: false,
+    lastMessage: "",
+    solved: false,
+  };
+}
+
+export function synchronizeCrd02Runtime(runtime, { now = nowMs(), state = null } = {}) {
+  let current = normalizeRuntime(runtime);
+  const solvedIds = new Set(state && Array.isArray(state.solvedNodeIds) ? state.solvedNodeIds : []);
+
+  if (!current.starterSeedGranted && solvedIds.has("CRD01")) {
+    const seededMadra = Math.max(current.madra, 5);
+    current = {
+      ...current,
+      starterSeedGranted: true,
+      madra: seededMadra,
+      totalMadraGenerated: Math.max(current.totalMadraGenerated, seededMadra),
+      manualCompletions: Math.max(current.manualCompletions, 1),
+      lastMessage: current.lastMessage || "Starter core residue grants +5 madra.",
+    };
+  }
+
+  const ticked = applyPassiveTick(current, Number(now) || nowMs());
+  const solved = solveState(ticked);
+  if (ticked.solved === solved) {
+    return ticked;
+  }
+  return {
+    ...ticked,
+    solved,
+  };
+}
+
+export function validateCrd02Runtime(runtime) {
+  return solveState(normalizeRuntime(runtime));
+}
+
+export function reduceCrd02Runtime(runtime, action) {
+  const now = Number(action && action.at) || nowMs();
+  let current = synchronizeCrd02Runtime(runtime, { now });
+
+  if (!action || typeof action !== "object") {
+    return current;
+  }
+
+  if (action.type === "crd02-origin-test") {
+    if (!rewardMatches(action.artifact, REQUIRED_ARTIFACT)) {
+      return {
+        ...current,
+        lastMessage: "The bowl remains still. You need the Starter Core artifact selected.",
+      };
+    }
+
+    return {
+      ...current,
+      starterCoreUsed: true,
+      introPhase: "rejected",
+      lastMessage: "No reaction. The elders declare you Unsouled.",
+    };
+  }
+
+  if (action.type === "crd02-enter-well") {
+    return {
+      ...current,
+      introPhase: "well",
+      wellUnlocked: true,
+      lastTickAt: now,
+      lastMessage: "You find a hidden well exuding aura. Cultivation begins.",
+      solved: solveState({
+        ...current,
+        introPhase: "well",
+        wellUnlocked: true,
+      }),
+    };
+  }
+
+  if (!current.wellUnlocked) {
+    return current;
+  }
+
+  if (action.type === "crd02-open-manual") {
+    const patternIndex = randomPatternIndex(action.seed || now);
+    return {
+      ...current,
+      manual: {
+        open: true,
+        patternIndex,
+        startedAt: now,
+        streak: 0,
+        lastBeatOrdinal: -1,
+        flashUntil: 0,
+      },
+      techniquesOpen: false,
+      lastMessage: "",
+    };
+  }
+
+  if (action.type === "crd02-open-techniques") {
+    if (current.manualCompletions <= 0) {
+      return current;
+    }
+    return {
+      ...current,
+      techniquesOpen: true,
+    };
+  }
+
+  if (action.type === "crd02-close-manual") {
+    return {
+      ...current,
+      manual: {
+        ...current.manual,
+        open: false,
+      },
+    };
+  }
+
+  if (action.type === "crd02-close-techniques") {
+    if (!current.techniquesOpen) {
+      return current;
+    }
+    return {
+      ...current,
+      techniquesOpen: false,
+    };
+  }
+
+  if (action.type === "crd02-debug-madra") {
+    const gain = Math.max(1, Number(action.amount) || DEBUG_MADRA_STEP);
+    return {
+      ...current,
+      madra: roundMadra(current.madra + gain),
+      lastMessage: `Debug gain: +${Math.round(gain)} madra.`,
+    };
+  }
+
+  if (action.type === "crd02-breakthrough") {
+    const stage = normalizeStage(current.cultivationStage);
+    if (stage === "foundation") {
+      if (current.madra < BREAKTHROUGH_COSTS.foundation) {
+        return {
+          ...current,
+          lastMessage: `You need ${BREAKTHROUGH_COSTS.foundation} madra to break through to Copper.`,
+        };
+      }
+      return {
+        ...current,
+        cultivationStage: "copper",
+        madra: 0,
+        lastMessage: "Breakthrough complete. You are now Copper.",
+      };
+    }
+
+    if (stage === "copper") {
+      if (current.madra < BREAKTHROUGH_COSTS.copper) {
+        return {
+          ...current,
+          lastMessage: `You need ${BREAKTHROUGH_COSTS.copper} madra to break through to Iron.`,
+        };
+      }
+
+      if (!rewardMatches(action.artifact, IRON_BREAKTHROUGH_ARTIFACT)) {
+        return {
+          ...current,
+          lastMessage: "Iron breakthrough requires the Cultivation Potion artifact.",
+        };
+      }
+
+      const next = {
+        ...current,
+        cultivationStage: "iron",
+        madra: 0,
+        lastMessage: "Your core condenses into Iron.",
+      };
+      return {
+        ...next,
+        solved: solveState(next),
+      };
+    }
+
+    return {
+      ...current,
+      lastMessage: "You have reached the current stage cap.",
+    };
+  }
+
+  if (action.type === "crd02-manual-tap") {
+    if (!current.manual.open) {
+      return current;
+    }
+
+    const nearest = manualNearestPulse(current.manual, now);
+    if (nearest.beatOrdinal === current.manual.lastBeatOrdinal) {
+      return current;
+    }
+
+    if (!nearest.onBeat) {
+      if (current.manual.streak === 0) {
+        return current;
+      }
+      return {
+        ...current,
+        manual: {
+          ...current.manual,
+          streak: 0,
+        },
+      };
+    }
+
+    const streak = current.manual.streak + 1;
+    if (streak >= MANUAL_STREAK_TARGET) {
+      const gain = manualMadraGain(current);
+      const nextManualCompletions = current.manualCompletions + 1;
+      const next = {
+        ...current,
+        madra: roundMadra(current.madra + gain),
+        totalMadraGenerated: roundMadra(current.totalMadraGenerated + gain),
+        manualCompletions: nextManualCompletions,
+        manual: {
+          ...current.manual,
+          open: false,
+          streak: 0,
+          lastBeatOrdinal: -1,
+          flashUntil: now + 260,
+        },
+        lastMessage: `Manual cycle complete. +${gain} madra.`,
+      };
+      return {
+        ...next,
+        solved: solveState(next),
+      };
+    }
+
+    return {
+      ...current,
+      manual: {
+        ...current.manual,
+        streak,
+        lastBeatOrdinal: nearest.beatOrdinal,
+        flashUntil: now + 240,
+      },
+    };
+  }
+
+  if (action.type === "crd02-buy-cycling") {
+    const techniqueId = String(action.techniqueId || "");
+    if (techniqueId !== "twin-stars" && techniqueId !== "heaven-earth-wheel") {
+      return current;
+    }
+
+    const crd05Solved = Boolean(action.crd05Solved);
+    if (techniqueId === "heaven-earth-wheel" && !crd05Solved) {
+      return {
+        ...current,
+        lastMessage: "The Heaven and Earth Purification Wheel is beyond your grasp for now.",
+      };
+    }
+
+    const level =
+      techniqueId === "twin-stars" ? current.cycling.twinStarsLevel : current.cycling.heavenEarthLevel;
+    const cost = techniqueId === "twin-stars" ? twinStarsCost(level) : heavenEarthCost(level);
+    if (current.madra < cost) {
+      return current;
+    }
+
+    const next = {
+      ...current,
+      madra: roundMadra(current.madra - cost),
+      cycling: {
+        ...current.cycling,
+        twinStarsLevel:
+          techniqueId === "twin-stars" ? current.cycling.twinStarsLevel + 1 : current.cycling.twinStarsLevel,
+        heavenEarthLevel:
+          techniqueId === "heaven-earth-wheel"
+            ? current.cycling.heavenEarthLevel + 1
+            : current.cycling.heavenEarthLevel,
+      },
+      lastMessage:
+        techniqueId === "twin-stars"
+          ? "Heart of Twin Stars deepens."
+          : "Heaven and Earth Purification Wheel begins to turn.",
+    };
+    return {
+      ...next,
+      solved: solveState(next),
+    };
+  }
+
+  if (action.type === "crd02-buy-upgrade") {
+    const upgradeId = String(action.upgradeId || "");
+    const upgrade = UPGRADE_BY_ID[upgradeId];
+    if (!upgrade) {
+      return current;
+    }
+
+    const minimumStage = normalizeStage(upgrade.minStage || "foundation");
+    if (stageIndex(current.cultivationStage) < stageIndex(minimumStage)) {
+      return current;
+    }
+
+    if (!requirementsMet(current, upgrade.requires)) {
+      return current;
+    }
+
+    const cost = upgradeCost(current, upgrade);
+    if (cost == null || current.madra < cost) {
+      return current;
+    }
+
+    const currentLevel = levelOf(current, upgrade.id);
+    const nextLevel = Math.min(currentLevel + 1, upgrade.maxLevel);
+    const next = {
+      ...current,
+      madra: roundMadra(current.madra - cost),
+      upgrades: {
+        ...current.upgrades,
+        [upgrade.id]: nextLevel,
+      },
+      lastMessage: `${upgrade.label} advanced.`,
+    };
+    return {
+      ...next,
+      solved: solveState(next),
+    };
+  }
+
+  return current;
+}
+
+export function buildCrd02ActionFromElement(element) {
+  const actionName = element.getAttribute("data-node-action");
+  if (!actionName) {
+    return null;
+  }
+
+  if (actionName === "crd02-origin-test") {
+    return {
+      type: "crd02-origin-test",
+      artifact: element.getAttribute("data-selected-artifact") || "",
+      at: nowMs(),
+    };
+  }
+
+  if (actionName === "crd02-enter-well") {
+    return {
+      type: "crd02-enter-well",
+      at: nowMs(),
+    };
+  }
+
+  if (actionName === "crd02-open-manual") {
+    return {
+      type: "crd02-open-manual",
+      seed: nowMs(),
+      at: nowMs(),
+    };
+  }
+
+  if (actionName === "crd02-open-techniques") {
+    return {
+      type: "crd02-open-techniques",
+      at: nowMs(),
+    };
+  }
+
+  if (actionName === "crd02-close-manual") {
+    return {
+      type: "crd02-close-manual",
+      at: nowMs(),
+    };
+  }
+
+  if (actionName === "crd02-close-techniques") {
+    return {
+      type: "crd02-close-techniques",
+      at: nowMs(),
+    };
+  }
+
+  if (actionName === "crd02-debug-madra") {
+    return {
+      type: "crd02-debug-madra",
+      amount: Number(element.getAttribute("data-debug-amount")) || DEBUG_MADRA_STEP,
+      at: nowMs(),
+    };
+  }
+
+  if (actionName === "crd02-breakthrough") {
+    return {
+      type: "crd02-breakthrough",
+      artifact: element.getAttribute("data-selected-artifact") || "",
+      ready: element.getAttribute("data-breakthrough-ready") === "true",
+      at: nowMs(),
+    };
+  }
+
+  if (actionName === "crd02-buy-cycling") {
+    return {
+      type: "crd02-buy-cycling",
+      techniqueId: element.getAttribute("data-technique-id"),
+      crd05Solved: element.getAttribute("data-crd05-solved") === "true",
+      at: nowMs(),
+    };
+  }
+
+  if (actionName === "crd02-buy-upgrade") {
+    return {
+      type: "crd02-buy-upgrade",
+      upgradeId: element.getAttribute("data-upgrade-id"),
+      at: nowMs(),
+    };
+  }
+
+  return null;
+}
+
+export function buildCrd02KeyAction(event, runtime) {
+  if (event.metaKey || event.ctrlKey || event.altKey) {
+    return null;
+  }
+
+  const current = normalizeRuntime(runtime);
+  if (!current.manual.open && !current.techniquesOpen) {
+    return null;
+  }
+
+  if (event.code === "Escape") {
+    if (current.manual.open) {
+      return {
+        type: "crd02-close-manual",
+        at: nowMs(),
+      };
+    }
+
+    return {
+      type: "crd02-close-techniques",
+      at: nowMs(),
+    };
+  }
+
+  if (!current.manual.open) {
+    return null;
+  }
+
+  if (event.repeat) {
+    return null;
+  }
+
+  if (event.code === "Space" || event.key === " ") {
+    return {
+      type: "crd02-manual-tap",
+      at: nowMs(),
+    };
+  }
+
+  return null;
+}
+
+function upgradeViewState(runtime, upgrade) {
+  const level = levelOf(runtime, upgrade.id);
+  const cost = upgradeCost(runtime, upgrade);
+  const maxed = cost == null;
+  const prereqsMet = requirementsMet(runtime, upgrade.requires);
+  const acquired = level > 0;
+  const canBuy = !maxed && prereqsMet && runtime.madra >= cost;
+  const visible = upgradeVisible(runtime, upgrade);
+
+  if (!visible) {
+    return {
+      level,
+      cost,
+      maxed,
+      acquired,
+      prereqsMet,
+      canBuy,
+      visible: false,
+    };
+  }
+
+  return {
+    level,
+    cost,
+    maxed,
+    acquired,
+    prereqsMet,
+    canBuy,
+    visible: true,
+  };
+}
+
+function upgradeRequirementText(runtime, upgrade) {
+  const requirements = upgrade.requires || [];
+  if (!requirements.length) {
+    return "Prereq: None";
+  }
+
+  return `Prereq: ${requirements
+    .map((requirement) => {
+      const reqUpgrade = UPGRADE_BY_ID[requirement.id];
+      const label = reqUpgrade ? reqUpgrade.label : requirement.id;
+      const needed = requirement.minLevel || 1;
+      const met = levelOf(runtime, requirement.id) >= needed;
+      return `${met ? "[x]" : "[ ]"} ${label} L${needed}`;
+    })
+    .join(" | ")}`;
+}
+
+function layoutCenter(layoutNode) {
+  return {
+    x: ((layoutNode.col - 0.5) / 6) * 100,
+    y: ((layoutNode.row - 0.5) / 3) * 100,
+  };
+}
+
+function techLinksMarkup(viewById) {
+  const lines = [];
+  for (const node of TECH_TREE_LAYOUT) {
+    const targetView = viewById[node.id];
+    if (!targetView || !targetView.visible) {
+      continue;
+    }
+    const targetUpgrade = UPGRADE_BY_ID[node.id];
+    const requirements = targetUpgrade && Array.isArray(targetUpgrade.requires) ? targetUpgrade.requires : [];
+    for (const requirement of requirements) {
+      const sourceLayout = TECH_LAYOUT_BY_ID[requirement.id];
+      const sourceView = viewById[requirement.id];
+      if (!sourceLayout || !sourceView || !sourceView.visible) {
+        continue;
+      }
+
+      const from = layoutCenter(sourceLayout);
+      const to = layoutCenter(node);
+      lines.push(
+        `<line x1="${from.x.toFixed(2)}%" y1="${from.y.toFixed(2)}%" x2="${to.x.toFixed(2)}%" y2="${to.y.toFixed(2)}%"></line>`,
+      );
+    }
+  }
+  return lines.join("");
+}
+
+function upgradeNodeMarkup(runtime, layoutNode, view) {
+  const upgrade = UPGRADE_BY_ID[layoutNode.id];
+  if (!upgrade) {
+    return "";
+  }
+
+  if (!view.visible) {
+    return `<span class="crd02-tech-node is-hidden" style="grid-column:${layoutNode.col};grid-row:${layoutNode.row};" aria-hidden="true"></span>`;
+  }
+
+  const levelLabel = upgrade.maxLevel ? `${view.level}/${upgrade.maxLevel}` : String(view.level);
+  const minimumStage = normalizeStage(upgrade.minStage || "foundation");
+  const detailLines = [
+    upgrade.label,
+    `Cost: ${view.maxed ? "MAX" : view.cost}`,
+    `Level: ${levelLabel}`,
+    `Stage: ${stageLabel(minimumStage)}+`,
+    upgrade.effect || "",
+    upgradeRequirementText(runtime, upgrade),
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return `
+    <button
+      type="button"
+      class="crd02-tech-node is-shape-${escapeHtml(layoutNode.shape || "hex")} ${view.canBuy ? "is-buyable" : "is-locked"} ${view.maxed ? "is-maxed" : ""} ${view.acquired ? "is-acquired" : ""}"
+      data-node-id="${NODE_ID}"
+      data-node-action="crd02-buy-upgrade"
+      data-upgrade-id="${escapeHtml(upgrade.id)}"
+      title="${escapeHtml(detailLines)}"
+      style="grid-column:${layoutNode.col};grid-row:${layoutNode.row};"
+    >
+      <span class="sr-only">${escapeHtml(upgrade.label)} level ${escapeHtml(levelLabel)}</span>
+      <span class="crd02-tech-core" aria-hidden="true"></span>
+    </button>
+  `;
+}
+
+function techniquesModalMarkup(runtime) {
+  if (!runtime.techniquesOpen) {
+    return "";
+  }
+
+  const viewById = Object.fromEntries(
+    TECH_TREE_LAYOUT.map((node) => [node.id, upgradeViewState(runtime, UPGRADE_BY_ID[node.id])]),
+  );
+
+  return `
+    <div class="crd02-tech-modal" role="dialog" aria-label="Techniques">
+      <section class="crd02-tech-surface">
+        <header>
+          <h3>Techniques</h3>
+          <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="crd02-close-techniques">Close</button>
+        </header>
+        <div class="crd02-tech-tree">
+          <svg class="crd02-tech-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            ${techLinksMarkup(viewById)}
+          </svg>
+          <div class="crd02-tech-constellation">
+            ${TECH_TREE_LAYOUT.map((layoutNode) => upgradeNodeMarkup(runtime, layoutNode, viewById[layoutNode.id])).join("")}
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function manualModalMarkup(runtime) {
+  if (!runtime.manual.open) {
+    return "";
+  }
+
+  const pattern = manualPatternByIndex(runtime.manual.patternIndex);
+  const cycleSeconds = cycleLength(pattern);
+  const flash = nowMs() < runtime.manual.flashUntil;
+  const pulseClass = `is-pattern-${Math.max(0, Number(pattern.visualId) || 0)}`;
+  const phaseDelay = manualPulsePhaseDelaySeconds(runtime.manual);
+  return `
+    <div class="crd02-manual-modal" role="dialog" aria-label="Manual Cultivation">
+      <section class="crd02-manual-surface">
+        <header>
+          <h3>Manual Cultivation</h3>
+          <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="crd02-close-manual">Close</button>
+        </header>
+        <div
+          class="crd02-manual-core ${escapeHtml(pulseClass)}"
+          style="--manual-cycle-seconds: ${escapeHtml(cycleSeconds.toFixed(3))}s; animation-delay: ${escapeHtml(phaseDelay.toFixed(3))}s;"
+          aria-hidden="true"
+        >
+          <span class="crd01-stream stream-a"></span>
+          <span class="crd01-stream stream-b"></span>
+          <span class="crd01-stream stream-c"></span>
+          ${flash ? `<span class="crd01-hit-flash"></span>` : ""}
+          <span class="crd01-core-shell"></span>
+        </div>
+        <p><strong>Pattern:</strong> ${escapeHtml(patternName(runtime.manual.patternIndex))}</p>
+        <p><strong>Cadence:</strong> ${escapeHtml(patternLabel(runtime.manual.patternIndex))}</p>
+        <p><strong>Streak:</strong> ${escapeHtml(String(runtime.manual.streak))}/${MANUAL_STREAK_TARGET}</p>
+        <p class="muted">Press space on pulse. Five in a row completes one manual cycle.</p>
+      </section>
+    </div>
+  `;
+}
+
+export function renderCrd02Experience(context) {
+  const runtime = synchronizeCrd02Runtime(context.runtime, {
+    now: nowMs(),
+    state: context && context.state ? context.state : null,
+  });
+  const solvedIds = new Set(context.state && context.state.solvedNodeIds ? context.state.solvedNodeIds : []);
+  const crd05Solved = solvedIds.has("CRD05");
+  const mps = passiveMadraPerSecond(runtime);
+  const canSeeMenus = runtime.manualCompletions > 0;
+
+  if (!runtime.wellUnlocked) {
+    if (runtime.introPhase !== "rejected") {
+      const selectedArtifact = String(context.selectedArtifactReward || "");
+      const hasStarterSelected = rewardMatches(selectedArtifact, REQUIRED_ARTIFACT);
+      return `
+        <article class="crd02-node" data-node-id="${NODE_ID}">
+          <section class="crd02-origin-card">
+            <h3>Spiritual Origin Test</h3>
+            <p>The elders place your hand above a bowl of pure madra to read your spirit.</p>
+            <p class="muted">Select <strong>Starter Core</strong> in Artifacts, then attempt the test.</p>
+            <button
+              type="button"
+              data-node-id="${NODE_ID}"
+              data-node-action="crd02-origin-test"
+              data-selected-artifact="${escapeHtml(selectedArtifact)}"
+              ${hasStarterSelected ? "" : "disabled"}
+            >
+              Place Hand In Pure Madra
+            </button>
+            <p class="muted">Selected artifact: ${escapeHtml(selectedArtifact || "None")}</p>
+            ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
+          </section>
+        </article>
+      `;
+    }
+
+    return `
+      <article class="crd02-node" data-node-id="${NODE_ID}">
+        <section class="crd02-origin-card">
+          <h3>Unsouled</h3>
+          <p>The madra does not react. You are judged Unsouled and denied training.</p>
+          <p>You run to the woods and discover a hidden well exuding ambient aura.</p>
+          <button type="button" data-node-id="${NODE_ID}" data-node-action="crd02-enter-well">Approach The Well</button>
+          ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
+        </section>
+      </article>
+    `;
+  }
+
+  const twinCost = twinStarsCost(runtime.cycling.twinStarsLevel);
+  const heavenCost = heavenEarthCost(runtime.cycling.heavenEarthLevel);
+  const canBuyTwin = runtime.madra >= twinCost;
+  const canBuyHeaven = crd05Solved && runtime.madra >= heavenCost;
+  const manualReward = manualMadraGain(runtime);
+  const currentStage = normalizeStage(runtime.cultivationStage);
+  const selectedArtifact = String(context.selectedArtifactReward || "");
+  const canBreakToCopper = currentStage === "foundation" && runtime.madra >= BREAKTHROUGH_COSTS.foundation;
+  const hasPotionSelected = rewardMatches(selectedArtifact, IRON_BREAKTHROUGH_ARTIFACT);
+  const canBreakToIron =
+    currentStage === "copper" &&
+    runtime.madra >= BREAKTHROUGH_COSTS.copper &&
+    hasPotionSelected;
+  const breakthroughLabel =
+    currentStage === "foundation"
+      ? `Breakthrough: Copper (${BREAKTHROUGH_COSTS.foundation} Madra)`
+      : currentStage === "copper"
+        ? `Breakthrough: Iron (${BREAKTHROUGH_COSTS.copper} Madra + Cultivation Potion)`
+        : "Stage cap reached";
+
+  return `
+    <article class="crd02-node" data-node-id="${NODE_ID}">
+      <section class="crd02-header">
+        <div>
+          <h3>Madra Well</h3>
+          <p class="muted">Cultivate aura into madra. Stage: ${escapeHtml(stageLabel(currentStage))}</p>
+        </div>
+        <div class="crd02-counter">
+          <p><strong>Madra</strong></p>
+          <p class="crd02-counter-value">${escapeHtml(runtime.madra.toFixed(2))}</p>
+          <p class="muted">${escapeHtml(mps.toFixed(3))}/sec passive</p>
+        </div>
+      </section>
+
+      <section class="crd02-controls">
+        <button type="button" data-node-id="${NODE_ID}" data-node-action="crd02-open-manual">Manual Cultivation</button>
+        <button
+          type="button"
+          data-node-id="${NODE_ID}"
+          data-node-action="crd02-open-techniques"
+          ${canSeeMenus ? "" : "disabled"}
+        >
+          Open Techniques
+        </button>
+        <button
+          type="button"
+          class="ghost"
+          data-node-id="${NODE_ID}"
+          data-node-action="crd02-debug-madra"
+          data-debug-amount="${DEBUG_MADRA_STEP}"
+        >
+          +${DEBUG_MADRA_STEP} Madra (Test)
+        </button>
+        <button
+          type="button"
+          data-node-id="${NODE_ID}"
+          data-node-action="crd02-breakthrough"
+          data-selected-artifact="${escapeHtml(selectedArtifact)}"
+          data-breakthrough-ready="${
+            currentStage === "foundation"
+              ? canBreakToCopper
+                ? "true"
+                : "false"
+              : currentStage === "copper"
+                ? canBreakToIron
+                  ? "true"
+                  : "false"
+                : "false"
+          }"
+          ${
+            currentStage === "foundation"
+              ? canBreakToCopper
+                ? ""
+                : "disabled"
+              : currentStage === "copper"
+                ? canBreakToIron
+                  ? ""
+                  : "disabled"
+                : "disabled"
+          }
+        >
+          ${escapeHtml(breakthroughLabel)}
+        </button>
+        <p class="muted">Manual completion reward: ${escapeHtml(String(manualReward))} madra.</p>
+        ${
+          currentStage === "copper"
+            ? `<p class="muted">Selected artifact for Iron breakthrough: ${escapeHtml(selectedArtifact || "None")}</p>`
+            : ""
+        }
+      </section>
+
+      ${
+        canSeeMenus
+          ? `
+            <section class="crd02-panel">
+              <h4>Cycling Techniques</h4>
+              <div class="crd02-tech-row">
+                <div>
+                  <p><strong>The Heart of Twin Stars</strong></p>
+                  <p class="muted">Level ${escapeHtml(String(runtime.cycling.twinStarsLevel))} | ${(Math.pow(heartOfTwinStarsBase(runtime), runtime.cycling.twinStarsLevel) - 1).toFixed(3)} madra/sec</p>
+                </div>
+                <button
+                  type="button"
+                  data-node-id="${NODE_ID}"
+                  data-node-action="crd02-buy-cycling"
+                  data-technique-id="twin-stars"
+                  data-crd05-solved="${crd05Solved ? "true" : "false"}"
+                  ${canBuyTwin ? "" : "disabled"}
+                >
+                  Upgrade (${escapeHtml(String(twinCost))})
+                </button>
+              </div>
+              <div class="crd02-tech-row">
+                <div>
+                  <p><strong>The Heaven and Earth Purification Wheel</strong></p>
+                  <p class="muted">Level ${escapeHtml(String(runtime.cycling.heavenEarthLevel))} | ${crd05Solved ? "Unlocked by CRD05" : "Locked until CRD05"}</p>
+                </div>
+                <button
+                  type="button"
+                  data-node-id="${NODE_ID}"
+                  data-node-action="crd02-buy-cycling"
+                  data-technique-id="heaven-earth-wheel"
+                  data-crd05-solved="${crd05Solved ? "true" : "false"}"
+                  ${canBuyHeaven ? "" : "disabled"}
+                >
+                  Upgrade (${escapeHtml(String(heavenCost))})
+                </button>
+              </div>
+            </section>
+          `
+          : `
+            <section class="crd02-panel">
+              <p>Manual cultivation unlocked. Gain your first madra to reveal cycling techniques and your techniques tree.</p>
+            </section>
+          `
+      }
+
+      ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
+      ${techniquesModalMarkup(runtime)}
+      ${manualModalMarkup(runtime)}
+    </article>
+  `;
+}
+
+export const CRD02_NODE_EXPERIENCE = {
+  nodeId: NODE_ID,
+  initialState: initialCrd02Runtime,
+  synchronizeRuntime: synchronizeCrd02Runtime,
+  render: renderCrd02Experience,
+  reduceRuntime: reduceCrd02Runtime,
+  validateRuntime: validateCrd02Runtime,
+  buildActionFromElement: buildCrd02ActionFromElement,
+  buildKeyAction: buildCrd02KeyAction,
+};

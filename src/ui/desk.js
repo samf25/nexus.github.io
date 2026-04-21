@@ -1,4 +1,5 @@
 import { escapeHtml } from "../templates/shared.js";
+import { renderRegionSymbol } from "../core/symbology.js";
 
 function bestDeskNode(unlockedNodes, preferredNodeId) {
   if (preferredNodeId) {
@@ -50,7 +51,13 @@ export function renderDesk({ unlockedNodes, selectedNodeId, hintLevels }) {
           <select class="select" data-desk-node>
             ${nodeOptionMarkup(unlockedNodes, selectedNode.node_id)}
           </select>
-          <p>${escapeHtml(selectedNode.node_id)} | ${escapeHtml(selectedNode.title)}</p>
+          <p class="desk-thread-node">
+            ${renderRegionSymbol({
+              section: selectedNode.section,
+              className: "desk-thread-symbol",
+            })}
+            <span>${escapeHtml(selectedNode.node_id)} | ${escapeHtml(selectedNode.title)}</span>
+          </p>
           <p class="muted">Current hint level: ${escapeHtml(String(level))}</p>
 
           <div class="toolbar">
