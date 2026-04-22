@@ -36,6 +36,12 @@ import {
   dispatchDeliveryPlan,
 } from "./systems/deliveryBoard.js";
 import { moveRoom, runRoomAction } from "./systems/dungeonCrawl.js";
+import { reduceWormSystemState } from "./systems/wormDeck.js";
+import { applyPrestigeReset, applyPrestigeUpgradePurchase } from "./systems/prestige.js";
+import {
+  applyPracticalGuideRoleReset,
+  grantPracticalGuideRoleArtifact,
+} from "./systems/practicalGuide.js";
 
 const root = document.getElementById("app");
 
@@ -49,12 +55,73 @@ let widgetState = {
   save: false,
 };
 let selectedArtifactReward = "";
-let nexusSelectionIndex = 0;
-let lastNexusSections = [];
+let nexusRingSelectionIndex = 0;
+let nexusItemSelectionByRing = [];
+let lastNexusRings = [];
 let sectionNodeSelectionIndex = 0;
 let lastSectionNodes = [];
 let activeNodeContext = null;
+let routeVisitNonce = 0;
+let lastRouteForVisit = "";
 const AUTO_RENDER_INTERVAL_MS = 2000;
+const HUB08_ORB_HOLD_MS = 2000;
+const NEXUS_MATH_SECTION_ORDER = Object.freeze([
+  "Hall of Proofs",
+  "Prime Vault",
+  "Symmetry Forge",
+  "Curved Atlas",
+]);
+const MATH_VAULT_PGE_ARTIFACT_PLACEMENTS = Object.freeze({
+  LOG02: "Westwall Ram",
+  NUM02: "Green Wax Seal",
+  ALG02: "Sunless Lantern",
+  GEO02: "Bone Key",
+});
+const PGE_STORY_NODE_IDS = Object.freeze(new Set(["PGE02", "PGE03", "PGE04"]));
+const NODE_ARTIFACT_CONSUME_RULES = Object.freeze([
+  Object.freeze({
+    nodeId: "HUB04",
+    actionType: "arm-bearings",
+    artifact: "Nexus Bearings",
+    usedBy: "HUB04",
+    when: () => true,
+  }),
+  Object.freeze({
+    nodeId: "CRD02",
+    actionType: "crd02-origin-test",
+    artifact: "Starter Core",
+    usedBy: "CRD02",
+    when: () => true,
+  }),
+  Object.freeze({
+    nodeId: "CRD02",
+    actionType: "crd02-breakthrough",
+    artifact: "Cultivation Potion",
+    usedBy: "CRD02",
+    when: (action) => action.ready === true,
+  }),
+  Object.freeze({
+    nodeId: "CRD04",
+    actionType: "crd04-enter-tournament",
+    artifact: "Seven-Year Festival Tournament Pass",
+    usedBy: "CRD04",
+    when: (action) => action.consumePass === true,
+  }),
+  Object.freeze({
+    nodeId: "HUB05",
+    actionType: "hub05-scan-archive",
+    artifact: "Archive Address",
+    usedBy: "HUB05",
+    when: (action) => action.ready === true,
+  }),
+]);
+let hub08OrbHoldSession = {
+  pointerId: null,
+  button: null,
+  startAt: 0,
+  rafId: 0,
+  completed: false,
+};
 
 function setBanner(text) {
   bannerMessage = text;
@@ -66,10 +133,7 @@ function grantSupplementalReward(state, rewardName, node) {
     return state;
   }
 
-  const rewards =
-    state && state.inventory && state.inventory.rewards && typeof state.inventory.rewards === "object"
-      ? state.inventory.rewards
-      : {};
+  const rewards = rewardsMap(state);
 
   if (rewards[reward]) {
     return state;
@@ -91,9 +155,52 @@ function grantSupplementalReward(state, rewardName, node) {
   };
 }
 
+function rewardsMap(state) {
+  return state && state.inventory && state.inventory.rewards && typeof state.inventory.rewards === "object"
+    ? state.inventory.rewards
+    : {};
+}
+
 function withState(updater) {
   appState = typeof updater === "function" ? updater(appState) : updater;
   saveState(appState);
+}
+
+function isPgeStoryNode(nodeId) {
+  return PGE_STORY_NODE_IDS.has(String(nodeId || ""));
+}
+
+function parseArtifactList(value) {
+  return Array.isArray(value)
+    ? value.map((entry) => String(entry || "").trim()).filter((entry) => entry)
+    : [];
+}
+
+function applyNodeRewardConsumption(state, node, action) {
+  let next = state;
+  const nodeId = node && node.node_id ? node.node_id : "";
+
+  for (const rule of NODE_ARTIFACT_CONSUME_RULES) {
+    if (nodeId !== rule.nodeId || action.type !== rule.actionType) {
+      continue;
+    }
+    if (String(action.artifact || "") !== rule.artifact) {
+      continue;
+    }
+    if (!rule.when(action)) {
+      continue;
+    }
+    next = consumeReward(next, rule.artifact, rule.usedBy);
+  }
+
+  if (nodeId === "HUB08" && action.type === "hub08-socket-artifact") {
+    const artifact = String(action.artifact || "");
+    if (action.ready === true && artifact) {
+      next = consumeReward(next, artifact, "HUB08");
+    }
+  }
+
+  return next;
 }
 
 function isDeskUnlocked(state) {
@@ -119,10 +226,7 @@ function ensureDerivedRewards(state) {
     return state;
   }
 
-  const rewards =
-    state && state.inventory && state.inventory.rewards && typeof state.inventory.rewards === "object"
-      ? state.inventory.rewards
-      : {};
+  const rewards = rewardsMap(state);
   if (rewards["Wave-I Passkey"] || rewards["Wave 1 Passkey"]) {
     return state;
   }
@@ -138,10 +242,7 @@ function ensureSelectedArtifactStillAvailable() {
     return;
   }
 
-  const rewards =
-    appState && appState.inventory && appState.inventory.rewards && typeof appState.inventory.rewards === "object"
-      ? appState.inventory.rewards
-      : {};
+  const rewards = rewardsMap(appState);
 
   if (!rewards[selectedArtifactReward]) {
     selectedArtifactReward = "";
@@ -179,27 +280,132 @@ function backLinkForRoute(route) {
   return null;
 }
 
+function isNexusMathSection(sectionName) {
+  const name = String(sectionName || "");
+  return NEXUS_MATH_SECTION_ORDER.includes(name);
+}
+
+function isNexusOuterSection(sectionName) {
+  const name = String(sectionName || "");
+  if (name === "Nexus Hub" || name === "Final Arc") {
+    return true;
+  }
+  return name.startsWith("Convergence ");
+}
+
+function outerRingSort(a, b) {
+  const rank = (sectionName) => {
+    const name = String(sectionName || "");
+    if (name === "Nexus Hub") {
+      return 0;
+    }
+    if (name.startsWith("Convergence ")) {
+      return 1;
+    }
+    if (name === "Final Arc") {
+      return 2;
+    }
+    return 3;
+  };
+  const rankA = rank(a.section);
+  const rankB = rank(b.section);
+  if (rankA !== rankB) {
+    return rankA - rankB;
+  }
+  return String(a.section).localeCompare(String(b.section));
+}
+
+function middleRingSort(a, b) {
+  return String(a.section).localeCompare(String(b.section));
+}
+
+function innerRingSort(a, b) {
+  const rank = (sectionName) => {
+    const index = NEXUS_MATH_SECTION_ORDER.indexOf(String(sectionName || ""));
+    return index >= 0 ? index : 999;
+  };
+  const rankA = rank(a.section);
+  const rankB = rank(b.section);
+  if (rankA !== rankB) {
+    return rankA - rankB;
+  }
+  return String(a.section).localeCompare(String(b.section));
+}
+
+function buildNexusRings(sectionProgress) {
+  const sections = Array.isArray(sectionProgress) ? sectionProgress : [];
+  const outerSections = sections.filter((entry) => isNexusOuterSection(entry.section)).sort(outerRingSort);
+  const innerSections = sections.filter((entry) => isNexusMathSection(entry.section)).sort(innerRingSort);
+  const middleSections = sections
+    .filter((entry) => !isNexusOuterSection(entry.section) && !isNexusMathSection(entry.section))
+    .sort(middleRingSort);
+
+  return [
+    { ringKey: "outer", label: "Outer Ring", sections: outerSections },
+    { ringKey: "middle", label: "Region Ring", sections: middleSections },
+    { ringKey: "inner", label: "Vault Ring", sections: innerSections },
+  ].filter((ring) => ring.sections.length > 0);
+}
+
 function normalizeNexusSelection() {
-  if (!lastNexusSections.length) {
-    nexusSelectionIndex = 0;
+  if (!lastNexusRings.length) {
+    nexusRingSelectionIndex = 0;
+    nexusItemSelectionByRing = [];
     return;
   }
 
-  if (nexusSelectionIndex < 0) {
-    nexusSelectionIndex = lastNexusSections.length - 1;
-    return;
+  if (nexusRingSelectionIndex < 0) {
+    nexusRingSelectionIndex = lastNexusRings.length - 1;
+  } else if (nexusRingSelectionIndex >= lastNexusRings.length) {
+    nexusRingSelectionIndex = 0;
   }
 
-  if (nexusSelectionIndex >= lastNexusSections.length) {
-    nexusSelectionIndex = 0;
+  const nextSelections = Array.isArray(nexusItemSelectionByRing) ? nexusItemSelectionByRing.slice() : [];
+  for (let ringIndex = 0; ringIndex < lastNexusRings.length; ringIndex += 1) {
+    const ring = lastNexusRings[ringIndex];
+    const ringSize = ring.sections.length;
+    if (!ringSize) {
+      nextSelections[ringIndex] = 0;
+      continue;
+    }
+
+    let itemIndex = Number(nextSelections[ringIndex]);
+    if (!Number.isFinite(itemIndex)) {
+      itemIndex = 0;
+    }
+
+    if (itemIndex < 0) {
+      itemIndex = ringSize - 1;
+    } else if (itemIndex >= ringSize) {
+      itemIndex = 0;
+    }
+
+    nextSelections[ringIndex] = itemIndex;
   }
+
+  nexusItemSelectionByRing = nextSelections;
 }
 
 function cycleNexus(step) {
-  if (!lastNexusSections.length) {
+  if (!lastNexusRings.length) {
     return;
   }
-  nexusSelectionIndex += step;
+
+  const ring = lastNexusRings[nexusRingSelectionIndex];
+  if (!ring || !ring.sections.length) {
+    return;
+  }
+
+  const currentItem = Number(nexusItemSelectionByRing[nexusRingSelectionIndex] || 0);
+  nexusItemSelectionByRing[nexusRingSelectionIndex] = currentItem + step;
+  normalizeNexusSelection();
+}
+
+function switchNexusRing(step) {
+  if (!lastNexusRings.length) {
+    return;
+  }
+  nexusRingSelectionIndex += step;
   normalizeNexusSelection();
 }
 
@@ -242,11 +448,21 @@ function openSelectedSectionNode() {
 }
 
 function openSelectedNexusSection() {
-  if (!lastNexusSections.length) {
+  if (!lastNexusRings.length) {
     return;
   }
 
-  const selected = lastNexusSections[nexusSelectionIndex];
+  const ring = lastNexusRings[nexusRingSelectionIndex];
+  if (!ring || !ring.sections.length) {
+    return;
+  }
+
+  const itemIndex = Number(nexusItemSelectionByRing[nexusRingSelectionIndex] || 0);
+  const selected = ring.sections[itemIndex];
+  if (!selected) {
+    return;
+  }
+
   navigate(`/section/${sectionRouteSlug(selected.section)}`);
 }
 
@@ -316,63 +532,157 @@ function dispatchActiveNodeAction(action) {
 
   withState((current) => {
     let next = current;
+    let runtimeAction = action;
+    const wormSystemResult = reduceWormSystemState(next.systems.worm, action, Date.now());
+    if (wormSystemResult.changed) {
+      next = updateSystemState(next, "worm", wormSystemResult.nextState);
+      if (wormSystemResult.message) {
+        setBanner(wormSystemResult.message);
+      }
+    }
+    next = applyNodeRewardConsumption(next, node, action);
 
-    if (
-      node.node_id === "HUB04" &&
-      action.type === "arm-bearings" &&
-      String(action.artifact || "") === "Nexus Bearings"
-    ) {
-      next = consumeReward(next, "Nexus Bearings", "HUB04");
+    if (node.node_id === "HUB08" && action.type === "hub08-infuse-madra") {
+      const cost = 3;
+      const crd02Runtime = getNodeRuntime(next, "CRD02", () => ({}));
+      const currentMadra = Math.max(
+        0,
+        Number(crd02Runtime && typeof crd02Runtime === "object" ? crd02Runtime.madra : 0) || 0,
+      );
+
+      if (currentMadra >= cost) {
+        const remainingMadra = Number((currentMadra - cost).toFixed(2));
+        next = updateNodeRuntime(
+          next,
+          "CRD02",
+          (runtime) => ({
+            ...(runtime && typeof runtime === "object" ? runtime : {}),
+            madra: remainingMadra,
+          }),
+          () => ({ madra: 0 }),
+        );
+        runtimeAction = {
+          ...action,
+          applied: true,
+          message: `${cost} Madra offered to the orb.`,
+        };
+      } else {
+        runtimeAction = {
+          ...action,
+          applied: false,
+          message: `Need ${cost} Madra.`,
+        };
+      }
     }
 
-    if (
-      node.node_id === "CRD02" &&
-      action.type === "crd02-origin-test" &&
-      String(action.artifact || "") === "Starter Core"
-    ) {
-      next = consumeReward(next, "Starter Core", "CRD02");
+    if (node.node_id === "HUB08" && action.type === "hub08-sacrifice-cape") {
+      const sacrificeResult = reduceWormSystemState(
+        next.systems.worm,
+        {
+          type: "worm-sacrifice-cape",
+          cardId: action.cardId,
+        },
+        Date.now(),
+      );
+      if (sacrificeResult.changed) {
+        next = updateSystemState(next, "worm", sacrificeResult.nextState);
+      }
+      runtimeAction = {
+        ...action,
+        applied: sacrificeResult.changed,
+        message: sacrificeResult.message,
+      };
     }
 
-    if (
-      node.node_id === "CRD02" &&
-      action.type === "crd02-breakthrough" &&
-      action.ready === true &&
-      String(action.artifact || "") === "Cultivation Potion"
-    ) {
-      next = consumeReward(next, "Cultivation Potion", "CRD02");
+    if (node.node_id === "PGE01" && action.type === "pge01-claim-role") {
+      const roleArtifact = String(action.roleArtifact || "");
+      if (roleArtifact) {
+        next = grantPracticalGuideRoleArtifact(next, roleArtifact, "PGE01");
+      }
     }
 
-    if (
-      node.node_id === "CRD04" &&
-      action.type === "crd04-enter-tournament" &&
-      action.consumePass === true &&
-      String(action.artifact || "") === "Seven-Year Festival Tournament Pass"
-    ) {
-      next = consumeReward(next, "Seven-Year Festival Tournament Pass", "CRD04");
+    if (isPgeStoryNode(node.node_id) && action.type === "pge-dev-grant-artifacts") {
+      const artifacts = parseArtifactList(action.artifacts);
+      for (const artifact of artifacts) {
+        next = grantSupplementalReward(next, artifact, node);
+      }
+      if (artifacts.length) {
+        setBanner(`Granted ${artifacts.length} test artifact${artifacts.length === 1 ? "" : "s"} for ${node.node_id}.`);
+      }
     }
 
-    if (
-      node.node_id === "HUB05" &&
-      action.type === "hub05-scan-archive" &&
-      action.ready === true &&
-      String(action.artifact || "") === "Archive Address"
-    ) {
-      next = consumeReward(next, "Archive Address", "HUB05");
+    if (node.node_id === "MOL02" && action.type === "mol02-finalize-reset") {
+      const regionId = String(action.regionId || "").trim().toLowerCase();
+      const resetResult = regionId === "practical-guide"
+        ? applyPracticalGuideRoleReset(next)
+        : applyPrestigeReset(next, action.regionId, Date.now());
+      if (resetResult.applied) {
+        next = resetResult.nextState;
+      }
+      runtimeAction = {
+        ...action,
+        applied: resetResult.applied,
+        message: resetResult.message,
+        chargedCost: resetResult.cost || 0,
+        awardedPointLabel: resetResult.pointLabel || "",
+      };
+      setBanner(resetResult.message);
+    }
+
+    if (node.node_id === "MOL03" && action.type === "mol03-buy-upgrade") {
+      const purchaseResult = applyPrestigeUpgradePurchase(next, action.regionId, action.upgradeId);
+      if (purchaseResult.applied) {
+        next = purchaseResult.nextState;
+      }
+      runtimeAction = {
+        ...action,
+        applied: purchaseResult.applied,
+        message: purchaseResult.message,
+      };
+      setBanner(purchaseResult.message);
     }
 
     const runtimeState = next;
     next = updateNodeRuntime(
       runtimeState,
       node.node_id,
-      (runtime) => experience.reduceRuntime(runtime, action),
+      (runtime) => experience.reduceRuntime(runtime, runtimeAction, {
+        now: Date.now(),
+        node,
+        state: runtimeState,
+        runtime,
+        selectedArtifactReward,
+        routeVisitNonce,
+      }),
       () => experience.initialState({ node, state: runtimeState }),
     );
 
     const runtime = readNodeRuntime(next, node, experience);
+
+    if (isPgeStoryNode(node.node_id) && runtime && Array.isArray(runtime.pendingRewards) && runtime.pendingRewards.length) {
+      const rewardsToGrant = parseArtifactList(runtime.pendingRewards);
+      for (const reward of rewardsToGrant) {
+        next = grantSupplementalReward(next, reward, node);
+      }
+      next = updateNodeRuntime(
+        next,
+        node.node_id,
+        (currentRuntime) => ({
+          ...(currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {}),
+          pendingRewards: [],
+        }),
+        () => experience.initialState({ node, state: next }),
+      );
+      if (rewardsToGrant.length) {
+        setBanner(`Recovered ${rewardsToGrant.join(", ")}.`);
+      }
+    }
+
+    const runtimeAfterRewards = readNodeRuntime(next, node, experience);
     const solvedNow =
       typeof experience.validateRuntime === "function"
-        ? Boolean(experience.validateRuntime(runtime))
-        : Boolean(runtime && runtime.solved);
+        ? Boolean(experience.validateRuntime(runtimeAfterRewards))
+        : Boolean(runtimeAfterRewards && runtimeAfterRewards.solved);
     const solvedBefore = (next.solvedNodeIds || []).includes(node.node_id);
 
     if (solvedNow && !solvedBefore) {
@@ -381,6 +691,11 @@ function dispatchActiveNodeAction(action) {
       if (node.node_id === "CRD04") {
         next = grantSupplementalReward(next, "Suriel's Marble", node);
         bonusReward = `${bonusReward} + Suriel's Marble`;
+      }
+      if (MATH_VAULT_PGE_ARTIFACT_PLACEMENTS[node.node_id]) {
+        const artifact = MATH_VAULT_PGE_ARTIFACT_PLACEMENTS[node.node_id];
+        next = grantSupplementalReward(next, artifact, node);
+        bonusReward = `${bonusReward} + ${artifact}`;
       }
 
       setBanner(`${node.node_id} solved. Reward added: ${node.reward || "(none)"}${bonusReward}.`);
@@ -414,6 +729,133 @@ function handleNodeActionClick(target) {
   }
 
   return dispatchActiveNodeAction(action);
+}
+
+function clearHub08OrbHoldSession({ resetVisual = true } = {}) {
+  const session = hub08OrbHoldSession;
+  if (session.rafId) {
+    window.cancelAnimationFrame(session.rafId);
+  }
+
+  const button = session.button;
+  if (button && button.isConnected) {
+    if (resetVisual) {
+      button.classList.remove("is-charging");
+      button.style.setProperty("--hub08-orb-charge", "0");
+    }
+
+    if (
+      session.pointerId !== null &&
+      typeof button.hasPointerCapture === "function" &&
+      typeof button.releasePointerCapture === "function"
+    ) {
+      try {
+        if (button.hasPointerCapture(session.pointerId)) {
+          button.releasePointerCapture(session.pointerId);
+        }
+      } catch (_error) {
+        // Ignore pointer capture release failures.
+      }
+    }
+  }
+
+  hub08OrbHoldSession = {
+    pointerId: null,
+    button: null,
+    startAt: 0,
+    rafId: 0,
+    completed: false,
+  };
+}
+
+function startHub08OrbHold(button, pointerId) {
+  clearHub08OrbHoldSession();
+  const startAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+
+  hub08OrbHoldSession = {
+    pointerId,
+    button,
+    startAt,
+    rafId: 0,
+    completed: false,
+  };
+
+  button.classList.add("is-charging");
+  button.style.setProperty("--hub08-orb-charge", "0");
+
+  if (typeof button.setPointerCapture === "function") {
+    try {
+      button.setPointerCapture(pointerId);
+    } catch (_error) {
+      // Ignore pointer capture acquisition failures.
+    }
+  }
+
+  const tick = (timestamp) => {
+    const session = hub08OrbHoldSession;
+    if (session.button !== button || session.completed) {
+      return;
+    }
+
+    const now = Number.isFinite(timestamp)
+      ? timestamp
+      : typeof performance !== "undefined"
+        ? performance.now()
+        : Date.now();
+    const progress = Math.min(1, Math.max(0, (now - session.startAt) / HUB08_ORB_HOLD_MS));
+    button.style.setProperty("--hub08-orb-charge", progress.toFixed(3));
+
+    if (progress >= 1) {
+      session.completed = true;
+      button.classList.remove("is-charging");
+      button.style.setProperty("--hub08-orb-charge", "1");
+      const action = {
+        type: "hub08-infuse-madra",
+        ready: button.getAttribute("data-ready") === "true",
+        at: Date.now(),
+      };
+      dispatchActiveNodeAction(action);
+      clearHub08OrbHoldSession({ resetVisual: false });
+      return;
+    }
+
+    session.rafId = window.requestAnimationFrame(tick);
+  };
+
+  hub08OrbHoldSession.rafId = window.requestAnimationFrame(tick);
+}
+
+function handlePointerDown(event) {
+  const context = currentActiveNodeContext();
+  if (!context || context.node.node_id !== "HUB08") {
+    return;
+  }
+
+  const target = event.target instanceof Element ? event.target.closest("[data-hub08-orb]") : null;
+  if (!target) {
+    return;
+  }
+
+  if (target instanceof HTMLButtonElement && target.disabled) {
+    return;
+  }
+
+  event.preventDefault();
+  startHub08OrbHold(target, event.pointerId);
+}
+
+function handlePointerEnd(event) {
+  if (hub08OrbHoldSession.pointerId === null) {
+    return;
+  }
+
+  if (typeof event.pointerId === "number" && event.pointerId !== hub08OrbHoldSession.pointerId) {
+    return;
+  }
+
+  if (!hub08OrbHoldSession.completed) {
+    clearHub08OrbHoldSession();
+  }
 }
 
 function handleNodeKeyDown(event) {
@@ -573,8 +1015,9 @@ function contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress) {
     sectionNodeSelectionIndex = 0;
     return {
       html: renderNexusView({
-        sectionProgress,
-        selectedIndex: nexusSelectionIndex,
+        rings: lastNexusRings,
+        selectedRingIndex: nexusRingSelectionIndex,
+        selectedItemIndices: nexusItemSelectionByRing,
         state: appState,
         selectedArtifactReward,
       }),
@@ -620,6 +1063,7 @@ function contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress) {
         solvedSet,
         unlockedNodeIds,
         selectedIndex: sectionNodeSelectionIndex,
+        state: appState,
       }),
     };
   }
@@ -644,6 +1088,7 @@ function contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress) {
               node,
               state: appState,
               selectedArtifactReward,
+              routeVisitNonce,
             }),
           () => customExperience.initialState({ node, state: appState }),
         );
@@ -691,6 +1136,9 @@ function renderApp(route = getCurrentRoute()) {
   if (!blueprintIndex) {
     return;
   }
+  if (hub08OrbHoldSession.pointerId !== null) {
+    clearHub08OrbHoldSession();
+  }
 
   withMadraTick(route);
   appState = ensureDerivedRewards(appState);
@@ -700,12 +1148,16 @@ function renderApp(route = getCurrentRoute()) {
   const solvedSet = new Set(appState.solvedNodeIds || []);
   const sectionProgress = computeSectionProgress(blueprintIndex, appState, unlockedNodeIds);
   const visibleNexusSections = sectionProgress.filter((section) => section.unlocked > 0);
+  const nexusRings = buildNexusRings(visibleNexusSections);
   const frontier = frontierNodes(blueprintIndex, appState, unlockedNodeIds, 12);
 
-  lastNexusSections = visibleNexusSections;
+  lastNexusRings = nexusRings;
   normalizeNexusSelection();
 
   const content = contentForRoute(route, unlockedNodeIds, solvedSet, visibleNexusSections);
+  const activeRouteNode = blueprintIndex.nodesByRoute.get(route) || null;
+  const activeRouteNodeId = activeRouteNode ? activeRouteNode.node_id : "";
+  const activeRouteNodeSolved = activeRouteNode ? solvedSet.has(activeRouteNode.node_id) : false;
   const banner = bannerMessage
     ? `<section class="card note" style="margin-bottom: 12px;"><strong>Update:</strong> ${escapeHtml(bannerMessage)}</section>`
     : "";
@@ -722,6 +1174,8 @@ function renderApp(route = getCurrentRoute()) {
     contentHtml: `${banner}${content.html}`,
     widgetState,
     currentRoute: route,
+    activeNodeId: activeRouteNodeId,
+    activeNodeSolved: activeRouteNodeSolved,
   });
 
   bannerMessage = "";
@@ -839,9 +1293,11 @@ function handleClick(event) {
   }
 
   if (action === "nexus-focus") {
-    const index = Number(button.getAttribute("data-index") || 0);
-    if (Number.isInteger(index)) {
-      nexusSelectionIndex = index;
+    const ringIndex = Number(button.getAttribute("data-ring-index") || 0);
+    const itemIndex = Number(button.getAttribute("data-item-index") || 0);
+    if (Number.isInteger(ringIndex) && Number.isInteger(itemIndex)) {
+      nexusRingSelectionIndex = ringIndex;
+      nexusItemSelectionByRing[ringIndex] = itemIndex;
       normalizeNexusSelection();
       renderApp();
     }
@@ -920,6 +1376,31 @@ function handleClick(event) {
     return;
   }
 
+  if (action === "dev-autocomplete-node") {
+    const nodeId = button.getAttribute("data-node-id");
+    const node = blueprintIndex.nodesById.get(nodeId);
+    if (!node) {
+      return;
+    }
+    if ((appState.solvedNodeIds || []).includes(node.node_id)) {
+      setBanner(`${node.node_id} already solved.`);
+      renderApp();
+      return;
+    }
+
+    withState((current) => {
+      let next = markNodeSolved(current, node);
+      if (node.node_id === "CRD04") {
+        next = grantSupplementalReward(next, "Suriel's Marble", node);
+      }
+      return next;
+    });
+    const bonus = node.node_id === "CRD04" ? " + Suriel's Marble" : "";
+    setBanner(`${node.node_id} autocompleted. Reward added: ${node.reward || "(none)"}${bonus}.`);
+    renderApp();
+    return;
+  }
+
   if (action === "madra-refine") {
     const conversion = convertMadraToCharge(appState.systems.madraWell);
     withState((current) => updateSystemState(current, "madraWell", conversion.nextState));
@@ -969,6 +1450,19 @@ function handleClick(event) {
 
 function handleChange(event) {
   if (!(event.target instanceof Element)) {
+    return;
+  }
+
+  const wormOrderType = event.target.closest("[data-worm02-order-type]");
+  if (wormOrderType) {
+    const row = wormOrderType.closest("[data-worm02-order-row]");
+    if (row) {
+      const infoWrap = row.querySelector("[data-worm02-info-wrap]");
+      if (infoWrap) {
+        const type = String("value" in wormOrderType ? wormOrderType.value : "").trim().toLowerCase();
+        infoWrap.hidden = type !== "info";
+      }
+    }
     return;
   }
 
@@ -1035,20 +1529,34 @@ function handleKeyDown(event) {
   const route = getCurrentRoute();
 
   if (route === "/") {
-    if (!lastNexusSections.length) {
+    if (!lastNexusRings.length) {
       return;
     }
 
-    if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+    if (event.key === "ArrowLeft") {
       event.preventDefault();
       cycleNexus(-1);
       renderApp();
       return;
     }
 
-    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+    if (event.key === "ArrowRight") {
       event.preventDefault();
       cycleNexus(1);
+      renderApp();
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      switchNexusRing(-1);
+      renderApp();
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      switchNexusRing(1);
       renderApp();
       return;
     }
@@ -1109,19 +1617,45 @@ async function bootstrap() {
     root.addEventListener("drop", handleDrop);
     root.addEventListener("dragend", handleDragEnd);
     root.addEventListener("wheel", handleWheel, { passive: false });
+    root.addEventListener("pointerdown", handlePointerDown);
+    root.addEventListener("pointerup", handlePointerEnd);
+    root.addEventListener("pointercancel", handlePointerEnd);
+    window.addEventListener("blur", () => {
+      if (hub08OrbHoldSession.pointerId !== null) {
+        clearHub08OrbHoldSession();
+      }
+    });
     window.addEventListener("keydown", handleKeyDown);
 
-    subscribeToRouteChanges((route) => renderApp(route));
+    subscribeToRouteChanges((route) => {
+      if (route !== lastRouteForVisit) {
+        routeVisitNonce += 1;
+        lastRouteForVisit = route;
+      }
+      renderApp(route);
+    });
     renderApp();
+    let lastSlowAutoRenderAt = 0;
     window.setInterval(() => {
       if (document.visibilityState === "hidden") {
         return;
       }
-      const route = getCurrentRoute();
-      if (route !== "/cradle/madra-well" && route !== "/cradle/sacred-valley-tournament") {
+      if (widgetState.artifacts || widgetState.signals || widgetState.save) {
         return;
       }
-      renderApp();
+      const route = getCurrentRoute();
+      const now = Date.now();
+      const isSlowNode = route === "/cradle/madra-well" || route === "/cradle/sacred-valley-tournament";
+
+      if (!isSlowNode) {
+        return;
+      }
+
+      if (now - lastSlowAutoRenderAt < AUTO_RENDER_INTERVAL_MS) {
+        return;
+      }
+      lastSlowAutoRenderAt = now;
+      renderApp(route);
     }, AUTO_RENDER_INTERVAL_MS);
   } catch (error) {
     root.innerHTML = `

@@ -1,5 +1,9 @@
 import { escapeHtml } from "./shared.js";
 import { renderRegionSymbol } from "../core/symbology.js";
+import {
+  countPracticalGuideWinArtifacts,
+  practicalGuideWinArtifacts,
+} from "../systems/practicalGuide.js";
 
 function nodeClass(isSolved, isUnlocked) {
   if (isSolved) {
@@ -19,11 +23,14 @@ function polarPosition(index, total, radiusPercent) {
 }
 
 export function renderRegionHub(context) {
-  const { section, nodes, solvedSet, unlockedNodeIds, selectedIndex } = context;
+  const { section, nodes, solvedSet, unlockedNodeIds, selectedIndex, state } = context;
   const safeIndex = Math.min(Math.max(Number(selectedIndex) || 0, 0), Math.max(nodes.length - 1, 0));
   const selectedNode = nodes[safeIndex] || null;
   const solved = nodes.filter((node) => solvedSet.has(node.node_id)).length;
   const percent = nodes.length ? Math.round((solved / nodes.length) * 100) : 0;
+  const isPracticalGuide = section === "A Practical Guide to Evil";
+  const pgeWinFound = isPracticalGuide ? countPracticalGuideWinArtifacts(state) : 0;
+  const pgeWinTotal = isPracticalGuide ? practicalGuideWinArtifacts().length : 0;
 
   const stars = nodes
     .map((node, index) => {
@@ -68,6 +75,7 @@ export function renderRegionHub(context) {
           })}
           <h2>${escapeHtml(section)}</h2>
           <p>${escapeHtml(String(solved))}/${escapeHtml(String(nodes.length))} solved</p>
+          ${isPracticalGuide ? `<p>${escapeHtml(String(pgeWinFound))}/${escapeHtml(String(pgeWinTotal))} win paths found</p>` : ""}
           <p class="key-hint">Arrows to choose a node. Enter to enter.</p>
         </div>
         <div class="nexus-orbit">${stars}</div>

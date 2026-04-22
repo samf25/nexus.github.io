@@ -558,7 +558,7 @@
     },
     {
       "node_id": "MOL01",
-      "title": "Cyoria Morning Variants",
+      "title": "Memory Spiral",
       "category": "Literary",
       "section": "Mother of Learning",
       "sheet": "MoL",
@@ -615,7 +615,7 @@
     },
     {
       "node_id": "MOL02",
-      "title": "Academy Month Calendar",
+      "title": "Loop Reset",
       "category": "Literary",
       "section": "Mother of Learning",
       "sheet": "MoL",
@@ -841,7 +841,7 @@
     },
     {
       "node_id": "WORM01",
-      "title": "PRT Classification Archive",
+      "title": "Undersiders' Loft",
       "category": "Literary",
       "section": "Worm",
       "sheet": "Worm",
@@ -869,7 +869,7 @@
       "writes_state": [
         "inventory.class_sheet"
       ],
-      "reward": "Class Sheet",
+      "reward": "",
       "surface": "PRT Classification Archive is a canon document or dossier analysis page built from brockton bay capes and their prt classifications.",
       "mechanics": "Use canon knowledge of power identity, PRT classification, primary versus secondary rating to identify the capes from their dossier summaries and assign the correct classifications; then extract from intake-number order.",
       "validation": "Require the correct canonical mapping or state plus extraction from intake-number order.",
@@ -904,7 +904,7 @@
     },
     {
       "node_id": "WORM02",
-      "title": "Trigger Root Causes",
+      "title": "The Arena",
       "category": "Literary",
       "section": "Worm",
       "sheet": "Worm",
@@ -1163,7 +1163,7 @@
     },
     {
       "node_id": "MOL03",
-      "title": "Who Remembers?",
+      "title": "Prestige Lattice",
       "category": "Literary",
       "section": "Mother of Learning",
       "sheet": "MoL",
@@ -2527,7 +2527,7 @@
     },
     {
       "node_id": "DCC01",
-      "title": "Tutorial Floor",
+      "title": "The Crawl",
       "category": "Literary",
       "section": "Dungeon Crawler Carl",
       "sheet": "Dungeon Crawler Carl",

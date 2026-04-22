@@ -21,6 +21,10 @@ const SELECTABLE_ACTIONS = Object.freeze([
 ]);
 
 const INFO_DEBUFF_KEYS = Object.freeze(STAT_KEYS.slice());
+const ENEMY_AI_MODES = Object.freeze({
+  basic: "basic",
+  weighted: "weighted",
+});
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -102,6 +106,7 @@ function normalizeCard(card) {
     range: toStat(source.range),
     speed: toStat(source.speed),
     stealth: toStat(source.stealth),
+    currentHp: Number.isFinite(Number(source.currentHp)) ? Math.max(0, Math.round(Number(source.currentHp))) : null,
     rarity: Number.isFinite(Number(source.rarity)) ? Number(source.rarity) : 0,
     rarityTier: safeText(source.rarityTier || "common"),
   };
@@ -110,6 +115,9 @@ function normalizeCard(card) {
 function buildCombatant(card, teamId, slotIndex) {
   const normalized = normalizeCard(card);
   const baseHp = Math.max(40, normalized.endurance * 50);
+  const startingHp = Number.isFinite(normalized.currentHp)
+    ? clamp(normalized.currentHp, 0, baseHp)
+    : baseHp;
   return {
     combatantId: `${teamId}-${slotIndex + 1}`,
     teamId,
@@ -131,7 +139,7 @@ function buildCombatant(card, teamId, slotIndex) {
     rarity: normalized.rarity,
     rarityTier: normalized.rarityTier,
     maxHp: baseHp,
-    hp: baseHp,
+    hp: startingHp,
     modifiers: emptyModifiers(),
     debuffs: emptyDebuffs(),
     guardTargetId: "",
@@ -242,6 +250,53 @@ function pickRandom(arr, seed, salt = 0) {
   };
 }
 
+function pickWeighted(items, getWeight, seed, salt = 0) {
+  if (!Array.isArray(items) || !items.length) {
+    return {
+      seed,
+      value: null,
+      index: -1,
+    };
+  }
+
+  const weighted = [];
+  let totalWeight = 0;
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    const weight = Math.max(0, Number(getWeight(item, index)) || 0);
+    weighted.push({
+      item,
+      index,
+      weight,
+    });
+    totalWeight += weight;
+  }
+
+  if (totalWeight <= 0) {
+    return pickRandom(items, seed, salt);
+  }
+
+  const roll = randomUnit(seed, salt);
+  let cursor = roll.value * totalWeight;
+  for (const entry of weighted) {
+    cursor -= entry.weight;
+    if (cursor <= 0) {
+      return {
+        seed: roll.seed,
+        value: entry.item,
+        index: entry.index,
+      };
+    }
+  }
+
+  const fallback = weighted[weighted.length - 1];
+  return {
+    seed: roll.seed,
+    value: fallback.item,
+    index: fallback.index,
+  };
+}
+
 function chooseAttackTarget(state, actor, orderTargetId) {
   const opponents = livingTeamMembers(state, opposingTeamId(actor.teamId));
   if (!opponents.length) {
@@ -334,7 +389,93 @@ function normalizeOrderForActor(actor, order, state) {
   };
 }
 
-function defaultEnemyOrders(state) {
+function enemyActionWeight(actor, action) {
+  if (action === WORM_ACTION_TYPES.attack) {
+    return Math.max(0.4, effectiveStat(actor, "attack"));
+  }
+  if (action === WORM_ACTION_TYPES.defense) {
+    return Math.max(0.2, effectiveStat(actor, "defense"));
+  }
+  if (action === WORM_ACTION_TYPES.info) {
+    return Math.max(0.2, effectiveStat(actor, "info"));
+  }
+  if (action === WORM_ACTION_TYPES.manipulation) {
+    return Math.max(0.2, effectiveStat(actor, "manipulation"));
+  }
+  if (action === WORM_ACTION_TYPES.speed) {
+    return Math.max(0.15, effectiveStat(actor, "speed"));
+  }
+  if (action === WORM_ACTION_TYPES.stealth) {
+    return Math.max(0.15, effectiveStat(actor, "stealth"));
+  }
+  return 1;
+}
+
+function attackTargetWeight(actor, target) {
+  const missingFraction =
+    Math.max(0, Number(target.maxHp || 0) - Number(target.hp || 0)) / Math.max(1, Number(target.maxHp || 1));
+  const rangeFactor = Math.max(1, effectiveStat(target, "range"));
+  const actorRangeBoost = Math.max(1, effectiveStat(actor, "range"));
+  return Math.max(0.1, missingFraction * rangeFactor * Math.max(0.5, actorRangeBoost / 6) + 0.2);
+}
+
+function skillTargetWeight(actionType, target) {
+  if (actionType === WORM_ACTION_TYPES.manipulation) {
+    return Math.max(0.1, 17 - effectiveStat(target, "manipulation") - effectiveStat(target, "range"));
+  }
+
+  if (actionType === WORM_ACTION_TYPES.info) {
+    return Math.max(0.1, 17 - effectiveStat(target, "info"));
+  }
+
+  return 1;
+}
+
+function pickInfoDebuffStat(state, target, seed) {
+  const statPick = pickWeighted(
+    INFO_DEBUFF_KEYS,
+    (statKey) => Math.max(0.1, effectiveStat(target, statKey)),
+    seed,
+    223,
+  );
+  return {
+    seed: statPick.seed,
+    statKey: statPick.value || "attack",
+  };
+}
+
+function targetByAction(state, actor, actionType, seed) {
+  const opponents = livingTeamMembers(state, opposingTeamId(actor.teamId));
+  if (!opponents.length) {
+    return {
+      seed,
+      target: null,
+    };
+  }
+
+  if (actionType === WORM_ACTION_TYPES.attack) {
+    const pick = pickWeighted(opponents, (target) => attackTargetWeight(actor, target), seed, 181);
+    return {
+      seed: pick.seed,
+      target: pick.value || opponents[0],
+    };
+  }
+
+  if (actionType === WORM_ACTION_TYPES.info || actionType === WORM_ACTION_TYPES.manipulation) {
+    const pick = pickWeighted(opponents, (target) => skillTargetWeight(actionType, target), seed, 191);
+    return {
+      seed: pick.seed,
+      target: pick.value || opponents[0],
+    };
+  }
+
+  return {
+    seed,
+    target: opponents[0],
+  };
+}
+
+function defaultEnemyOrdersBasic(state) {
   const orders = {};
   for (const actor of livingTeamMembers(state, "enemy")) {
     const target = chooseAttackTarget(state, actor, "");
@@ -345,6 +486,47 @@ function defaultEnemyOrders(state) {
     };
   }
   return orders;
+}
+
+function defaultEnemyOrdersWeighted(state) {
+  const orders = {};
+  let seed = state.seed;
+  const actions = selectableWormActions();
+
+  for (const actor of livingTeamMembers(state, "enemy")) {
+    const actionPick = pickWeighted(actions, (action) => enemyActionWeight(actor, action), seed, 173);
+    seed = actionPick.seed;
+    const actionType = actionPick.value || WORM_ACTION_TYPES.attack;
+
+    const targetPick = targetByAction(state, actor, actionType, seed);
+    seed = targetPick.seed;
+    const target = targetPick.target;
+    const targetId = target ? target.combatantId : "";
+
+    let infoStat = "attack";
+    if (actionType === WORM_ACTION_TYPES.info && target) {
+      const debuffPick = pickInfoDebuffStat(state, target, seed);
+      seed = debuffPick.seed;
+      infoStat = debuffPick.statKey;
+    }
+
+    orders[actor.combatantId] = {
+      type: actionType,
+      targetId,
+      infoStat,
+    };
+  }
+
+  state.seed = seed;
+  return orders;
+}
+
+function defaultEnemyOrders(state) {
+  const mode = safeText(state.enemyAiMode || ENEMY_AI_MODES.weighted).toLowerCase();
+  if (mode === ENEMY_AI_MODES.basic) {
+    return defaultEnemyOrdersBasic(state);
+  }
+  return defaultEnemyOrdersWeighted(state);
 }
 
 function buildInitiativeOrder(state) {
@@ -665,6 +847,10 @@ function normalizeBattleState(state) {
   return {
     round: Math.max(1, Math.floor(Number(source.round) || 1)),
     seed: Number.isFinite(Number(source.seed)) ? Number(source.seed) >>> 0 : Date.now() >>> 0,
+    enemyAiMode:
+      safeText(source.enemyAiMode || ENEMY_AI_MODES.weighted).toLowerCase() === ENEMY_AI_MODES.basic
+        ? ENEMY_AI_MODES.basic
+        : ENEMY_AI_MODES.weighted,
     playerTeam,
     enemyTeam,
     log: Array.isArray(source.log) ? source.log.slice(-24).map((line) => safeText(line)) : [],
@@ -672,13 +858,19 @@ function normalizeBattleState(state) {
   };
 }
 
-export function createWormBattleState({ playerCards = [], enemyCards = [], seed = Date.now() >>> 0 } = {}) {
+export function createWormBattleState({
+  playerCards = [],
+  enemyCards = [],
+  seed = Date.now() >>> 0,
+  enemyAiMode = ENEMY_AI_MODES.weighted,
+} = {}) {
   const playerTeam = playerCards.slice(0, 2).map((card, index) => buildCombatant(card, "player", index));
   const enemyTeam = enemyCards.slice(0, 2).map((card, index) => buildCombatant(card, "enemy", index));
 
   const state = normalizeBattleState({
     round: 1,
     seed,
+    enemyAiMode,
     playerTeam,
     enemyTeam,
     log: ["Battle initialized."],

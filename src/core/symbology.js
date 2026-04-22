@@ -182,6 +182,47 @@ function escapeAttribute(value) {
     .replaceAll(">", "&gt;");
 }
 
+function clamp01(value) {
+  return Math.max(0, Math.min(1, Number(value) || 0));
+}
+
+function hexToRgb(hex) {
+  const normalized = String(hex || "").replace("#", "");
+  const value = normalized.length === 3
+    ? normalized.split("").map((char) => `${char}${char}`).join("")
+    : normalized;
+  if (value.length !== 6) {
+    return { r: 0, g: 0, b: 0 };
+  }
+  return {
+    r: parseInt(value.slice(0, 2), 16),
+    g: parseInt(value.slice(2, 4), 16),
+    b: parseInt(value.slice(4, 6), 16),
+  };
+}
+
+function mixHex(fromHex, toHex, ratio) {
+  const from = hexToRgb(fromHex);
+  const to = hexToRgb(toHex);
+  const t = clamp01(ratio);
+  const r = Math.round(from.r + (to.r - from.r) * t);
+  const g = Math.round(from.g + (to.g - from.g) * t);
+  const b = Math.round(from.b + (to.b - from.b) * t);
+  return `#${[r, g, b].map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function styleForProgress(progress) {
+  const ratio = clamp01(progress);
+  const orbitFill = mixHex("#0f1b34", "#112f24", ratio);
+  const orbitStroke = mixHex("#4b6fa8", "#58b980", ratio);
+  const lineStroke = mixHex("#c5defe", "#8ff0bf", ratio);
+  return [
+    `--region-orbit-fill:${orbitFill}`,
+    `--region-orbit-stroke:${orbitStroke}`,
+    `--region-line-stroke:${lineStroke}`,
+  ].join(";");
+}
+
 export function symbolKeyForSection(sectionName) {
   const key = SECTION_SYMBOL_KEY[String(sectionName || "")];
   if (key && SYMBOL_SPECS[key]) {
@@ -205,7 +246,13 @@ export function symbolKeyForNode(node) {
   return symbolKeyForSection(node.section || node.sheet || "");
 }
 
-export function renderRegionSymbol({ section, symbolKey, className = "", decorative = true } = {}) {
+export function renderRegionSymbol({
+  section,
+  symbolKey,
+  className = "",
+  decorative = true,
+  colorProgress = null,
+} = {}) {
   const resolvedKey = symbolKey && SYMBOL_SPECS[symbolKey]
     ? symbolKey
     : symbolKeyForSection(section);
@@ -214,9 +261,11 @@ export function renderRegionSymbol({ section, symbolKey, className = "", decorat
   const aria = decorative
     ? 'aria-hidden="true" focusable="false"'
     : `role="img" aria-label="${escapeAttribute(spec.label)}"`;
+  const hasProgress = Number.isFinite(Number(colorProgress));
+  const styleAttr = hasProgress ? ` style="${escapeAttribute(styleForProgress(colorProgress))}"` : "";
 
   return `
-    <svg class="${escapeAttribute(classes)}" data-symbol-key="${escapeAttribute(resolvedKey)}" viewBox="0 0 24 24" ${aria}>
+    <svg class="${escapeAttribute(classes)}" data-symbol-key="${escapeAttribute(resolvedKey)}" viewBox="0 0 24 24" ${aria}${styleAttr}>
       <circle class="region-symbol-orbit" cx="12" cy="12" r="10"></circle>
       ${spec.paths
     .map((path) => `<path class="region-symbol-line" d="${escapeAttribute(path)}"></path>`)

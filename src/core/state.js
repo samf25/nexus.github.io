@@ -1,3 +1,5 @@
+import { defaultPrestigeSystemState } from "../systems/prestige.js";
+
 const STORAGE_KEY = "nexus.arg.state.v1";
 const SAVE_MAGIC = "nexus.arg.save";
 const SAVE_VERSION = 1;
@@ -24,6 +26,14 @@ function defaultSystemState() {
       discoveredRooms: ["entry"],
       inventory: [],
     },
+    worm: {
+      clout: 20,
+      startersConfirmed: false,
+      starterCardIds: [],
+      deck: {},
+      sickbayCardId: "",
+    },
+    prestige: defaultPrestigeSystemState(),
   };
 }
 
@@ -112,6 +122,25 @@ export function mergeWithDefaults(candidate) {
       dungeonCrawl: {
         ...base.systems.dungeonCrawl,
         ...((incoming.systems && incoming.systems.dungeonCrawl) || {}),
+      },
+      worm: {
+        ...base.systems.worm,
+        ...((incoming.systems && incoming.systems.worm) || {}),
+      },
+      prestige: {
+        ...defaultPrestigeSystemState(),
+        ...((incoming.systems && incoming.systems.prestige) || {}),
+        regions: {
+          ...defaultPrestigeSystemState().regions,
+          ...(
+            incoming.systems &&
+            incoming.systems.prestige &&
+            incoming.systems.prestige.regions &&
+            typeof incoming.systems.prestige.regions === "object"
+              ? incoming.systems.prestige.regions
+              : {}
+          ),
+        },
       },
     },
     requestHistory: Array.isArray(incoming.requestHistory) ? incoming.requestHistory : [],

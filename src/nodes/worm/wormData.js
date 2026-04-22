@@ -1,6 +1,10 @@
 import { powerSummaryForCape } from "./wormPowerSummaries.js";
 
-const WORM_DATA_PATH = "src/nodes/worm/WormPowerRanks.csv";
+const WORM_DATA_PATH_CANDIDATES = Object.freeze([
+  new URL("./WormPowerRanks.csv", import.meta.url).href,
+  "/src/nodes/worm/WormPowerRanks.csv",
+  "src/nodes/worm/WormPowerRanks.csv",
+]);
 
 const NORMALIZED_COLUMNS = Object.freeze([
   "Hero name",
@@ -185,13 +189,20 @@ function readWormCsvSync() {
     return "";
   }
 
-  const request = new XMLHttpRequest();
-  request.open("GET", WORM_DATA_PATH, false);
-  request.send(null);
+  for (const path of WORM_DATA_PATH_CANDIDATES) {
+    try {
+      const request = new XMLHttpRequest();
+      request.open("GET", path, false);
+      request.send(null);
 
-  if (request.status >= 200 && request.status < 300) {
-    return String(request.responseText || "");
+      if (request.status >= 200 && request.status < 300) {
+        return String(request.responseText || "");
+      }
+    } catch {
+      // Continue to fallback URLs.
+    }
   }
+
   return "";
 }
 

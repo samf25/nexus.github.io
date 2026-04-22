@@ -8,6 +8,7 @@ import {
   patternCadence,
   pulsePhaseDelaySeconds,
 } from "./rhythmCore.js";
+import { prestigeModifiersFromState } from "../../systems/prestige.js";
 
 const NODE_ID = "CRD02";
 const REQUIRED_ARTIFACT = "Starter Core";
@@ -296,6 +297,11 @@ function normalizeRuntime(runtime) {
     upgrades,
     manual,
     techniquesOpen: Boolean(source.techniquesOpen) && Math.max(0, Number(source.manualCompletions) || 0) > 0,
+    prestige: {
+      madraGainMultiplier: Math.max(1, Number(source.prestige && source.prestige.madraGainMultiplier) || 1),
+      cyclingCostDivider: Math.max(1, Number(source.prestige && source.prestige.cyclingCostDivider) || 1),
+      combatAttackMultiplier: Math.max(1, Number(source.prestige && source.prestige.combatAttackMultiplier) || 1),
+    },
     lastMessage: String(source.lastMessage || ""),
     solved: Boolean(source.solved),
   };
@@ -325,7 +331,8 @@ function manualMadraGain(runtime) {
   const harmonized = levelOf(runtime, "core-harmonization") > 0 ? 1 : 0;
   const base = Math.max(1, Math.pow(2, resonanceLevel) + harmonized);
   const stageMultiplier = STAGE_MANUAL_MULTIPLIER[runtime.cultivationStage] || 1;
-  return Math.max(1, Math.round(base * stageMultiplier));
+  const prestigeMultiplier = Math.max(1, Number(runtime.prestige && runtime.prestige.madraGainMultiplier) || 1);
+  return Math.max(1, Math.round(base * stageMultiplier * prestigeMultiplier));
 }
 
 function heartOfTwinStarsBase(runtime) {
@@ -345,22 +352,31 @@ function passiveMadraPerSecond(runtime) {
   const confluenceMultiplier = 1 + confluence * 0.25;
   const annulusMultiplier = 1 + annulus * 0.15;
   const stageMultiplier = STAGE_PASSIVE_MULTIPLIER[runtime.cultivationStage] || 1;
+  const prestigeMultiplier = Math.max(1, Number(runtime.prestige && runtime.prestige.madraGainMultiplier) || 1);
 
   return (
     (twinRate + heavenRate) *
     reservoirMultiplier *
     confluenceMultiplier *
     annulusMultiplier *
-    stageMultiplier
+    stageMultiplier *
+    prestigeMultiplier
   );
 }
 
 function twinStarsCost(level) {
-  return 10 + Math.max(0, Math.floor(Number(level) || 0)) * 10;
+  const baseCost = 10 + Math.max(0, Math.floor(Number(level) || 0)) * 10;
+  return baseCost;
 }
 
 function heavenEarthCost(level) {
-  return 100 + Math.max(0, Math.floor(Number(level) || 0)) * 10;
+  const baseCost = 100 + Math.max(0, Math.floor(Number(level) || 0)) * 10;
+  return baseCost;
+}
+
+function cyclingCostWithPrestige(baseCost, runtime) {
+  const divider = Math.max(1, Number(runtime.prestige && runtime.prestige.cyclingCostDivider) || 1);
+  return Math.max(1, Math.round(baseCost / divider));
 }
 
 function applyPassiveTick(runtime, now) {
@@ -470,6 +486,14 @@ export function initialCrd02Runtime(context = {}) {
 
 export function synchronizeCrd02Runtime(runtime, { now = nowMs(), state = null } = {}) {
   let current = normalizeRuntime(runtime);
+  const modifiers = prestigeModifiersFromState(state || {});
+  current = {
+    ...current,
+    prestige: {
+      ...current.prestige,
+      ...(modifiers.cradle || {}),
+    },
+  };
   const solvedIds = new Set(state && Array.isArray(state.solvedNodeIds) ? state.solvedNodeIds : []);
 
   if (!current.starterSeedGranted && solvedIds.has("CRD01")) {
@@ -722,7 +746,8 @@ export function reduceCrd02Runtime(runtime, action) {
 
     const level =
       techniqueId === "twin-stars" ? current.cycling.twinStarsLevel : current.cycling.heavenEarthLevel;
-    const cost = techniqueId === "twin-stars" ? twinStarsCost(level) : heavenEarthCost(level);
+    const baseCost = techniqueId === "twin-stars" ? twinStarsCost(level) : heavenEarthCost(level);
+    const cost = cyclingCostWithPrestige(baseCost, current);
     if (current.madra < cost) {
       return current;
     }
@@ -1156,8 +1181,8 @@ export function renderCrd02Experience(context) {
     `;
   }
 
-  const twinCost = twinStarsCost(runtime.cycling.twinStarsLevel);
-  const heavenCost = heavenEarthCost(runtime.cycling.heavenEarthLevel);
+  const twinCost = cyclingCostWithPrestige(twinStarsCost(runtime.cycling.twinStarsLevel), runtime);
+  const heavenCost = cyclingCostWithPrestige(heavenEarthCost(runtime.cycling.heavenEarthLevel), runtime);
   const canBuyTwin = runtime.madra >= twinCost;
   const canBuyHeaven = crd05Solved && runtime.madra >= heavenCost;
   const manualReward = manualMadraGain(runtime);

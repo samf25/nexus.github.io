@@ -100,6 +100,8 @@ export function renderShellLayout({
   contentHtml,
   widgetState,
   currentRoute,
+  activeNodeId,
+  activeNodeSolved,
 }) {
   return `
     <div class="space-app-shell">
@@ -128,7 +130,25 @@ export function renderShellLayout({
       </header>
 
       <main class="space-main">
-        <section class="focus-surface">${contentHtml}</section>
+        <section class="focus-surface">
+          ${
+            activeNodeId
+              ? `
+                <button
+                  type="button"
+                  class="dev-autocomplete-node"
+                  data-action="dev-autocomplete-node"
+                  data-node-id="${escapeHtml(activeNodeId)}"
+                  ${activeNodeSolved ? "disabled" : ""}
+                  title="Temporary developer shortcut"
+                >
+                  ${activeNodeSolved ? "Autocompleted" : "Autocomplete Node"}
+                </button>
+              `
+              : ""
+          }
+          ${contentHtml}
+        </section>
       </main>
 
       <aside class="widget-stack" aria-label="Utility Widgets">

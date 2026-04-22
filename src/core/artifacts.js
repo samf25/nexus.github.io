@@ -1,3 +1,5 @@
+import { isPracticalGuidePersistentArtifact } from "../systems/practicalGuide.js";
+
 function escapeAttribute(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -109,6 +111,12 @@ function rewardStoreFromState(state) {
     : {};
 }
 
+function usedRewardsFromState(state) {
+  return state && state.inventory && state.inventory.usedRewards && typeof state.inventory.usedRewards === "object"
+    ? state.inventory.usedRewards
+    : {};
+}
+
 export function slotIdForReward(rewardName) {
   const reward = normalizeRewardName(rewardName);
   if (!reward) {
@@ -175,9 +183,18 @@ export function hasWaveOnePasskey(state) {
   return Boolean(slots.wave1);
 }
 
+export function hasWaveTwoPasskey(state) {
+  const slots = keySlotsFromState(state);
+  return Boolean(slots.wave2);
+}
+
 export function consumeReward(state, rewardName, usedBy = "") {
   const reward = String(rewardName || "");
   if (!reward) {
+    return state;
+  }
+
+  if (isPracticalGuidePersistentArtifact(reward)) {
     return state;
   }
 
@@ -188,13 +205,7 @@ export function consumeReward(state, rewardName, usedBy = "") {
   }
 
   delete rewards[reward];
-  const usedRewards =
-    state &&
-    state.inventory &&
-    state.inventory.usedRewards &&
-    typeof state.inventory.usedRewards === "object"
-      ? state.inventory.usedRewards
-      : {};
+  const usedRewards = usedRewardsFromState(state);
 
   return {
     ...state,
@@ -252,10 +263,7 @@ export function socketRewardKey(state, rewardName, slotId) {
       ...(state.inventory || {}),
       rewards,
       keySlots,
-      usedRewards:
-        state && state.inventory && state.inventory.usedRewards && typeof state.inventory.usedRewards === "object"
-          ? state.inventory.usedRewards
-          : {},
+      usedRewards: usedRewardsFromState(state),
     },
   };
 }

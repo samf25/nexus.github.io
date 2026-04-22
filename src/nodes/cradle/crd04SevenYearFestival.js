@@ -5,6 +5,7 @@ import {
   randomUnit,
   rollDamage,
 } from "./combatSystem.js";
+import { prestigeModifiersFromState } from "../../systems/prestige.js";
 
 const NODE_ID = "CRD04";
 const COOLDOWN_MS = 60 * 60 * 1000;
@@ -61,11 +62,13 @@ function combatProfileFromState(state) {
   const emptyPalm = Number(upgrades["empty-palm"] || 0);
   const consume = Number(upgrades.consume || 0);
   const hollowDomain = Number(upgrades["hollow-domain"] || 0);
+  const modifiers = prestigeModifiersFromState(state || {});
+  const attackMultiplier = Math.max(1, Number(modifiers.cradle && modifiers.cradle.combatAttackMultiplier) || 1);
 
   return {
     stage,
     hasEmptyPalm: emptyPalm > 0,
-    meleeBonus: soulCloak + consume + hollowDomain,
+    meleeBonus: (soulCloak + consume + hollowDomain) * attackMultiplier,
     dodgeBonus: soulCloak + hollowDomain,
     maxHp: 110 + ironBody * 22 + (stage === "copper" ? 18 : stage === "iron" ? 34 : 0),
     maxMadra: 100 + (crd02.cultivationStage === "iron" ? 30 : stage === "copper" ? 15 : 0),
