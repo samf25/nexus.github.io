@@ -310,8 +310,6 @@ export function renderCrd03Experience(context) {
           ${solveFlashMarkup(runtime)}
         </div>
       </section>
-
-      ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
       ${runtime.solved ? `<p class="key-hint"><strong>Atlas restored.</strong></p>` : ""}
       ${entryModalMarkup(runtime)}
     </article>

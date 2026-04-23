@@ -17,7 +17,6 @@ const WAVE_ONE_SECTIONS = new Set([
 const WAVE_TWO_SECTIONS = new Set([
   "Arcane Ascension",
   "Abstract Algebra",
-  "Cosmere",
   "Dungeon Crawler Carl",
   "Differential Geometry",
   "Practical Guide",

@@ -194,7 +194,6 @@ export function renderMol01Experience(context) {
           ? `<section class="card"><p><strong>Loop imprint stabilized.</strong> You can now initiate controlled resets.</p></section>`
           : ""
       }
-      ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
     </article>
   `;
 }

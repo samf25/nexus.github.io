@@ -23,7 +23,6 @@ const SHARD_SYMBOL_KEYS = Object.freeze([
   "prime-vault",
   "arcane-ascension",
   "symmetry-forge",
-  "cosmere",
   "dungeon-crawler-carl",
   "curved-atlas",
   "practical-guide",

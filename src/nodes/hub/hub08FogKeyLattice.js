@@ -446,8 +446,6 @@ export function renderHub08Experience(context) {
           : ""
       }
 
-      ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
-
       ${
         solvedNow
           ? `

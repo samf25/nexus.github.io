@@ -1,6 +1,7 @@
 import { CANONICAL_TEMPLATE_SPECS, TEMPLATE_ALIASES } from "./templateCatalog.js";
 
 const DEFAULT_BLUEPRINT_PATH = "./arg_node_specs_loreauth.json";
+const RETIRED_SECTION_NAMES = new Set(["The Cosmere", "Cosmere"]);
 
 function numericNodeSuffix(nodeId) {
   const match = String(nodeId || "").match(/(\d+)$/);
@@ -36,7 +37,24 @@ export async function loadBlueprint(path = DEFAULT_BLUEPRINT_PATH) {
     throw new Error("Blueprint JSON is missing a nodes array.");
   }
 
-  return blueprint;
+  const removedIds = new Set(
+    blueprint.nodes
+      .filter((node) => RETIRED_SECTION_NAMES.has(String(node.section || "")) || String(node.route || "").startsWith("/cosmere/"))
+      .map((node) => node.node_id),
+  );
+  const cleanedNodes = blueprint.nodes
+    .filter((node) => !removedIds.has(node.node_id))
+    .map((node) => ({
+      ...node,
+      dependencies: Array.isArray(node.dependencies)
+        ? node.dependencies.filter((dep) => !removedIds.has(dep))
+        : [],
+    }));
+
+  return {
+    ...blueprint,
+    nodes: cleanedNodes,
+  };
 }
 
 export function buildBlueprintIndex(blueprint) {

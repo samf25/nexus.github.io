@@ -23,6 +23,12 @@ const REQUIRED_ARTIFACTS = Object.freeze([
   "Sunless Lantern",
   "Bone Key",
   "River-Map of Silt",
+  "Ashen Treaty Pins",
+  "Red Petition Docket",
+  "Saintglass Vial",
+  "Ivory Truce Fork",
+  "Nightwine Ledger",
+  "Mercy Bell Chime",
 ]);
 
 const WIN_ARTIFACTS = Object.freeze([
@@ -35,6 +41,12 @@ const WIN_ARTIFACTS = Object.freeze([
   "Sunless Crown Accord",
   "Ossuary Keeper Sigil",
   "Silt-River Exit Seal",
+  "Mercy Charter Seal",
+  "Conqueror's Due Process",
+  "Measured Iron Mandate",
+  "Table of Last Reconciliation",
+  "Midnight Carving Accord",
+  "Bell of Unbroken Guest-Right",
 ]);
 
 const PERSISTENT_ARTIFACT_SET = Object.freeze(

@@ -539,7 +539,6 @@ export function renderCrd04Experience(context) {
               className: "crd04-pass-symbol artifact-symbol",
             })}
           </button>
-          ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
         </section>
       </article>
     `;
@@ -610,7 +609,6 @@ export function renderCrd04Experience(context) {
           ${runtime.log.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
         </ul>
       </section>
-      ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
     </article>
   `;
 }

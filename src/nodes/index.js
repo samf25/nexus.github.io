@@ -41,6 +41,11 @@ import { NUM01_NODE_EXPERIENCE } from "./math/num01ResidueClock.js";
 import { NUM02_NODE_EXPERIENCE } from "./math/num02PrimeLocks.js";
 import { TWI01_NODE_EXPERIENCE } from "./wanderinginn/twi01GuestLedger.js";
 import { TWI02_NODE_EXPERIENCE } from "./wanderinginn/twi02IzrilAtlas.js";
+import { TWI03_NODE_EXPERIENCE } from "./wanderinginn/twi03Inn.js";
+import { TWI04_NODE_EXPERIENCE } from "./wanderinginn/twi04ConstructionYard.js";
+import { AA01_NODE_EXPERIENCE } from "./arcane/aa01SerpentJudgment.js";
+import { AA02_NODE_EXPERIENCE } from "./arcane/aa02ClimbersCourt.js";
+import { AA03_NODE_EXPERIENCE } from "./arcane/aa03Workshop.js";
 import { WORM01_NODE_EXPERIENCE } from "./worm/worm01DeckDuel.js";
 import { WORM02_NODE_EXPERIENCE } from "./worm/worm02Arena.js";
 import { DCC01_NODE_EXPERIENCE } from "./dungeoncrawlercarl/dcc01CrawlFloor.js";
@@ -49,6 +54,8 @@ import {
   PGE02_NODE_EXPERIENCE,
   PGE03_NODE_EXPERIENCE,
   PGE04_NODE_EXPERIENCE,
+  PGE05_NODE_EXPERIENCE,
+  PGE06_NODE_EXPERIENCE,
 } from "./practicalguide/pgeTextAdventures.js";
 
 const NODE_EXPERIENCE_REGISTRY = Object.freeze({
@@ -93,6 +100,11 @@ const NODE_EXPERIENCE_REGISTRY = Object.freeze({
   GEO06: GEO06_NODE_EXPERIENCE,
   TWI01: TWI01_NODE_EXPERIENCE,
   TWI02: TWI02_NODE_EXPERIENCE,
+  TWI03: TWI03_NODE_EXPERIENCE,
+  TWI04: TWI04_NODE_EXPERIENCE,
+  AA01: AA01_NODE_EXPERIENCE,
+  AA02: AA02_NODE_EXPERIENCE,
+  AA03: AA03_NODE_EXPERIENCE,
   WORM01: WORM01_NODE_EXPERIENCE,
   WORM02: WORM02_NODE_EXPERIENCE,
   DCC01: DCC01_NODE_EXPERIENCE,
@@ -100,6 +112,8 @@ const NODE_EXPERIENCE_REGISTRY = Object.freeze({
   PGE02: PGE02_NODE_EXPERIENCE,
   PGE03: PGE03_NODE_EXPERIENCE,
   PGE04: PGE04_NODE_EXPERIENCE,
+  PGE05: PGE05_NODE_EXPERIENCE,
+  PGE06: PGE06_NODE_EXPERIENCE,
 });
 
 export function getNodeExperience(nodeId) {

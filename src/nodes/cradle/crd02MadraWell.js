@@ -1,4 +1,6 @@
 import { escapeHtml } from "../../templates/shared.js";
+import { renderArtifactSymbol } from "../../core/artifacts.js";
+import { renderRegionSymbol } from "../../core/symbology.js";
 import {
   CRD02_MANUAL_RHYTHM_PATTERNS,
   cycleLength,
@@ -9,6 +11,8 @@ import {
   pulsePhaseDelaySeconds,
 } from "./rhythmCore.js";
 import { prestigeModifiersFromState } from "../../systems/prestige.js";
+import { getCradleLootModifiers, lootInventoryFromState } from "../../systems/loot.js";
+import { renderSlotRing } from "../../ui/slotRing.js";
 
 const NODE_ID = "CRD02";
 const REQUIRED_ARTIFACT = "Starter Core";
@@ -267,6 +271,8 @@ function normalizeUpgradeLevels(candidate) {
 
 function normalizeRuntime(runtime) {
   const source = runtime && typeof runtime === "object" ? runtime : {};
+  const tabCandidate = normalizeText(source.activeTab);
+  const activeTab = tabCandidate === "soul" ? "soul" : "well";
   const manualSource = source.manual && typeof source.manual === "object" ? source.manual : {};
   const introPhase = source.introPhase === "well" || source.introPhase === "rejected" ? source.introPhase : "origin";
   const upgrades = normalizeUpgradeLevels(source.upgrades);
@@ -281,6 +287,7 @@ function normalizeRuntime(runtime) {
   };
 
   return {
+    activeTab,
     introPhase,
     starterCoreUsed: Boolean(source.starterCoreUsed),
     starterSeedGranted: Boolean(source.starterSeedGranted),
@@ -487,11 +494,25 @@ export function initialCrd02Runtime(context = {}) {
 export function synchronizeCrd02Runtime(runtime, { now = nowMs(), state = null } = {}) {
   let current = normalizeRuntime(runtime);
   const modifiers = prestigeModifiersFromState(state || {});
+  const lootModifiers = getCradleLootModifiers(state || {}, now);
   current = {
     ...current,
     prestige: {
-      ...current.prestige,
-      ...(modifiers.cradle || {}),
+      madraGainMultiplier: Math.max(
+        1,
+        Number(modifiers.cradle && modifiers.cradle.madraGainMultiplier ? modifiers.cradle.madraGainMultiplier : 1)
+          * Number(lootModifiers.madraGainMultiplier || 1),
+      ),
+      cyclingCostDivider: Math.max(
+        1,
+        Number(modifiers.cradle && modifiers.cradle.cyclingCostDivider ? modifiers.cradle.cyclingCostDivider : 1)
+          * Number(lootModifiers.cyclingCostDivider || 1),
+      ),
+      combatAttackMultiplier: Math.max(
+        1,
+        Number(modifiers.cradle && modifiers.cradle.combatAttackMultiplier ? modifiers.cradle.combatAttackMultiplier : 1)
+          * Number(lootModifiers.combatAttackMultiplier || 1),
+      ),
     },
   };
   const solvedIds = new Set(state && Array.isArray(state.solvedNodeIds) ? state.solvedNodeIds : []);
@@ -529,6 +550,13 @@ export function reduceCrd02Runtime(runtime, action) {
 
   if (!action || typeof action !== "object") {
     return current;
+  }
+
+  if (action.type === "crd02-open-tab") {
+    return {
+      ...current,
+      activeTab: normalizeText(action.tab) === "soul" ? "soul" : "well",
+    };
   }
 
   if (action.type === "crd02-origin-test") {
@@ -813,6 +841,13 @@ export function reduceCrd02Runtime(runtime, action) {
     };
   }
 
+  if (action.type === "crd02-loot-message") {
+    return {
+      ...current,
+      lastMessage: String(action.message || "Loot loadout updated."),
+    };
+  }
+
   return current;
 }
 
@@ -826,6 +861,14 @@ export function buildCrd02ActionFromElement(element) {
     return {
       type: "crd02-origin-test",
       artifact: element.getAttribute("data-selected-artifact") || "",
+      at: nowMs(),
+    };
+  }
+
+  if (actionName === "crd02-open-tab") {
+    return {
+      type: "crd02-open-tab",
+      tab: element.getAttribute("data-tab") || "well",
       at: nowMs(),
     };
   }
@@ -896,6 +939,31 @@ export function buildCrd02ActionFromElement(element) {
     return {
       type: "crd02-buy-upgrade",
       upgradeId: element.getAttribute("data-upgrade-id"),
+      at: nowMs(),
+    };
+  }
+
+  if (actionName === "crd02-equip-soul-slot") {
+    return {
+      type: "crd02-equip-soul-slot",
+      itemId: element.getAttribute("data-item-id") || "",
+      slotId: Number(element.getAttribute("data-slot-id") || 0),
+      at: nowMs(),
+    };
+  }
+
+  if (actionName === "crd02-unequip-soul-slot") {
+    return {
+      type: "crd02-unequip-soul-slot",
+      slotId: Number(element.getAttribute("data-slot-id") || 0),
+      at: nowMs(),
+    };
+  }
+
+  if (actionName === "crd02-equip-combat-item") {
+    return {
+      type: "crd02-equip-combat-item",
+      itemId: element.getAttribute("data-item-id") || "",
       at: nowMs(),
     };
   }
@@ -1132,6 +1200,109 @@ function manualModalMarkup(runtime) {
   `;
 }
 
+function visibleRuntimeMessage(message) {
+  const text = String(message || "").trim();
+  if (!text) {
+    return "";
+  }
+  if (text === "You find a hidden well exuding aura. Cultivation begins.") {
+    return "";
+  }
+  return text;
+}
+
+function soulCircuitMarkup({
+  unlockedSoulSlots,
+  soulSlotIds,
+  lootState,
+  selectedLootItemId,
+  equippedCombatId,
+  soulCrystals,
+} = {}) {
+  const slotCount = Math.min(6, Math.max(0, Number(unlockedSoulSlots) || 0));
+  const slots = Array.from({ length: slotCount }, (_, index) => {
+    const equippedId = soulSlotIds[index];
+    const equippedItem = equippedId ? lootState.items[equippedId] : null;
+    const selectedLoot = selectedLootItemId ? lootState.items[selectedLootItemId] : null;
+    const clickToEquip = Boolean(selectedLoot);
+    const clickToUnequip = Boolean(equippedItem) && !clickToEquip;
+
+    return {
+      filled: Boolean(equippedItem),
+      clickable: clickToEquip || clickToUnequip,
+      title: equippedItem
+        ? `${equippedItem.label} (${equippedItem.rarity || "common"})`
+        : "Empty soul crystal socket",
+      ariaLabel: `Soul slot ${index + 1}`,
+      symbolHtml: equippedItem
+        ? renderArtifactSymbol({
+            artifactName: equippedItem.label,
+            className: "slot-ring-symbol artifact-symbol",
+          })
+        : renderArtifactSymbol({
+            artifactName: "Soul Crystal Socket",
+            className: "slot-ring-symbol artifact-symbol is-slot-ghost",
+          }),
+      attrs: clickToEquip
+        ? {
+            "data-action": "loot-equip-target",
+            "data-region": "crd",
+            "data-slot-id": index,
+          }
+        : clickToUnequip
+          ? {
+              "data-node-id": NODE_ID,
+              "data-node-action": "crd02-unequip-soul-slot",
+              "data-slot-id": index,
+            }
+          : {},
+    };
+  });
+
+  const combatItem = equippedCombatId ? lootState.items[equippedCombatId] : null;
+  const combatCenter = `
+    <button
+      type="button"
+      class="slot-ring-center-button ${combatItem ? "is-filled" : ""}"
+      data-action="loot-equip-target"
+      data-region="crd"
+      data-slot-id="-1"
+      title="${escapeHtml(combatItem ? `Combat item: ${combatItem.label}` : "Combat focus slot")}"
+      aria-label="Combat item slot"
+    >
+      ${
+        combatItem
+          ? renderArtifactSymbol({
+              artifactName: combatItem.label,
+              className: "slot-ring-symbol artifact-symbol",
+            })
+          : renderRegionSymbol({
+              section: "Cradle",
+              className: "slot-ring-center-symbol",
+            })
+      }
+    </button>
+  `;
+
+  return `
+    <section class="crd02-panel">
+      <h4>Soul Crystal Circuit (${slotCount}/6)</h4>
+      ${renderSlotRing({
+        slots,
+        className: "crd02-soul-slot-ring",
+        radiusPct: 42,
+        centerHtml: combatCenter,
+        ariaLabel: "Cradle soul crystal circuit",
+      })}
+      <p><strong>Available Soul Crystals:</strong> ${soulCrystals.length}</p>
+      <p class="muted">Select a loot item, then click a socket. Filled sockets can be clicked to clear when no item is selected.</p>
+      <div class="toolbar">
+        <button type="button" data-action="toggle-widget" data-widget="loot">Open Loot Panel</button>
+      </div>
+    </section>
+  `;
+}
+
 export function renderCrd02Experience(context) {
   const runtime = synchronizeCrd02Runtime(context.runtime, {
     now: nowMs(),
@@ -1141,6 +1312,7 @@ export function renderCrd02Experience(context) {
   const crd05Solved = solvedIds.has("CRD05");
   const mps = passiveMadraPerSecond(runtime);
   const canSeeMenus = runtime.manualCompletions > 0;
+  const statusMessage = visibleRuntimeMessage(runtime.lastMessage);
 
   if (!runtime.wellUnlocked) {
     if (runtime.introPhase !== "rejected") {
@@ -1162,7 +1334,7 @@ export function renderCrd02Experience(context) {
               Place Hand In Pure Madra
             </button>
             <p class="muted">Selected artifact: ${escapeHtml(selectedArtifact || "None")}</p>
-            ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
+            ${statusMessage ? `<p class="key-hint">${escapeHtml(statusMessage)}</p>` : ""}
           </section>
         </article>
       `;
@@ -1175,7 +1347,6 @@ export function renderCrd02Experience(context) {
           <p>The madra does not react. You are judged Unsouled and denied training.</p>
           <p>You run to the woods and discover a hidden well exuding ambient aura.</p>
           <button type="button" data-node-id="${NODE_ID}" data-node-action="crd02-enter-well">Approach The Well</button>
-          ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
         </section>
       </article>
     `;
@@ -1187,6 +1358,17 @@ export function renderCrd02Experience(context) {
   const canBuyHeaven = crd05Solved && runtime.madra >= heavenCost;
   const manualReward = manualMadraGain(runtime);
   const currentStage = normalizeStage(runtime.cultivationStage);
+  const lootState = lootInventoryFromState(context.state || {}, nowMs());
+  const unlockedSoulSlots = Math.max(3, Number(lootState.progression && lootState.progression.crdSoulCrystalSlots) || 3);
+  const soulSlotIds =
+    lootState.loadouts && lootState.loadouts.cradle && Array.isArray(lootState.loadouts.cradle.soulCrystalSlots)
+      ? lootState.loadouts.cradle.soulCrystalSlots
+      : [];
+  const crdLootItems = Object.values(lootState.items || {}).filter((item) => item.region === "crd");
+  const soulCrystals = crdLootItems.filter((item) => item.kind === "soul_crystal");
+  const equippedCombatId =
+    lootState.loadouts && lootState.loadouts.cradle ? lootState.loadouts.cradle.combatItemId : null;
+  const selectedLootItemId = String(context.selectedLootItemId || "");
   const selectedArtifact = String(context.selectedArtifactReward || "");
   const canBreakToCopper = currentStage === "foundation" && runtime.madra >= BREAKTHROUGH_COSTS.foundation;
   const hasPotionSelected = rewardMatches(selectedArtifact, IRON_BREAKTHROUGH_ARTIFACT);
@@ -1200,6 +1382,59 @@ export function renderCrd02Experience(context) {
       : currentStage === "copper"
         ? `Breakthrough: Iron (${BREAKTHROUGH_COSTS.copper} Madra + Cultivation Potion)`
         : "Stage cap reached";
+
+  const activeTab = runtime.activeTab === "soul" ? "soul" : "well";
+  const wellPanel = canSeeMenus
+    ? `
+      <section class="crd02-panel">
+        <h4>Cycling Techniques</h4>
+        <div class="crd02-tech-row">
+          <div>
+            <p><strong>The Heart of Twin Stars</strong></p>
+            <p class="muted">Level ${escapeHtml(String(runtime.cycling.twinStarsLevel))} | ${(Math.pow(heartOfTwinStarsBase(runtime), runtime.cycling.twinStarsLevel) - 1).toFixed(3)} madra/sec</p>
+          </div>
+          <button
+            type="button"
+            data-node-id="${NODE_ID}"
+            data-node-action="crd02-buy-cycling"
+            data-technique-id="twin-stars"
+            data-crd05-solved="${crd05Solved ? "true" : "false"}"
+            ${canBuyTwin ? "" : "disabled"}
+          >
+            Upgrade (${escapeHtml(String(twinCost))})
+          </button>
+        </div>
+        <div class="crd02-tech-row">
+          <div>
+            <p><strong>The Heaven and Earth Purification Wheel</strong></p>
+            <p class="muted">Level ${escapeHtml(String(runtime.cycling.heavenEarthLevel))} | ${crd05Solved ? "Unlocked by CRD05" : "Locked until CRD05"}</p>
+          </div>
+          <button
+            type="button"
+            data-node-id="${NODE_ID}"
+            data-node-action="crd02-buy-cycling"
+            data-technique-id="heaven-earth-wheel"
+            data-crd05-solved="${crd05Solved ? "true" : "false"}"
+            ${canBuyHeaven ? "" : "disabled"}
+          >
+            Upgrade (${escapeHtml(String(heavenCost))})
+          </button>
+        </div>
+      </section>
+    `
+    : `
+      <section class="crd02-panel">
+        <p>Manual cultivation unlocked. Gain your first madra to reveal cycling techniques and your techniques tree.</p>
+      </section>
+    `;
+  const soulPanel = soulCircuitMarkup({
+    unlockedSoulSlots,
+    soulSlotIds,
+    lootState,
+    selectedLootItemId,
+    equippedCombatId,
+    soulCrystals,
+  });
 
   return `
     <article class="crd02-node" data-node-id="${NODE_ID}">
@@ -1271,54 +1506,16 @@ export function renderCrd02Experience(context) {
             : ""
         }
       </section>
+      <section class="crd02-panel">
+        <div class="toolbar">
+          <button type="button" data-node-id="${NODE_ID}" data-node-action="crd02-open-tab" data-tab="well" ${activeTab === "well" ? "disabled" : ""}>Madra Well</button>
+          <button type="button" data-node-id="${NODE_ID}" data-node-action="crd02-open-tab" data-tab="soul" ${activeTab === "soul" ? "disabled" : ""}>Soul Crystals</button>
+        </div>
+      </section>
 
-      ${
-        canSeeMenus
-          ? `
-            <section class="crd02-panel">
-              <h4>Cycling Techniques</h4>
-              <div class="crd02-tech-row">
-                <div>
-                  <p><strong>The Heart of Twin Stars</strong></p>
-                  <p class="muted">Level ${escapeHtml(String(runtime.cycling.twinStarsLevel))} | ${(Math.pow(heartOfTwinStarsBase(runtime), runtime.cycling.twinStarsLevel) - 1).toFixed(3)} madra/sec</p>
-                </div>
-                <button
-                  type="button"
-                  data-node-id="${NODE_ID}"
-                  data-node-action="crd02-buy-cycling"
-                  data-technique-id="twin-stars"
-                  data-crd05-solved="${crd05Solved ? "true" : "false"}"
-                  ${canBuyTwin ? "" : "disabled"}
-                >
-                  Upgrade (${escapeHtml(String(twinCost))})
-                </button>
-              </div>
-              <div class="crd02-tech-row">
-                <div>
-                  <p><strong>The Heaven and Earth Purification Wheel</strong></p>
-                  <p class="muted">Level ${escapeHtml(String(runtime.cycling.heavenEarthLevel))} | ${crd05Solved ? "Unlocked by CRD05" : "Locked until CRD05"}</p>
-                </div>
-                <button
-                  type="button"
-                  data-node-id="${NODE_ID}"
-                  data-node-action="crd02-buy-cycling"
-                  data-technique-id="heaven-earth-wheel"
-                  data-crd05-solved="${crd05Solved ? "true" : "false"}"
-                  ${canBuyHeaven ? "" : "disabled"}
-                >
-                  Upgrade (${escapeHtml(String(heavenCost))})
-                </button>
-              </div>
-            </section>
-          `
-          : `
-            <section class="crd02-panel">
-              <p>Manual cultivation unlocked. Gain your first madra to reveal cycling techniques and your techniques tree.</p>
-            </section>
-          `
-      }
+      ${activeTab === "soul" ? soulPanel : wellPanel}
 
-      ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
+      ${statusMessage ? `<p class="key-hint">${escapeHtml(statusMessage)}</p>` : ""}
       ${techniquesModalMarkup(runtime)}
       ${manualModalMarkup(runtime)}
     </article>

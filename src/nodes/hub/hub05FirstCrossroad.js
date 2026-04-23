@@ -335,8 +335,6 @@ export function renderHub05Experience(context) {
           : ""
       }
 
-      ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
-
       <p class="sr-only" role="status" aria-live="polite">
         ${escapeHtml(
           solvedNow

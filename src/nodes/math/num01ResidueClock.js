@@ -134,7 +134,6 @@ export function renderNum01Experience(context) {
       <section class="card">
         <p><strong>Current smallest n:</strong> ${n == null ? "None" : escapeHtml(String(n))}</p>
       </section>
-      ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
     </article>
   `;
 }

@@ -107,7 +107,7 @@ function rarityLabel(card) {
   return "0.0";
 }
 
-export function renderWormCard(card, { combatant = null, role = "player" } = {}) {
+export function renderWormCard(card, { combatant = null, role = "player", headerExtraHtml = "" } = {}) {
   if (!card || typeof card !== "object") {
     return "";
   }
@@ -148,7 +148,10 @@ export function renderWormCard(card, { combatant = null, role = "player" } = {})
       ${statusBadges(combatant)}
       <header class="worm-card-header">
         <h4>${escapeHtml(card.heroName || "Unknown Cape")}</h4>
-        <span class="worm-card-rarity">Rarity ${escapeHtml(rarityLabel(card))}</span>
+        <div class="worm-card-rarity-wrap">
+          <span class="worm-card-rarity">Rarity ${escapeHtml(rarityLabel(card))}</span>
+          ${headerExtraHtml || ""}
+        </div>
       </header>
 
       <div class="worm-card-body">

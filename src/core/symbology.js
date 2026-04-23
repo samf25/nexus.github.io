@@ -82,14 +82,6 @@ const SYMBOL_SPECS = Object.freeze({
       "M12 9.1V14.9",
     ],
   },
-  "cosmere": {
-    label: "The Cosmere",
-    paths: [
-      "M12 6.2C15.2 6.2 17.8 8.8 17.8 12C17.8 15.2 15.2 17.8 12 17.8C8.8 17.8 6.2 15.2 6.2 12C6.2 8.8 8.8 6.2 12 6.2Z",
-      "M3.9 12C5.8 9.1 8.7 7.4 12 7.4C15.3 7.4 18.2 9.1 20.1 12",
-      "M3.9 12C5.8 14.9 8.7 16.6 12 16.6C15.3 16.6 18.2 14.9 20.1 12",
-    ],
-  },
   "dungeon-crawler-carl": {
     label: "Dungeon Crawler Carl",
     paths: [
@@ -155,8 +147,6 @@ const SECTION_SYMBOL_KEY = Object.freeze({
   "Arcane Ascension": "arcane-ascension",
   "Symmetry Forge": "symmetry-forge",
   "Abstract Algebra": "symmetry-forge",
-  "The Cosmere": "cosmere",
-  "Cosmere": "cosmere",
   "Dungeon Crawler Carl": "dungeon-crawler-carl",
   "Curved Atlas": "curved-atlas",
   "Differential Geometry": "curved-atlas",

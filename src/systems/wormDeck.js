@@ -50,12 +50,20 @@ function normalizeDeck(candidateDeck) {
   return next;
 }
 
-function normalizeSickbayCardId(deck, candidateCardId) {
-  const cardId = String(candidateCardId || "").trim();
-  if (!cardId) {
-    return "";
+function normalizeSickbayCardIds(deck, candidateCardIds) {
+  const raw = Array.isArray(candidateCardIds) ? candidateCardIds : [candidateCardIds];
+  const unique = [];
+  for (const candidate of raw) {
+    const cardId = String(candidate || "").trim();
+    if (!cardId || unique.includes(cardId)) {
+      continue;
+    }
+    if (!Object.prototype.hasOwnProperty.call(deck, cardId)) {
+      continue;
+    }
+    unique.push(cardId);
   }
-  return Object.prototype.hasOwnProperty.call(deck, cardId) ? cardId : "";
+  return unique;
 }
 
 function healedHpForEntry(entry, card, now) {
@@ -72,36 +80,54 @@ function healedHpForEntry(entry, card, now) {
 }
 
 function snapshotSickbayHealing(state, now) {
-  const sickbayCardId = state.sickbayCardId;
-  if (!sickbayCardId) {
+  const sickbayCardIds = Array.isArray(state.sickbayCardIds) ? state.sickbayCardIds : [];
+  if (!sickbayCardIds.length) {
     return state;
   }
 
-  const card = wormCardById(sickbayCardId);
-  const entry = card ? state.deck[sickbayCardId] : null;
-  if (!card || !entry) {
-    return {
-      ...state,
-      sickbayCardId: "",
-    };
-  }
+  const nextDeck = { ...state.deck };
+  const nextSickbayCardIds = [];
+  for (const sickbayCardId of sickbayCardIds) {
+    const card = wormCardById(sickbayCardId);
+    const entry = card ? state.deck[sickbayCardId] : null;
+    if (!card || !entry) {
+      continue;
+    }
 
-  const healedHp = healedHpForEntry(entry, card, now);
-  const maxHp = maxHpForCard(card);
-  const fullyHealed = healedHp >= maxHp;
-  const nextEntry = {
-    ...entry,
-    currentHp: healedHp,
-    sickbaySince: fullyHealed ? 0 : now,
-  };
+    const healedHp = healedHpForEntry(entry, card, now);
+    const maxHp = maxHpForCard(card);
+    const fullyHealed = healedHp >= maxHp;
+    nextDeck[sickbayCardId] = {
+      ...entry,
+      currentHp: healedHp,
+      sickbaySince: fullyHealed ? 0 : now,
+    };
+    if (!fullyHealed) {
+      nextSickbayCardIds.push(sickbayCardId);
+    }
+  }
 
   return {
     ...state,
-    deck: {
-      ...state.deck,
-      [sickbayCardId]: nextEntry,
-    },
+    deck: nextDeck,
+    sickbayCardIds: nextSickbayCardIds,
   };
+}
+
+function inSickbay(state, cardId) {
+  return Array.isArray(state.sickbayCardIds) && state.sickbayCardIds.includes(cardId);
+}
+
+function removeFromSickbayIds(state, cardId) {
+  if (!Array.isArray(state.sickbayCardIds)) {
+    return [];
+  }
+  return state.sickbayCardIds.filter((entry) => entry !== cardId);
+}
+
+function safeSickbaySlots(action) {
+  const requested = Math.max(1, Math.floor(safeNumber(action && action.maxSickbaySlots, 1)));
+  return requested;
 }
 
 export function defaultWormSystemState() {
@@ -110,7 +136,7 @@ export function defaultWormSystemState() {
     startersConfirmed: false,
     starterCardIds: [],
     deck: {},
-    sickbayCardId: "",
+    sickbayCardIds: [],
   };
 }
 
@@ -120,13 +146,18 @@ export function normalizeWormSystemState(candidate, now = nowMs()) {
   const starterCardIds = Array.isArray(source.starterCardIds)
     ? source.starterCardIds.map((cardId) => String(cardId || "").trim()).filter((cardId) => cardId)
     : [];
+  const baseSickbayList = Array.isArray(source.sickbayCardIds)
+    ? source.sickbayCardIds
+    : source.sickbayCardId
+      ? [source.sickbayCardId]
+      : [];
 
   const base = {
     clout: Math.max(0, Number(safeNumber(source.clout, 20).toFixed(2))),
     startersConfirmed: Boolean(source.startersConfirmed),
     starterCardIds,
     deck,
-    sickbayCardId: normalizeSickbayCardId(deck, source.sickbayCardId),
+    sickbayCardIds: normalizeSickbayCardIds(deck, baseSickbayList),
   };
 
   return snapshotSickbayHealing(base, now);
@@ -245,7 +276,7 @@ function ownedDeckEntries(state, now = nowMs()) {
       continue;
     }
     const maxHp = maxHpForCard(card);
-    const currentHp = normalized.sickbayCardId === cardId
+    const currentHp = inSickbay(normalized, cardId)
       ? healedHpForEntry(entry, card, now)
       : clamp(Math.round(safeNumber(entry.currentHp, maxHp)), 0, maxHp);
     entries.push({
@@ -254,7 +285,7 @@ function ownedDeckEntries(state, now = nowMs()) {
       copies: Math.max(1, Math.floor(safeNumber(entry.copies, 1))),
       currentHp,
       maxHp,
-      inSickbay: normalized.sickbayCardId === cardId,
+      inSickbay: inSickbay(normalized, cardId),
       healPerMinute: maxHp * SICKBAY_HEAL_FRACTION_PER_MINUTE,
       sickbaySince: Number(entry.sickbaySince || 0),
     });
@@ -290,7 +321,12 @@ export function wormDrawBasicWindowCard(options = Math.random) {
     : Number.isFinite(Number(options && options.weightBase))
       ? Number(options.weightBase)
       : BASIC_WINDOW_WEIGHT_BASE;
-  const pool = createWindowPool(BASIC_WINDOW_MAX_RARITY);
+  const maxRarity = isFunction
+    ? BASIC_WINDOW_MAX_RARITY
+    : Number.isFinite(Number(options && options.maxRarity))
+      ? Number(options.maxRarity)
+      : BASIC_WINDOW_MAX_RARITY;
+  const pool = createWindowPool(maxRarity);
   return weightedPick(pool, { rng, weightBase });
 }
 
@@ -352,7 +388,7 @@ function applyOutcomeToDeck(state, playerResults, now) {
     nextDeck[cardId] = {
       ...nextDeck[cardId],
       currentHp: hp,
-      sickbaySince: state.sickbayCardId === cardId && hp < maxHp ? now : 0,
+      sickbaySince: inSickbay(state, cardId) && hp < maxHp ? now : 0,
     };
   }
 
@@ -427,13 +463,17 @@ export function reduceWormSystemState(systemState, action, now = nowMs()) {
       };
     }
 
+    const maxRarity = Number.isFinite(Number(action.maxRarity))
+      ? Number(action.maxRarity)
+      : BASIC_WINDOW_MAX_RARITY;
     const requestedCardId = String(action.pulledCardId || "").trim();
     const requestedCard = requestedCardId ? wormCardById(requestedCardId) : null;
     const pulledCard =
-      requestedCard && safeNumber(requestedCard.rarity, 0) <= BASIC_WINDOW_MAX_RARITY
+      requestedCard && safeNumber(requestedCard.rarity, 0) <= maxRarity
         ? requestedCard
         : wormDrawBasicWindowCard({
           weightBase: Number(action.weightBase),
+          maxRarity,
         });
     if (!pulledCard) {
       return { nextState: current, changed: false, message: "No capes are available in the Basic Window pool.", meta: {} };
@@ -473,9 +513,13 @@ export function reduceWormSystemState(systemState, action, now = nowMs()) {
 
     const maxHp = maxHpForCard(card);
     const entry = current.deck[cardId];
-    const hpNow = current.sickbayCardId === cardId ? healedHpForEntry(entry, card, now) : entry.currentHp;
+    const hpNow = inSickbay(current, cardId) ? healedHpForEntry(entry, card, now) : entry.currentHp;
     if (hpNow >= maxHp) {
       return { nextState: current, changed: false, message: `${card.heroName} is already at full health.`, meta: {} };
+    }
+    const maxSlots = safeSickbaySlots(action);
+    if (!inSickbay(current, cardId) && (current.sickbayCardIds || []).length >= maxSlots) {
+      return { nextState: current, changed: false, message: "All Sickbay slots are occupied.", meta: {} };
     }
 
     const nextDeck = {
@@ -487,29 +531,14 @@ export function reduceWormSystemState(systemState, action, now = nowMs()) {
       },
     };
 
-    let next = {
+    const nextSickbayIds = inSickbay(current, cardId)
+      ? (current.sickbayCardIds || []).slice()
+      : [...(current.sickbayCardIds || []), cardId];
+    const next = {
       ...current,
       deck: nextDeck,
-      sickbayCardId: cardId,
+      sickbayCardIds: nextSickbayIds,
     };
-
-    if (current.sickbayCardId && current.sickbayCardId !== cardId) {
-      const prevCard = wormCardById(current.sickbayCardId);
-      const prevEntry = prevCard ? current.deck[current.sickbayCardId] : null;
-      if (prevCard && prevEntry) {
-        next = {
-          ...next,
-          deck: {
-            ...next.deck,
-            [current.sickbayCardId]: {
-              ...prevEntry,
-              currentHp: healedHpForEntry(prevEntry, prevCard, now),
-              sickbaySince: 0,
-            },
-          },
-        };
-      }
-    }
 
     return {
       nextState: next,
@@ -520,15 +549,19 @@ export function reduceWormSystemState(systemState, action, now = nowMs()) {
   }
 
   if (action.type === "worm01-sickbay-remove") {
-    if (!current.sickbayCardId) {
+    const cardId = String(action.cardId || "").trim();
+    if (!(current.sickbayCardIds || []).length) {
       return { nextState: current, changed: false, message: "Sickbay is already empty.", meta: {} };
     }
+    const targetCardId = cardId && inSickbay(current, cardId)
+      ? cardId
+      : current.sickbayCardIds[0];
 
-    const card = wormCardById(current.sickbayCardId);
-    const entry = card ? current.deck[current.sickbayCardId] : null;
+    const card = wormCardById(targetCardId);
+    const entry = card ? current.deck[targetCardId] : null;
     const nextDeck = { ...current.deck };
     if (card && entry) {
-      nextDeck[current.sickbayCardId] = {
+      nextDeck[targetCardId] = {
         ...entry,
         currentHp: healedHpForEntry(entry, card, now),
         sickbaySince: 0,
@@ -539,7 +572,7 @@ export function reduceWormSystemState(systemState, action, now = nowMs()) {
       nextState: {
         ...current,
         deck: nextDeck,
-        sickbayCardId: "",
+        sickbayCardIds: removeFromSickbayIds(current, targetCardId),
       },
       changed: true,
       message: "Sickbay slot cleared.",
@@ -628,12 +661,12 @@ export function reduceWormSystemState(systemState, action, now = nowMs()) {
       delete nextDeck[cardId];
     }
 
-    const nextSickbayCardId = current.sickbayCardId === cardId ? "" : current.sickbayCardId;
+    const nextSickbayCardIds = removeFromSickbayIds(current, cardId);
     return {
       nextState: {
         ...current,
         deck: nextDeck,
-        sickbayCardId: nextSickbayCardId,
+        sickbayCardIds: nextSickbayCardIds,
       },
       changed: true,
       message: `${card.heroName} is sacrificed to the lattice.`,

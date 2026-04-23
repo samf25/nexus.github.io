@@ -73,7 +73,6 @@ function wheelMarkup(runtime) {
               section: region.label,
               className: "mol-wheel-node-symbol",
             })}
-            <span>${escapeHtml(region.label)}</span>
           </button>
         `;
       }).join("")}
@@ -226,7 +225,7 @@ function upgradesMarkup(regionSnapshot) {
 
   return `
     <section class="card mol-upgrade-panel">
-      <h4>${escapeHtml(region.label)} Upgrades</h4>
+      <h4>Region Upgrades</h4>
       <p><strong>${escapeHtml(region.pointLabel)}:</strong> ${escapeHtml(String(regionSnapshot.points))}</p>
       <div class="mol-upgrade-grid">
         ${upgrades.map((upgrade) => {
@@ -282,12 +281,11 @@ export function renderMol03Experience(context) {
       </section>
       ${wheelMarkup(runtime)}
       <section class="card mol-reset-region">
-        <h4>${escapeHtml(selectedSnapshot.regionDef.label)}</h4>
+        <h4>Selected Region</h4>
         <p><strong>${escapeHtml(selectedSnapshot.regionDef.pointLabel)}:</strong> ${escapeHtml(String(selectedSnapshot.points))}</p>
         <p class="muted">Use arrows to cycle regions, then Enter to open upgrade lattice.</p>
       </section>
       ${focusedSnapshot ? upgradesMarkup(focusedSnapshot) : ""}
-      ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
     </article>
   `;
 }

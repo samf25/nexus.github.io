@@ -181,7 +181,6 @@ export function renderLog01Experience(context) {
           `;
         }).join("")}
       </section>
-      ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
     </article>
   `;
 }

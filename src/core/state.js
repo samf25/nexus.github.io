@@ -1,4 +1,6 @@
 import { defaultPrestigeSystemState } from "../systems/prestige.js";
+import { defaultLootInventoryState, normalizeLootInventoryState } from "../systems/loot.js";
+import { defaultArcaneSystemState, normalizeArcaneSystemState } from "../systems/arcaneAscension.js";
 
 const STORAGE_KEY = "nexus.arg.state.v1";
 const SAVE_MAGIC = "nexus.arg.save";
@@ -31,9 +33,10 @@ function defaultSystemState() {
       startersConfirmed: false,
       starterCardIds: [],
       deck: {},
-      sickbayCardId: "",
+      sickbayCardIds: [],
     },
     prestige: defaultPrestigeSystemState(),
+    arcane: defaultArcaneSystemState(),
   };
 }
 
@@ -51,6 +54,7 @@ export function createDefaultState() {
         wave3: null,
       },
       usedRewards: {},
+      loot: defaultLootInventoryState(),
     },
     systems: defaultSystemState(),
     requestHistory: [],
@@ -107,6 +111,12 @@ export function mergeWithDefaults(candidate) {
         incoming.inventory && incoming.inventory.usedRewards && typeof incoming.inventory.usedRewards === "object"
           ? incoming.inventory.usedRewards
           : {},
+      loot: normalizeLootInventoryState(
+        incoming.inventory && incoming.inventory.loot && typeof incoming.inventory.loot === "object"
+          ? incoming.inventory.loot
+          : base.inventory.loot,
+        Date.now(),
+      ),
     },
     systems: {
       ...base.systems,
@@ -142,6 +152,12 @@ export function mergeWithDefaults(candidate) {
           ),
         },
       },
+      arcane: normalizeArcaneSystemState(
+        incoming.systems && incoming.systems.arcane && typeof incoming.systems.arcane === "object"
+          ? incoming.systems.arcane
+          : base.systems.arcane,
+        Date.now(),
+      ),
     },
     requestHistory: Array.isArray(incoming.requestHistory) ? incoming.requestHistory : [],
   };

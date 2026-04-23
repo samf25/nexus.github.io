@@ -1,5 +1,8 @@
 import { escapeHtml } from "../../templates/shared.js";
+import { renderArtifactSymbol } from "../../core/artifacts.js";
+import { renderRegionSymbol } from "../../core/symbology.js";
 import { prestigeModifiersFromState } from "../../systems/prestige.js";
+import { renderSlotRing } from "../../ui/slotRing.js";
 
 const NODE_ID = "DCC01";
 const MAP_SIZE = 7;
@@ -280,6 +283,58 @@ function deriveBaseStats(meta, modifiers) {
   };
 }
 
+function equipmentDefaults() {
+  return {
+    head: null,
+    chest: null,
+    legs: null,
+    trinket: null,
+  };
+}
+
+function normalizeEquipment(candidate) {
+  const source = candidate && typeof candidate === "object" ? candidate : {};
+  const base = equipmentDefaults();
+  for (const slot of Object.keys(base)) {
+    const entry = source[slot];
+    base[slot] = entry && typeof entry === "object" ? entry : null;
+  }
+  return base;
+}
+
+function equippedBonuses(run) {
+  const equipment = normalizeEquipment(run && run.equipment);
+  const result = {
+    hp: 0,
+    attack: 0,
+    stamina: 0,
+  };
+  for (const item of Object.values(equipment)) {
+    if (!item) {
+      continue;
+    }
+    result.hp += Math.max(0, Math.floor(Number(item.hpBonus || 0)));
+    result.attack += Math.max(0, Math.floor(Number(item.attackBonus || 0)));
+    result.stamina += Math.max(0, Math.floor(Number(item.staminaBonus || 0)));
+  }
+  return result;
+}
+
+function applyEquipmentToRun(run) {
+  if (!run) {
+    return;
+  }
+  const bonuses = equippedBonuses(run);
+  const baseMaxHp = Math.max(1, Number(run.baseMaxHp || run.maxHp || 1));
+  const baseAttack = Math.max(1, Number(run.baseAttack || run.attack || 1));
+  const baseMaxStamina = Math.max(1, Number(run.baseMaxStamina || run.maxStamina || 1));
+  run.maxHp = baseMaxHp + bonuses.hp;
+  run.attack = baseAttack + bonuses.attack;
+  run.maxStamina = baseMaxStamina + bonuses.stamina;
+  run.hp = Math.min(run.maxHp, Math.max(0, Number(run.hp || 0)));
+  run.stamina = Math.min(run.maxStamina, Math.max(0, Number(run.stamina || 0)));
+}
+
 function collectNeighbors(openRooms, key) {
   const from = parseRoomKey(key);
   const result = [];
@@ -492,9 +547,11 @@ function normalizeRuntime(candidate) {
   return {
     solved: Boolean(source.solved),
     inventoryOpen: Boolean(source.inventoryOpen),
+    lootEvents: Array.isArray(source.lootEvents) ? source.lootEvents.filter((entry) => entry && typeof entry === "object") : [],
     meta: withDefaultMeta(source.meta),
     run: source.run && typeof source.run === "object" ? source.run : null,
     lastMessage: String(source.lastMessage || ""),
+    selectedLootItemId: String(source.selectedLootItemId || ""),
   };
 }
 
@@ -502,9 +559,49 @@ function createInitialRuntime() {
   return {
     solved: false,
     inventoryOpen: false,
+    lootEvents: [],
     meta: withDefaultMeta({}),
     run: null,
     lastMessage: "Welcome to Floor 1. Build a run and survive the crawl.",
+  };
+}
+
+function withLootEventsFromBagGrowth(previousRuntime, nextRuntime, actionType) {
+  const before = previousRuntime && previousRuntime.run && Array.isArray(previousRuntime.run.bag)
+    ? previousRuntime.run.bag.length
+    : 0;
+  const after = nextRuntime && nextRuntime.run && Array.isArray(nextRuntime.run.bag)
+    ? nextRuntime.run.bag.length
+    : 0;
+  const growth = Math.max(0, after - before);
+  if (!growth) {
+    return {
+      ...nextRuntime,
+      lootEvents: [],
+    };
+  }
+
+  const eligible = new Set(["dcc-combat-use", "dcc-encounter-option", "dcc-move", "dcc-descend"]);
+  if (!eligible.has(String(actionType || ""))) {
+    return {
+      ...nextRuntime,
+      lootEvents: [],
+    };
+  }
+
+  const run = nextRuntime && nextRuntime.run && typeof nextRuntime.run === "object" ? nextRuntime.run : {};
+  const rarityBias = Math.max(0, Number(run.rareBonus || 0));
+  const events = Array.from({ length: growth }, () => ({
+    sourceRegion: "dcc",
+    triggerType: "crawl-drop",
+    dropChance: 0.35,
+    outRegionChance: 0.2,
+    rarityBias,
+  }));
+
+  return {
+    ...nextRuntime,
+    lootEvents: events,
   };
 }
 
@@ -681,7 +778,7 @@ function startFloor(runtime, state, floor = 1) {
     slots[0] = "sponsor_blast";
   }
 
-  return {
+  const run = {
     active: true,
     floor,
     seed,
@@ -692,6 +789,9 @@ function startFloor(runtime, state, floor = 1) {
     stamina: stats.maxStamina,
     maxStamina: stats.maxStamina,
     attack: stats.attack,
+    baseMaxHp: stats.maxHp,
+    baseMaxStamina: stats.maxStamina,
+    baseAttack: stats.attack,
     rareBonus: stats.rareBonus,
     goldMultiplier: stats.goldMultiplier,
     bag: [],
@@ -699,11 +799,14 @@ function startFloor(runtime, state, floor = 1) {
     abilitySlots: slots,
     combat: null,
     event: null,
+    equipment: equipmentDefaults(),
     roomState: null,
     nextEnemyActAt: 0,
     bossDefeated: false,
     log: [`Floor ${floor} opens. Keep moving.`],
   };
+  applyEquipmentToRun(run);
+  return run;
 }
 
 function addLog(run, line) {
@@ -1502,11 +1605,11 @@ function reduceDccRuntime(runtime, action, context = {}) {
   }
 
   if (action.type === "dcc-toggle-inventory") {
-    return {
+    return withLootEventsFromBagGrowth(current, {
       ...current,
       inventoryOpen: !current.inventoryOpen,
       lastMessage: "",
-    };
+    }, action.type);
   }
 
   if (action.type === "dcc-enter-floor") {
@@ -1518,7 +1621,7 @@ function reduceDccRuntime(runtime, action, context = {}) {
     }
     const nextRun = startFloor(current, context.state, 1);
     enterRoom(nextRun, nextRun.currentRoomId);
-    return {
+    return withLootEventsFromBagGrowth(current, {
       ...current,
       meta: {
         ...current.meta,
@@ -1527,7 +1630,7 @@ function reduceDccRuntime(runtime, action, context = {}) {
       run: nextRun,
       inventoryOpen: false,
       lastMessage: "Floor 1 generated.",
-    };
+    }, action.type);
   }
 
   if (action.type === "dcc-buy-upgrade") {
@@ -1559,20 +1662,20 @@ function reduceDccRuntime(runtime, action, context = {}) {
         [upgradeId]: (current.meta.upgrades[upgradeId] || 0) + 1,
       },
     });
-    return {
+    return withLootEventsFromBagGrowth(current, {
       ...current,
       meta: nextMeta,
       lastMessage: `Upgraded ${upgradeId}.`,
-    };
+    }, action.type);
   }
 
   if (action.type === "dcc-reset-run") {
-    return {
+    return withLootEventsFromBagGrowth(current, {
       ...current,
       run: null,
       inventoryOpen: false,
       lastMessage: "Run abandoned.",
-    };
+    }, action.type);
   }
 
   if (!current.run) {
@@ -1587,10 +1690,10 @@ function reduceDccRuntime(runtime, action, context = {}) {
   if (action.type === "dcc-move") {
     const direction = String(action.direction || "");
     const message = moveDirection(next, direction, context.state);
-    return {
+    return withLootEventsFromBagGrowth(current, {
       ...next,
       lastMessage: message,
-    };
+    }, action.type);
   }
 
   if (action.type === "dcc-rest") {
@@ -1612,34 +1715,34 @@ function reduceDccRuntime(runtime, action, context = {}) {
     if (room) {
       room.rested = true;
     }
-    return {
+    return withLootEventsFromBagGrowth(current, {
       ...next,
       lastMessage: "Recovered a little health and stamina.",
-    };
+    }, action.type);
   }
 
   if (action.type === "dcc-descend") {
     const message = descendFloor(next, context.state);
-    return {
+    return withLootEventsFromBagGrowth(current, {
       ...next,
       lastMessage: message,
-    };
+    }, action.type);
   }
 
   if (action.type === "dcc-use-item") {
     const message = useItemInRun(next.run, action.itemIndex);
-    return {
+    return withLootEventsFromBagGrowth(current, {
       ...next,
       lastMessage: message,
-    };
+    }, action.type);
   }
 
   if (action.type === "dcc-learn-book") {
     const message = learnBook(next.run, action.itemIndex, action.slotIndex);
-    return {
+    return withLootEventsFromBagGrowth(current, {
       ...next,
       lastMessage: message,
-    };
+    }, action.type);
   }
 
   if (action.type === "dcc-combat-use") {
@@ -1652,13 +1755,13 @@ function reduceDccRuntime(runtime, action, context = {}) {
 
   if (action.type === "dcc-encounter-option") {
     const message = resolveEncounter(next, action.optionId);
-    return {
+    return withLootEventsFromBagGrowth(current, {
       ...next,
       lastMessage: message,
-    };
+    }, action.type);
   }
 
-  return next;
+  return withLootEventsFromBagGrowth(current, next, action.type);
 }
 
 function roomSymbol(room, run) {
@@ -1934,6 +2037,67 @@ function abilitySlotMarkup(run) {
   `;
 }
 
+function dccLootPanelMarkup(runtime, state) {
+  const equipment = runtime && runtime.run ? normalizeEquipment(runtime.run.equipment) : equipmentDefaults();
+  const rows = [
+    { slot: "head", label: "Head" },
+    { slot: "chest", label: "Chest" },
+    { slot: "legs", label: "Legs" },
+    { slot: "trinket", label: "Trinket" },
+  ];
+  const selectedLootItemId = String(runtime && runtime.selectedLootItemId ? runtime.selectedLootItemId : "");
+  const canEquip = Boolean(runtime && runtime.run && selectedLootItemId);
+  const ringSlots = rows.map((row) => {
+    const item = equipment[row.slot];
+    const details = item
+      ? `${row.label}: ${item.label || "Armor"} (${item.rarity || "common"})${item.enchantLabel ? ` | Enchant: ${item.enchantLabel}` : ""}`
+      : `${row.label}: empty`;
+    return {
+      filled: Boolean(item),
+      clickable: canEquip,
+      title: details,
+      ariaLabel: `${row.label} gear slot`,
+      symbolHtml: item
+        ? renderArtifactSymbol({
+            artifactName: item.label || row.label,
+            className: "slot-ring-symbol artifact-symbol",
+          })
+        : renderArtifactSymbol({
+            artifactName: `${row.label} Slot`,
+            className: "slot-ring-symbol artifact-symbol is-slot-ghost",
+          }),
+      attrs: canEquip
+        ? {
+            "data-action": "loot-equip-target",
+            "data-region": "dcc",
+            "data-slot-id": row.slot,
+            "data-target-id": row.slot,
+          }
+        : {},
+    };
+  });
+
+  return `
+    <section class="card dcc-sheet">
+      <h4>Run-Limited Gear</h4>
+      ${renderSlotRing({
+        slots: ringSlots,
+        className: "dcc-gear-slot-ring",
+        radiusPct: 42,
+        centerHtml: renderRegionSymbol({
+          section: "Dungeon Crawler Carl",
+          className: "slot-ring-center-symbol",
+        }),
+        ariaLabel: "DCC gear slots",
+      })}
+      <p class="muted">${canEquip ? "Click a slot to equip selected loot." : "Select DCC loot, then click a gear slot during a run."}</p>
+      <div class="toolbar">
+        <button type="button" data-action="toggle-widget" data-widget="loot">Open Loot Panel</button>
+      </div>
+    </section>
+  `;
+}
+
 function outsideMarkup(runtime, state) {
   const meta = runtime.meta;
   const modifiers = dccModifiers(state);
@@ -1956,42 +2120,45 @@ function outsideMarkup(runtime, state) {
       </div>
     </section>
 
-    <section class="card dcc-sheet">
+    <section class="card dcc-sheet dcc-sheet-summary">
       <h4>Character Sheet</h4>
-      <p><strong>Max HP:</strong> ${escapeHtml(String(stats.maxHp))} | <strong>Attack:</strong> ${escapeHtml(String(stats.attack))} | <strong>Max Stamina:</strong> ${escapeHtml(String(stats.maxStamina))}</p>
-      <p><strong>Armor Slots:</strong> Head [Empty], Chest [Empty], Legs [Empty], Trinket [Empty]</p>
+      <p><strong>Max HP:</strong> ${escapeHtml(String(stats.maxHp))} | <strong>Attack:</strong> ${escapeHtml(String(stats.attack))} | <strong>Max Stamina:</strong> ${escapeHtml(String(stats.maxStamina))} | <strong>Ability Slots:</strong> ${escapeHtml(String(stats.slotCount))}</p>
       <p><strong>Base Abilities:</strong> Basic Attack</p>
-      <p><strong>Ability Slot Capacity:</strong> ${escapeHtml(String(stats.slotCount))}</p>
     </section>
 
-    <section class="card dcc-upgrades">
-      <h4>Gold Upgrades</h4>
-      <div class="dcc-upgrade-grid">
-        ${upgradeRows.map((row) => {
-          const cost = upgradeCost(meta, row.id);
-          return `
-            <article class="dcc-upgrade-card">
-              <h5>${escapeHtml(row.label)}</h5>
-              <p>Level: ${escapeHtml(String(row.value))}</p>
-              <p>Cost: ${escapeHtml(String(cost))} gold</p>
-              <button
-                type="button"
-                data-node-id="${NODE_ID}"
-                data-node-action="dcc-buy-upgrade"
-                data-upgrade-id="${escapeHtml(row.id)}"
-                ${meta.gold >= cost ? "" : "disabled"}
-              >
-                Upgrade
-              </button>
-            </article>
-          `;
-        }).join("")}
+    <section class="dcc-sheet-grid">
+      <section class="card dcc-upgrades">
+        <h4>Gold Upgrades</h4>
+        <div class="dcc-upgrade-grid">
+          ${upgradeRows.map((row) => {
+            const cost = upgradeCost(meta, row.id);
+            return `
+              <article class="dcc-upgrade-card">
+                <h5>${escapeHtml(row.label)}</h5>
+                <p>Level: ${escapeHtml(String(row.value))}</p>
+                <p>Cost: ${escapeHtml(String(cost))} gold</p>
+                <button
+                  type="button"
+                  data-node-id="${NODE_ID}"
+                  data-node-action="dcc-buy-upgrade"
+                  data-upgrade-id="${escapeHtml(row.id)}"
+                  ${meta.gold >= cost ? "" : "disabled"}
+                >
+                  Upgrade
+                </button>
+              </article>
+            `;
+          }).join("")}
+        </div>
+      </section>
+      <div class="dcc-gear-column">
+        ${dccLootPanelMarkup(runtime, state)}
       </div>
     </section>
   `;
 }
 
-function runMarkup(runtime) {
+function runMarkup(runtime, state) {
   const run = runtime.run;
   if (!run) {
     return "";
@@ -2035,6 +2202,7 @@ function runMarkup(runtime) {
           ${abilitySlotMarkup(run)}
           <p class="muted">WASD movement, numbers for abilities, walk onto stairs to descend.</p>
         </section>
+        ${dccLootPanelMarkup(runtime, state)}
       </div>
 
       <aside class="card dcc-feed">
@@ -2044,7 +2212,6 @@ function runMarkup(runtime) {
             ${feedEntries.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
           </ul>
         </div>
-        ${runtime.lastMessage ? `<p class="key-hint dcc-feed-message">${escapeHtml(runtime.lastMessage)}</p>` : ""}
       </aside>
     </section>
   `;
@@ -2058,8 +2225,7 @@ function renderDcc01(context) {
       <section class="card dcc-head">
         <h3>DCC01: The Crawl</h3>
       </section>
-      ${runtime.run ? runMarkup(runtime) : outsideMarkup(runtime, context.state)}
-      ${!runtime.run && runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
+      ${runtime.run ? runMarkup(runtime, context.state) : outsideMarkup(runtime, context.state)}
     </article>
   `;
 }
@@ -2177,13 +2343,18 @@ function keyAction(event, runtime) {
 
 function synchronizeDccRuntime(runtime, context = {}) {
   const current = normalizeRuntime(runtime);
-  if (!current.run) {
-    return current;
+  const selectedLootItemId = String(context.selectedLootItemId || "");
+  const synced = {
+    ...current,
+    selectedLootItemId,
+  };
+  if (!synced.run) {
+    return synced;
   }
 
   const next = {
-    ...current,
-    run: cloneRun(current.run),
+    ...synced,
+    run: cloneRun(synced.run),
   };
   if (!roomStateFromRun(next.run)) {
     enterRoom(next.run, next.run.currentRoomId);

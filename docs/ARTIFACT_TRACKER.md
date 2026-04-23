@@ -15,6 +15,12 @@ This file tracks artifact placement, usage touchpoints, and remaining required a
 | Sunless Lantern | Placed | ALG02 (Symmetry Forge) |
 | Bone Key | Placed | GEO02 (Curved Atlas) |
 | River-Map of Silt | Not Placed Yet | TBD |
+| Ashen Treaty Pins | Not Placed Yet | TBD |
+| Red Petition Docket | Not Placed Yet | TBD |
+| Saintglass Vial | Not Placed Yet | TBD |
+| Ivory Truce Fork | Not Placed Yet | TBD |
+| Nightwine Ledger | Not Placed Yet | TBD |
+| Mercy Bell Chime | Not Placed Yet | TBD |
 
 ## Supplemental / Dynamic Artifacts
 
@@ -35,6 +41,12 @@ This file tracks artifact placement, usage touchpoints, and remaining required a
 | PGE04-W1 | A Practical Guide to Evil | Sunless Crown Accord | PGE04 win path reward; refs: `src/nodes/practicalguide/pgeTextAdventures.js:1177`, `src/systems/practicalGuide.js:35` |
 | PGE04-W2 | A Practical Guide to Evil | Ossuary Keeper Sigil | PGE04 win path reward; refs: `src/nodes/practicalguide/pgeTextAdventures.js:1178`, `src/systems/practicalGuide.js:36` |
 | PGE04-W3 | A Practical Guide to Evil | Silt-River Exit Seal | PGE04 win path reward; refs: `src/nodes/practicalguide/pgeTextAdventures.js:1179`, `src/systems/practicalGuide.js:37` |
+| PGE05-W1 | A Practical Guide to Evil | Mercy Charter Seal | PGE05 win path reward; refs: `src/nodes/practicalguide/pgeTextAdventures.js`, `src/systems/practicalGuide.js` |
+| PGE05-W2 | A Practical Guide to Evil | Conqueror's Due Process | PGE05 win path reward; refs: `src/nodes/practicalguide/pgeTextAdventures.js`, `src/systems/practicalGuide.js` |
+| PGE05-W3 | A Practical Guide to Evil | Measured Iron Mandate | PGE05 win path reward; refs: `src/nodes/practicalguide/pgeTextAdventures.js`, `src/systems/practicalGuide.js` |
+| PGE06-W1 | A Practical Guide to Evil | Table of Last Reconciliation | PGE06 win path reward; refs: `src/nodes/practicalguide/pgeTextAdventures.js`, `src/systems/practicalGuide.js` |
+| PGE06-W2 | A Practical Guide to Evil | Midnight Carving Accord | PGE06 win path reward; refs: `src/nodes/practicalguide/pgeTextAdventures.js`, `src/systems/practicalGuide.js` |
+| PGE06-W3 | A Practical Guide to Evil | Bell of Unbroken Guest-Right | PGE06 win path reward; refs: `src/nodes/practicalguide/pgeTextAdventures.js`, `src/systems/practicalGuide.js` |
 
 ## Node Reward Artifacts (From Blueprint)
 

@@ -2,7 +2,7 @@ import { escapeHtml } from "../../templates/shared.js";
 import { renderRegionSymbol } from "../../core/symbology.js";
 
 const NODE_ID = "HUB02";
-const OUTER_RING_SIZE = 8;
+const OUTER_RING_SIZE = 7;
 const INNER_RING_SIZE = 4;
 const OUTER_RADIUS = 40;
 const INNER_RADIUS = 23;
@@ -13,7 +13,6 @@ const OUTER_ICONS = Object.freeze([
   { iconId: "outer-worm", label: "Worm", symbolKey: "worm" },
   { iconId: "outer-mol", label: "Mother of Learning", symbolKey: "mother-of-learning" },
   { iconId: "outer-arcane", label: "Arcane Ascension", symbolKey: "arcane-ascension" },
-  { iconId: "outer-cosmere", label: "Cosmere", symbolKey: "cosmere" },
   { iconId: "outer-dcc", label: "Dungeon Crawler Carl", symbolKey: "dungeon-crawler-carl" },
   { iconId: "outer-guide", label: "Practical Guide", symbolKey: "practical-guide" },
 ]);

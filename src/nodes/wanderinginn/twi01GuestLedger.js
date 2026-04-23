@@ -369,8 +369,6 @@ export function renderTwi01Experience(context) {
           </tbody>
         </table>
       </section>
-
-      ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
       ${runtime.solved ? `<p class="key-hint"><strong>Ledger fully restored.</strong></p>` : ""}
     </article>
   `;

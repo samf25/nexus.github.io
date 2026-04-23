@@ -1,6 +1,7 @@
 import { escapeHtml } from "../templates/shared.js";
 import { sectionRouteSlug } from "../data/blueprint.js";
 import { renderRegionSymbol } from "../core/symbology.js";
+import { renderSlotRing } from "./slotRing.js";
 import {
   KEY_SLOT_DEFINITIONS,
   keySlotsFromState,
@@ -58,56 +59,39 @@ function ringAngleForNode(ring, nodeIndex, total) {
 function keySlotMarkup(state, selectedArtifactReward) {
   const slots = keySlotsFromState(state);
   const selectedSlotId = slotIdForReward(selectedArtifactReward);
+  const slotNodes = KEY_SLOT_DEFINITIONS.map((slot) => {
+    const occupied = slots[slot.slotId];
+    const canInsert = Boolean(!occupied && selectedSlotId === slot.slotId);
+    const symbolHtml = occupied
+      ? renderArtifactSymbol({
+          artifactName: occupied.reward,
+          className: "nexus-key-slot-symbol artifact-symbol",
+        })
+      : "";
 
-  return `
-    <div class="nexus-key-slots">
-      ${KEY_SLOT_DEFINITIONS.map((slot) => {
-        const occupied = slots[slot.slotId];
-        const canInsert = Boolean(!occupied && selectedSlotId === slot.slotId);
-        const expectedReward = slot.rewardAliases[0] || slot.label;
+    return {
+      filled: Boolean(occupied),
+      ready: canInsert,
+      clickable: !occupied,
+      disabled: Boolean(occupied),
+      title: occupied
+        ? `${slot.label}: ${occupied.reward}`
+        : `${slot.label}: empty`,
+      ariaLabel: `${slot.label} key slot`,
+      symbolHtml,
+      attrs: {
+        "data-action": "nexus-slot-key",
+        "data-slot-id": slot.slotId,
+      },
+    };
+  });
 
-        return `
-          <button
-            type="button"
-            class="nexus-key-slot ${occupied ? "is-filled" : ""} ${canInsert ? "is-ready" : ""}"
-            data-action="nexus-slot-key"
-            data-slot-id="${escapeHtml(slot.slotId)}"
-            ${occupied ? "disabled" : ""}
-            aria-label="${escapeHtml(`${slot.label} key slot`)}"
-            title="${escapeHtml(slot.label)}"
-          >
-            <span class="nexus-key-slot-icon">
-              ${
-                occupied
-                  ? renderArtifactSymbol({
-                      artifactName: occupied.reward,
-                      className: "nexus-key-slot-symbol artifact-symbol",
-                    })
-                  : renderArtifactSymbol({
-                      artifactName: expectedReward,
-                      className: "nexus-key-slot-symbol artifact-symbol is-slot-ghost",
-                    })
-              }
-            </span>
-          </button>
-        `;
-      }).join("")}
-    </div>
-  `;
-}
-
-function keyHintMarkup(selectedArtifactReward) {
-  const selected = String(selectedArtifactReward || "");
-  const slotId = slotIdForReward(selected);
-  if (!selected) {
-    return "Key sockets awaiting charge.";
-  }
-
-  if (slotId) {
-    return "Key selected.";
-  }
-
-  return "Artifact selected.";
+  return renderSlotRing({
+    slots: slotNodes,
+    className: "nexus-key-slot-ring",
+    radiusPct: 36,
+    ariaLabel: "Nexus key sockets",
+  });
 }
 
 function starClassNames(entry, isActive) {
@@ -235,7 +219,6 @@ export function renderNexusView({ rings, selectedRingIndex, selectedItemIndices,
       <div class="nexus-stage" aria-label="Nexus Sector Map">
         <div class="nexus-core">
           <h2>Nexus</h2>
-          <p class="key-hint">${escapeHtml(keyHintMarkup(selectedArtifactReward))}</p>
           ${keySlotMarkup(state, selectedArtifactReward)}
         </div>
         <div class="nexus-orbit">${orbit}</div>

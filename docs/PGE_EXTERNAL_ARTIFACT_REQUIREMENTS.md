@@ -58,3 +58,37 @@ Gated options/branches:
 - `PGE04-S5 / p4-5-w1` - crown route (`Sunless Lantern`, `Bone Key`, `River-Map of Silt`)
 - `PGE04-S5 / p4-5-w2` - ossuary containment route (`Sunless Lantern`, `Bone Key`)
 - `PGE04-S5 / p4-5-w3` - sluice route (`River-Map of Silt`)
+
+## PGE05 - March of Small Mercies
+
+Required artifacts in this story:
+- `Ashen Treaty Pins`
+- `Red Petition Docket`
+- `Saintglass Vial`
+
+Gated options/branches:
+- `PGE05-01 / p5-1-ledger` - lawful framing entry (`Red Petition Docket`)
+- `PGE05-02A / p5-2a-pins` - civilian protection policy (`Ashen Treaty Pins`)
+- `PGE05-02B / p5-2b-docket` - accountable accusation chaining (`Red Petition Docket`)
+- `PGE05-02B / p5-2b-vial` - confession vetting (`Saintglass Vial`)
+- `PGE05-04 / p5-4-bind` - officer code codification (`Red Petition Docket`)
+- `PGE05-04 / p5-4-saintglass` - hypocrisy exposure (`Saintglass Vial`)
+- `PGE05-05 / p5-5-w1` - enforceable mercy doctrine ending (`Ashen Treaty Pins`, `Red Petition Docket`)
+- `PGE05-05 / p5-5-w2` - due-process doctrine ending (`Red Petition Docket`, `Saintglass Vial`)
+
+## PGE06 - The Long Night Banquet
+
+Required artifacts in this story:
+- `Ivory Truce Fork`
+- `Nightwine Ledger`
+- `Mercy Bell Chime`
+
+Gated options/branches:
+- `PGE06-01 / p6-1-host` - host-right ritual frame (`Ivory Truce Fork`)
+- `PGE06-01 / p6-1-ledger` - full service-chain audit frame (`Nightwine Ledger`)
+- `PGE06-02A / p6-2a-fork` - precedence law enforcement (`Ivory Truce Fork`)
+- `PGE06-02A / p6-2a-bell` - hall sanctification (`Mercy Bell Chime`)
+- `PGE06-02B / p6-2b-ledger` - vessel reconciliation (`Nightwine Ledger`)
+- `PGE06-03 / p6-3-ring` - truce violence freeze (`Mercy Bell Chime`)
+- `PGE06-04 / p6-4-w1` - guest-right stabilization ending (`Ivory Truce Fork`, `Nightwine Ledger`)
+- `PGE06-04 / p6-4-w2` - accountability stabilization ending (`Nightwine Ledger`, `Mercy Bell Chime`)

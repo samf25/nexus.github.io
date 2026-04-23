@@ -60,6 +60,7 @@ function normalizeRuntime(runtime) {
         ? source.orderPrefs
         : {},
     helpOpen: Boolean(source.helpOpen),
+    lootEvents: Array.isArray(source.lootEvents) ? source.lootEvents.filter((entry) => entry && typeof entry === "object") : [],
     bossDefeated: Boolean(source.bossDefeated),
     solved: Boolean(source.bossDefeated),
     lastMessage: safeText(source.lastMessage),
@@ -327,7 +328,17 @@ export function validateWorm02Runtime(runtime) {
   return Boolean(runtime && runtime.bossDefeated);
 }
 
-function loadoutCards(cardPayload) {
+function applyCardBonus(card, bonus) {
+  const source = bonus && typeof bonus === "object" ? bonus : {};
+  const keys = ["attack", "defense", "endurance", "info", "manipulation", "range", "speed", "stealth"];
+  const next = { ...card };
+  for (const key of keys) {
+    next[key] = Math.max(0, Number(card[key] || 0) + Math.max(0, Number(source[key] || 0)));
+  }
+  return next;
+}
+
+function loadoutCards(cardPayload, bonusesByCardId = {}) {
   return (cardPayload || [])
     .map((entry) => {
       const cardId = safeText(entry && entry.cardId);
@@ -339,10 +350,11 @@ function loadoutCards(cardPayload) {
         return null;
       }
       const currentHp = Number(entry && entry.currentHp);
-      return {
+      const resolved = {
         ...card,
         currentHp: Number.isFinite(currentHp) ? Math.max(0, Math.round(currentHp)) : undefined,
       };
+      return applyCardBonus(resolved, bonusesByCardId[cardId] || null);
     })
     .filter((card) => card && typeof card === "object")
     .slice(0, 2);
@@ -368,9 +380,12 @@ export function reduceWorm02Runtime(runtime, action) {
     const requestedLoadout = requestedPlayerCards.length
       ? requestedPlayerCards.map((entry) => safeText(entry.cardId)).slice(0, 2)
       : current.playerLoadout;
+    const bonusesByCardId = action.capeBonusesByCardId && typeof action.capeBonusesByCardId === "object"
+      ? action.capeBonusesByCardId
+      : {};
     const playerCards = requestedPlayerCards.length
-      ? loadoutCards(requestedPlayerCards)
-      : loadoutCards(requestedLoadout.map((cardId) => ({ cardId })));
+      ? loadoutCards(requestedPlayerCards, bonusesByCardId)
+      : loadoutCards(requestedLoadout.map((cardId) => ({ cardId })), bonusesByCardId);
     const enemyCards = (Array.isArray(action.enemyCardIds) ? action.enemyCardIds : [])
       .map((cardId) => wormCardById(cardId))
       .filter((card) => card)
@@ -435,11 +450,24 @@ export function reduceWorm02Runtime(runtime, action) {
     const winner = safeText(action.winner).toLowerCase();
     const mode = safeText(action.mode).toLowerCase();
     const solvedNow = mode === "boss" && winner === "player";
+    const lootEvents =
+      mode === "normal" && winner === "player"
+        ? [
+            {
+              sourceRegion: "worm",
+              triggerType: "arena-victory",
+              dropChance: 0.25,
+              outRegionChance: 0.5,
+              rarityBias: 0.2,
+            },
+          ]
+        : [];
     return {
       ...current,
       bossDefeated: current.bossDefeated || solvedNow,
       solved: current.bossDefeated || solvedNow,
       battle: null,
+      lootEvents,
       lastMessage: winner === "player" ? "Outcome claimed. Clout awarded." : "Outcome claimed.",
     };
   }
@@ -629,7 +657,6 @@ export function renderWorm02Experience(context) {
       ${setupMarkup}
       ${helpMarkup}
       ${battleMarkup({ ...runtime, playerLoadout: loadout }, cloutMultiplier)}
-      ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
     </article>
   `;
 }

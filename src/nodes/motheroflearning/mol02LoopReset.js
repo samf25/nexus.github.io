@@ -112,7 +112,6 @@ function wheelMarkup(runtime) {
               section: region.label,
               className: "mol-wheel-node-symbol",
             })}
-            <span>${escapeHtml(region.label)}</span>
           </button>
         `;
       }).join("")}
@@ -394,17 +393,16 @@ function regionPanelMarkup(snapshot) {
     const roleText = currentRole || "None";
     return `
       <section class="card mol-reset-region">
-        <h4>${escapeHtml(region.label)}</h4>
+        <h4>Reset Target</h4>
         <p><strong>Current Role:</strong> ${escapeHtml(roleText)}</p>
         <p><strong>Reset Cost:</strong> None</p>
         <p><strong>Effect:</strong> Remove active role artifact and reopen PGE01.</p>
-        <p class="muted">Possible roles: ${escapeHtml(ROLE_ARTIFACTS.join(", "))}</p>
       </section>
     `;
   }
   return `
     <section class="card mol-reset-region">
-      <h4>${escapeHtml(region.label)}</h4>
+      <h4>Reset Target</h4>
       <p><strong>${escapeHtml(region.currencyLabel)}:</strong> ${escapeHtml(String(Math.floor(snapshot.currency)))}</p>
       <p><strong>Next Reset Cost:</strong> ${escapeHtml(String(snapshot.nextCost))}</p>
       <p><strong>${escapeHtml(region.pointLabel)}:</strong> ${escapeHtml(String(snapshot.points))}</p>
@@ -436,7 +434,7 @@ export function renderMol02Experience(context) {
         runtime.confirmRegionId
           ? `
             <section class="card mol-reset-confirm">
-              <h4>Are you sure you want to reset ${escapeHtml(confirmSnapshot && confirmSnapshot.regionDef ? confirmSnapshot.regionDef.label : "this region")}?</h4>
+              <h4>Are you sure you want to reset this region?</h4>
               ${
                 runtime.challenge
                   ? `
@@ -546,8 +544,6 @@ export function renderMol02Experience(context) {
           `
           : ""
       }
-
-      ${runtime.lastMessage ? `<p class="key-hint">${escapeHtml(runtime.lastMessage)}</p>` : ""}
     </article>
   `;
 }
