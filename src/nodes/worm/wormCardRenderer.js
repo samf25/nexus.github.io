@@ -52,6 +52,14 @@ function statusIconMarkup(type) {
     `;
   }
 
+  if (type === "confusion") {
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3.5A8.5 8.5 0 1 0 20.5 12h-3A5.5 5.5 0 1 1 12 6.5c1.4 0 2.6.5 3.6 1.4l-2.1 2.1H21V2.4l-2.3 2.3A8.45 8.45 0 0 0 12 3.5Z"></path>
+      </svg>
+    `;
+  }
+
   return "";
 }
 
@@ -77,6 +85,12 @@ function statusBadges(combatant) {
     badges.push({
       type: "stealth",
       label: "Stealth active",
+    });
+  }
+  if (combatant.confusedAttack) {
+    badges.push({
+      type: "confusion",
+      label: "Manipulated",
     });
   }
 

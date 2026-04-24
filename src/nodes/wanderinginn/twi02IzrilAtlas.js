@@ -4,7 +4,7 @@ const NODE_ID = "TWI02";
 const MAP_SRC = "src/nodes/wanderinginn/map_of_izril.png";
 
 const LABEL_TARGETS = Object.freeze([
-  { id: "salazar", answer: "Salazar", aliases: ["Salazsar"], x: 71.75, y: 66.2, w: 13.2, h: 4.3 },
+  { id: "salazar", answer: "Salaszar", aliases: ["Salazar", "Salazsar"], x: 71.75, y: 66.2, w: 13.2, h: 4.3 },
   { id: "oteslia", answer: "Oteslia", x: 59.5, y: 71.55, w: 11.9, h: 4.3 },
   { id: "palass", answer: "Palass", aliases: ["Pallass"], x: 61.95, y: 58.2, w: 11.7, h: 4.3 },
   { id: "zeres", answer: "Zeres", x: 35.95, y: 90.6, w: 10.0, h: 4.3 },
@@ -284,7 +284,7 @@ export function renderTwi02Experience(context) {
           ${solveFlashMarkup(runtime)}
         </div>
       </section>
-      ${runtime.solved ? `<p class="key-hint"><strong>Atlas restored.</strong></p>` : ""}
+      ${runtime.solved ? `<section class="completion-banner" aria-live="polite"><p><strong>Atlas Restored</strong></p></section>` : ""}
       ${entryModalMarkup(runtime)}
     </article>
   `;

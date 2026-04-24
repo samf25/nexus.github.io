@@ -63,7 +63,9 @@ export function renderHub06Experience(context) {
             <section class="hub06-card">
               <h3>Correspondence Desk</h3>
               <p>The floating desk settles into orbit, ready to receive and return messages.</p>
-              <p class="key-hint">The Desk route is now available from navigation.</p>
+              <section class="completion-banner" aria-live="polite">
+                <p><strong>CORRESPONDENCE DESK Anchored</strong></p>
+              </section>
             </section>
           `
           : `

@@ -506,7 +506,7 @@ export function renderHub01Experience(context) {
         solvedNow
           ? `
             <section class="hub01-reveal hub01-reveal-immersive is-open" aria-live="polite">
-              <p><strong>${escapeHtml(viewRuntime.revealedPhrase || SOLVED_PHRASE)}</strong></p>
+              <p><strong>ARCHIVE OF WAYS Added to Artifacts</strong></p>
             </section>
           `
           : ""

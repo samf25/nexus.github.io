@@ -1,10 +1,23 @@
-const COMBAT_STAGES = Object.freeze(["foundation", "copper", "iron", "jade"]);
+const COMBAT_STAGES = Object.freeze([
+  "foundation",
+  "copper",
+  "iron",
+  "jade",
+  "gold",
+  "lowgold",
+  "highgold",
+  "truegold",
+]);
 
 const DEFENSE_MULTIPLIER = Object.freeze({
   foundation: 1,
   copper: 0.78,
   iron: 0.62,
   jade: 0.48,
+  gold: 0.36,
+  lowgold: 0.36,
+  highgold: 0.3,
+  truegold: 0.24,
 });
 
 const ATTACK_MULTIPLIER = Object.freeze({
@@ -12,6 +25,10 @@ const ATTACK_MULTIPLIER = Object.freeze({
   copper: 1.2,
   iron: 1.5,
   jade: 1.9,
+  gold: 2.2,
+  lowgold: 2.2,
+  highgold: 2.55,
+  truegold: 2.95,
 });
 
 export function normalizeCombatStage(stageId) {

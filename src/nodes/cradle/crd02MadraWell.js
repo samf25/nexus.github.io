@@ -24,23 +24,40 @@ const MANUAL_PATTERNS = CRD02_MANUAL_RHYTHM_PATTERNS;
 const BREAKTHROUGH_COSTS = Object.freeze({
   foundation: 200,
   copper: 1000,
+  iron: 4500,
+  jade: 12000,
+  lowgold: 36000,
+  highgold: 90000,
 });
 const IRON_BREAKTHROUGH_ARTIFACT = "Cultivation Potion";
-const CULTIVATION_STAGES = Object.freeze(["foundation", "copper", "iron"]);
+const JADE_BREAKTHROUGH_ARTIFACT = "Jade Condensation Elixir";
+const CULTIVATION_STAGES = Object.freeze(["foundation", "copper", "iron", "jade", "lowgold", "highgold", "truegold"]);
 const STAGE_LABELS = Object.freeze({
   foundation: "Foundation",
   copper: "Copper",
   iron: "Iron",
+  jade: "Jade",
+  lowgold: "Low Gold",
+  highgold: "High Gold",
+  truegold: "True Gold",
 });
 const STAGE_PASSIVE_MULTIPLIER = Object.freeze({
   foundation: 1,
   copper: 2,
   iron: 3.8,
+  jade: 5.5,
+  lowgold: 8.8,
+  highgold: 13.5,
+  truegold: 20,
 });
 const STAGE_MANUAL_MULTIPLIER = Object.freeze({
   foundation: 1,
   copper: 1.8,
   iron: 3,
+  jade: 4.2,
+  lowgold: 6,
+  highgold: 8.4,
+  truegold: 12,
 });
 
 const COMBAT_UPGRADES = Object.freeze([
@@ -336,7 +353,7 @@ function upgradeCost(runtime, upgrade) {
 function manualMadraGain(runtime) {
   const resonanceLevel = levelOf(runtime, "manual-refinement");
   const harmonized = levelOf(runtime, "core-harmonization") > 0 ? 1 : 0;
-  const base = Math.max(1, Math.pow(2, resonanceLevel) + harmonized);
+  const base = Math.max(2, Math.pow(2, resonanceLevel + 1) + harmonized);
   const stageMultiplier = STAGE_MANUAL_MULTIPLIER[runtime.cultivationStage] || 1;
   const prestigeMultiplier = Math.max(1, Number(runtime.prestige && runtime.prestige.madraGainMultiplier) || 1);
   return Math.max(1, Math.round(base * stageMultiplier * prestigeMultiplier));
@@ -434,7 +451,7 @@ function patternLabel(index) {
 }
 
 function solveState(runtime) {
-  return runtime.wellUnlocked && runtime.cycling.twinStarsLevel >= 1;
+  return runtime.wellUnlocked;
 }
 
 function upgradeVisible(runtime, upgrade) {
@@ -694,6 +711,72 @@ export function reduceCrd02Runtime(runtime, action) {
       };
     }
 
+    if (stage === "iron") {
+      if (current.madra < BREAKTHROUGH_COSTS.iron) {
+        return {
+          ...current,
+          lastMessage: `You need ${BREAKTHROUGH_COSTS.iron} madra to break through to Jade.`,
+        };
+      }
+      if (!rewardMatches(action.artifact, JADE_BREAKTHROUGH_ARTIFACT)) {
+        return {
+          ...current,
+          lastMessage: "Jade breakthrough requires the Jade Condensation Elixir artifact.",
+        };
+      }
+      return {
+        ...current,
+        cultivationStage: "jade",
+        madra: 0,
+        lastMessage: "Jade stage achieved. Your channels harden with living aura.",
+      };
+    }
+
+    if (stage === "jade") {
+      if (current.madra < BREAKTHROUGH_COSTS.jade) {
+        return {
+          ...current,
+          lastMessage: `You need ${BREAKTHROUGH_COSTS.jade} madra to advance to Low Gold.`,
+        };
+      }
+      return {
+        ...current,
+        cultivationStage: "lowgold",
+        madra: 0,
+        lastMessage: "Low Gold reached.",
+      };
+    }
+
+    if (stage === "lowgold") {
+      if (current.madra < BREAKTHROUGH_COSTS.lowgold) {
+        return {
+          ...current,
+          lastMessage: `You need ${BREAKTHROUGH_COSTS.lowgold} madra to advance to High Gold.`,
+        };
+      }
+      return {
+        ...current,
+        cultivationStage: "highgold",
+        madra: 0,
+        lastMessage: "High Gold reached.",
+      };
+    }
+
+    if (stage === "highgold") {
+      if (current.madra < BREAKTHROUGH_COSTS.highgold) {
+        return {
+          ...current,
+          lastMessage: `You need ${BREAKTHROUGH_COSTS.highgold} madra to advance to True Gold.`,
+        };
+      }
+      return {
+        ...current,
+        cultivationStage: "truegold",
+        madra: 0,
+        lastMessage: "True Gold reached.",
+      };
+    }
+
     return {
       ...current,
       lastMessage: "You have reached the current stage cap.",
@@ -764,11 +847,11 @@ export function reduceCrd02Runtime(runtime, action) {
       return current;
     }
 
-    const crd05Solved = Boolean(action.crd05Solved);
-    if (techniqueId === "heaven-earth-wheel" && !crd05Solved) {
+    const crd06Solved = Boolean(action.crd06Solved);
+    if (techniqueId === "heaven-earth-wheel" && !crd06Solved) {
       return {
         ...current,
-        lastMessage: "The Heaven and Earth Purification Wheel is beyond your grasp for now.",
+        lastMessage: "The Heaven and Earth Purification Wheel is locked until CRD06.",
       };
     }
 
@@ -930,7 +1013,7 @@ export function buildCrd02ActionFromElement(element) {
     return {
       type: "crd02-buy-cycling",
       techniqueId: element.getAttribute("data-technique-id"),
-      crd05Solved: element.getAttribute("data-crd05-solved") === "true",
+      crd06Solved: element.getAttribute("data-crd06-solved") === "true",
       at: nowMs(),
     };
   }
@@ -1163,7 +1246,7 @@ function techniquesModalMarkup(runtime) {
   `;
 }
 
-function manualModalMarkup(runtime) {
+function manualModalMarkup(runtime, manualReward) {
   if (!runtime.manual.open) {
     return "";
   }
@@ -1177,7 +1260,7 @@ function manualModalMarkup(runtime) {
     <div class="crd02-manual-modal" role="dialog" aria-label="Manual Cultivation">
       <section class="crd02-manual-surface">
         <header>
-          <h3>Manual Cultivation</h3>
+          <h3>Manual Cultivation (${escapeHtml(String(manualReward))} Madra)</h3>
           <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="crd02-close-manual">Close</button>
         </header>
         <div
@@ -1194,7 +1277,6 @@ function manualModalMarkup(runtime) {
         <p><strong>Pattern:</strong> ${escapeHtml(patternName(runtime.manual.patternIndex))}</p>
         <p><strong>Cadence:</strong> ${escapeHtml(patternLabel(runtime.manual.patternIndex))}</p>
         <p><strong>Streak:</strong> ${escapeHtml(String(runtime.manual.streak))}/${MANUAL_STREAK_TARGET}</p>
-        <p class="muted">Press space on pulse. Five in a row completes one manual cycle.</p>
       </section>
     </div>
   `;
@@ -1295,7 +1377,6 @@ function soulCircuitMarkup({
         ariaLabel: "Cradle soul crystal circuit",
       })}
       <p><strong>Available Soul Crystals:</strong> ${soulCrystals.length}</p>
-      <p class="muted">Select a loot item, then click a socket. Filled sockets can be clicked to clear when no item is selected.</p>
       <div class="toolbar">
         <button type="button" data-action="toggle-widget" data-widget="loot">Open Loot Panel</button>
       </div>
@@ -1309,7 +1390,7 @@ export function renderCrd02Experience(context) {
     state: context && context.state ? context.state : null,
   });
   const solvedIds = new Set(context.state && context.state.solvedNodeIds ? context.state.solvedNodeIds : []);
-  const crd05Solved = solvedIds.has("CRD05");
+  const crd06Solved = solvedIds.has("CRD06");
   const mps = passiveMadraPerSecond(runtime);
   const canSeeMenus = runtime.manualCompletions > 0;
   const statusMessage = visibleRuntimeMessage(runtime.lastMessage);
@@ -1323,7 +1404,6 @@ export function renderCrd02Experience(context) {
           <section class="crd02-origin-card">
             <h3>Spiritual Origin Test</h3>
             <p>The elders place your hand above a bowl of pure madra to read your spirit.</p>
-            <p class="muted">Select <strong>Starter Core</strong> in Artifacts, then attempt the test.</p>
             <button
               type="button"
               data-node-id="${NODE_ID}"
@@ -1333,7 +1413,6 @@ export function renderCrd02Experience(context) {
             >
               Place Hand In Pure Madra
             </button>
-            <p class="muted">Selected artifact: ${escapeHtml(selectedArtifact || "None")}</p>
             ${statusMessage ? `<p class="key-hint">${escapeHtml(statusMessage)}</p>` : ""}
           </section>
         </article>
@@ -1355,7 +1434,7 @@ export function renderCrd02Experience(context) {
   const twinCost = cyclingCostWithPrestige(twinStarsCost(runtime.cycling.twinStarsLevel), runtime);
   const heavenCost = cyclingCostWithPrestige(heavenEarthCost(runtime.cycling.heavenEarthLevel), runtime);
   const canBuyTwin = runtime.madra >= twinCost;
-  const canBuyHeaven = crd05Solved && runtime.madra >= heavenCost;
+  const canBuyHeaven = crd06Solved && runtime.madra >= heavenCost;
   const manualReward = manualMadraGain(runtime);
   const currentStage = normalizeStage(runtime.cultivationStage);
   const lootState = lootInventoryFromState(context.state || {}, nowMs());
@@ -1370,18 +1449,36 @@ export function renderCrd02Experience(context) {
     lootState.loadouts && lootState.loadouts.cradle ? lootState.loadouts.cradle.combatItemId : null;
   const selectedLootItemId = String(context.selectedLootItemId || "");
   const selectedArtifact = String(context.selectedArtifactReward || "");
-  const canBreakToCopper = currentStage === "foundation" && runtime.madra >= BREAKTHROUGH_COSTS.foundation;
-  const hasPotionSelected = rewardMatches(selectedArtifact, IRON_BREAKTHROUGH_ARTIFACT);
-  const canBreakToIron =
-    currentStage === "copper" &&
-    runtime.madra >= BREAKTHROUGH_COSTS.copper &&
-    hasPotionSelected;
+  const hasIronPotionSelected = rewardMatches(selectedArtifact, IRON_BREAKTHROUGH_ARTIFACT);
+  const hasJadePotionSelected = rewardMatches(selectedArtifact, JADE_BREAKTHROUGH_ARTIFACT);
+  const breakthroughReady =
+    currentStage === "foundation"
+      ? runtime.madra >= BREAKTHROUGH_COSTS.foundation
+      : currentStage === "copper"
+        ? runtime.madra >= BREAKTHROUGH_COSTS.copper && hasIronPotionSelected
+        : currentStage === "iron"
+          ? runtime.madra >= BREAKTHROUGH_COSTS.iron && hasJadePotionSelected
+          : currentStage === "jade"
+            ? runtime.madra >= BREAKTHROUGH_COSTS.jade
+            : currentStage === "lowgold"
+              ? runtime.madra >= BREAKTHROUGH_COSTS.lowgold
+              : currentStage === "highgold"
+                ? runtime.madra >= BREAKTHROUGH_COSTS.highgold
+                : false;
   const breakthroughLabel =
     currentStage === "foundation"
       ? `Breakthrough: Copper (${BREAKTHROUGH_COSTS.foundation} Madra)`
       : currentStage === "copper"
         ? `Breakthrough: Iron (${BREAKTHROUGH_COSTS.copper} Madra + Cultivation Potion)`
-        : "Stage cap reached";
+        : currentStage === "iron"
+          ? `Breakthrough: Jade (${BREAKTHROUGH_COSTS.iron} Madra + Jade Condensation Elixir)`
+          : currentStage === "jade"
+            ? `Breakthrough: Low Gold (${BREAKTHROUGH_COSTS.jade} Madra)`
+            : currentStage === "lowgold"
+              ? `Breakthrough: High Gold (${BREAKTHROUGH_COSTS.lowgold} Madra)`
+              : currentStage === "highgold"
+                ? `Breakthrough: True Gold (${BREAKTHROUGH_COSTS.highgold} Madra)`
+                : "Stage cap reached";
 
   const activeTab = runtime.activeTab === "soul" ? "soul" : "well";
   const wellPanel = canSeeMenus
@@ -1398,7 +1495,7 @@ export function renderCrd02Experience(context) {
             data-node-id="${NODE_ID}"
             data-node-action="crd02-buy-cycling"
             data-technique-id="twin-stars"
-            data-crd05-solved="${crd05Solved ? "true" : "false"}"
+            data-crd06-solved="${crd06Solved ? "true" : "false"}"
             ${canBuyTwin ? "" : "disabled"}
           >
             Upgrade (${escapeHtml(String(twinCost))})
@@ -1407,14 +1504,14 @@ export function renderCrd02Experience(context) {
         <div class="crd02-tech-row">
           <div>
             <p><strong>The Heaven and Earth Purification Wheel</strong></p>
-            <p class="muted">Level ${escapeHtml(String(runtime.cycling.heavenEarthLevel))} | ${crd05Solved ? "Unlocked by CRD05" : "Locked until CRD05"}</p>
+            <p class="muted">Level ${escapeHtml(String(runtime.cycling.heavenEarthLevel))} | ${crd06Solved ? "Unlocked by CRD06" : "Locked until CRD06"}</p>
           </div>
           <button
             type="button"
             data-node-id="${NODE_ID}"
             data-node-action="crd02-buy-cycling"
             data-technique-id="heaven-earth-wheel"
-            data-crd05-solved="${crd05Solved ? "true" : "false"}"
+            data-crd06-solved="${crd06Solved ? "true" : "false"}"
             ${canBuyHeaven ? "" : "disabled"}
           >
             Upgrade (${escapeHtml(String(heavenCost))})
@@ -1474,37 +1571,11 @@ export function renderCrd02Experience(context) {
           data-node-id="${NODE_ID}"
           data-node-action="crd02-breakthrough"
           data-selected-artifact="${escapeHtml(selectedArtifact)}"
-          data-breakthrough-ready="${
-            currentStage === "foundation"
-              ? canBreakToCopper
-                ? "true"
-                : "false"
-              : currentStage === "copper"
-                ? canBreakToIron
-                  ? "true"
-                  : "false"
-                : "false"
-          }"
-          ${
-            currentStage === "foundation"
-              ? canBreakToCopper
-                ? ""
-                : "disabled"
-              : currentStage === "copper"
-                ? canBreakToIron
-                  ? ""
-                  : "disabled"
-                : "disabled"
-          }
+          data-breakthrough-ready="${breakthroughReady ? "true" : "false"}"
+          ${breakthroughReady ? "" : "disabled"}
         >
           ${escapeHtml(breakthroughLabel)}
         </button>
-        <p class="muted">Manual completion reward: ${escapeHtml(String(manualReward))} madra.</p>
-        ${
-          currentStage === "copper"
-            ? `<p class="muted">Selected artifact for Iron breakthrough: ${escapeHtml(selectedArtifact || "None")}</p>`
-            : ""
-        }
       </section>
       <section class="crd02-panel">
         <div class="toolbar">
@@ -1517,7 +1588,7 @@ export function renderCrd02Experience(context) {
 
       ${statusMessage ? `<p class="key-hint">${escapeHtml(statusMessage)}</p>` : ""}
       ${techniquesModalMarkup(runtime)}
-      ${manualModalMarkup(runtime)}
+      ${manualModalMarkup(runtime, manualReward)}
     </article>
   `;
 }

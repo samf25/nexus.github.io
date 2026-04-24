@@ -42,11 +42,24 @@ function resetRegionSnapshot(state, regionId) {
   }
 
   const currentRole = activePracticalGuideRoleFromState(state);
+  const practicalGuideResets = Math.max(
+    0,
+    Math.floor(
+      Number(
+        state &&
+          state.systems &&
+          state.systems.prestige &&
+          typeof state.systems.prestige === "object"
+          ? state.systems.prestige.practicalGuideResets
+          : 0,
+      ) || 0,
+    ),
+  );
   return {
     regionId: PRACTICAL_GUIDE_REGION.id,
     regionDef: PRACTICAL_GUIDE_REGION,
-    points: 0,
-    resets: 0,
+    points: practicalGuideResets,
+    resets: practicalGuideResets,
     nextCost: 0,
     currency: currentRole ? 1 : 0,
     affordable: true,
@@ -210,7 +223,7 @@ export function reduceMol02Runtime(runtime, action) {
     return {
       ...current,
       challenge: reduceMemoryGameBegin(current.challenge, { at: now }),
-      lastMessage: "Sequence active. Observe, then press Repeat Sequence.",
+      lastMessage: "Sequence active. Observe, then repeat it.",
     };
   }
 
@@ -396,6 +409,7 @@ function regionPanelMarkup(snapshot) {
         <h4>Reset Target</h4>
         <p><strong>Current Role:</strong> ${escapeHtml(roleText)}</p>
         <p><strong>Reset Cost:</strong> None</p>
+        <p><strong>Completed resets:</strong> ${escapeHtml(String(snapshot.resets || 0))}</p>
         <p><strong>Effect:</strong> Remove active role artifact and reopen PGE01.</p>
       </section>
     `;
@@ -449,19 +463,6 @@ export function renderMol02Experience(context) {
                                 ? `
                                   <button type="button" data-node-id="${NODE_ID}" data-node-action="mol02-memory-begin">
                                     Begin Sequence
-                                  </button>
-                                `
-                                : ""
-                            }
-                            ${
-                              runtime.challenge.phase === "show"
-                                ? `
-                                  <button
-                                    type="button"
-                                    data-node-id="${NODE_ID}"
-                                    data-node-action="mol02-memory-enter-input"
-                                  >
-                                    Repeat Sequence
                                   </button>
                                 `
                                 : ""

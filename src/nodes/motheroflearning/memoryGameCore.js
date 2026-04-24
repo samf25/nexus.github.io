@@ -20,7 +20,7 @@ export const MEMORY_SYMBOL_KEYS = Object.freeze([
 const FIELD_COLUMNS = 16;
 const FIELD_ROWS = 12;
 const FIELD_SIZE = FIELD_COLUMNS * FIELD_ROWS;
-const SHOW_MS = 750;
+const SHOW_MS = 900;
 const PAUSE_MS = 300;
 const CHAFF_SYMBOL_COUNT = 96;
 const CHAFF_SYMBOL_NAMES = Object.freeze(
@@ -143,7 +143,21 @@ export function createMemoryGameRuntime({ targetSuccesses, roll = Math.random() 
 }
 
 export function synchronizeMemoryGameRuntime(candidate) {
-  return normalizeMemoryGameRuntime(candidate, candidate && candidate.targetSuccesses);
+  const normalized = normalizeMemoryGameRuntime(candidate, candidate && candidate.targetSuccesses);
+  if (normalized.solved || normalized.phase !== "show") {
+    return normalized;
+  }
+  const revealReadyAt = Number(normalized.revealStartedAt || 0) + memoryRevealDurationMs(normalized.sequence.length);
+  if (Date.now() < revealReadyAt) {
+    return normalized;
+  }
+  return {
+    ...normalized,
+    phase: "input",
+    inputIndex: 0,
+    feedbackSymbol: "",
+    feedbackPositive: false,
+  };
 }
 
 export function reduceMemoryGameBegin(candidate, action = {}) {

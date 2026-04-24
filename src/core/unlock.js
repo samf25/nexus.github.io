@@ -16,9 +16,10 @@ const WAVE_ONE_SECTIONS = new Set([
 
 const WAVE_TWO_SECTIONS = new Set([
   "Arcane Ascension",
-  "Abstract Algebra",
+  "Symmetry Forge",
   "Dungeon Crawler Carl",
-  "Differential Geometry",
+  "Curved Atlas",
+  "A Practical Guide to Evil",
   "Practical Guide",
 ]);
 
@@ -29,6 +30,11 @@ export function computeUnlockedNodeIds(index, state) {
   const waveTwoUnlocked = hasWaveTwoPasskey(state);
 
   for (const node of index.raw.nodes) {
+    if (node.section === "Nexus Hub" && (node.node_id === "HUB04" || node.node_id === "HUB05" || node.node_id === "HUB06")) {
+      unlocked.add(node.node_id);
+      continue;
+    }
+
     const deps = Array.isArray(node.dependencies) ? node.dependencies : [];
     const hasAllDeps = deps.every((dep) => solved.has(dep));
     const waveOneGateNode =
@@ -39,7 +45,6 @@ export function computeUnlockedNodeIds(index, state) {
     const waveOneBypass = waveOneUnlocked && waveOneGateNode;
     const waveTwoGateNode =
       WAVE_TWO_SECTIONS.has(node.section) &&
-      Number(node.layer) <= 5 &&
       deps.includes("HUB08");
     const passesWaveTwoGate = !waveTwoGateNode || waveTwoUnlocked;
     const waveTwoBypass = waveTwoUnlocked && waveTwoGateNode;

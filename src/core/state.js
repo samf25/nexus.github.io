@@ -27,6 +27,8 @@ function defaultSystemState() {
       keyring: [],
       discoveredRooms: ["entry"],
       inventory: [],
+      floor3Unlocked: false,
+      checkpointFloor: 1,
     },
     worm: {
       clout: 20,
@@ -34,6 +36,12 @@ function defaultSystemState() {
       starterCardIds: [],
       deck: {},
       sickbayCardIds: [],
+      arenaFirstWinsByDifficulty: {
+        easy: false,
+        medium: false,
+        hard: false,
+      },
+      arenaBossCleared: false,
     },
     prestige: defaultPrestigeSystemState(),
     arcane: defaultArcaneSystemState(),

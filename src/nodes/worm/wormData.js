@@ -150,6 +150,9 @@ function buildCardsFromRows(rows) {
       if (!heroName) {
         return null;
       }
+      if (heroName.toLowerCase() === "sleeper") {
+        return null;
+      }
       const fullPower = safeText(field("Power"));
 
       return {

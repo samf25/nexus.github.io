@@ -109,6 +109,7 @@ function defaultRegionState(regionId) {
 
 export function defaultPrestigeSystemState() {
   return {
+    practicalGuideResets: 0,
     regions: Object.fromEntries(
       PRESTIGE_REGIONS.map((region) => [region.id, defaultRegionState(region.id)]),
     ),
@@ -137,6 +138,7 @@ export function normalizePrestigeSystemState(candidate) {
   const regions = source.regions && typeof source.regions === "object" ? source.regions : {};
 
   return {
+    practicalGuideResets: Math.max(0, Math.floor(safeFinite(source.practicalGuideResets, 0))),
     regions: Object.fromEntries(
       PRESTIGE_REGIONS.map((region) => [
         region.id,

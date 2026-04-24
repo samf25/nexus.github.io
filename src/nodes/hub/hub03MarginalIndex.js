@@ -198,8 +198,8 @@ export function renderHub03Experience(context) {
       ${
         solvedNow
           ? `
-            <section class="hub03-status" aria-live="polite">
-              <p><strong>Index String recovered.</strong></p>
+            <section class="completion-banner" aria-live="polite">
+              <p><strong>INDEX STRING Recovered</strong></p>
             </section>
           `
           : ""

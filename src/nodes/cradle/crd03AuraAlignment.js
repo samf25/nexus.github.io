@@ -17,7 +17,7 @@ const LABEL_TARGETS = Object.freeze([
   {
     id: "serpents-grave",
     answer: "Serpent's Grave",
-    aliases: ["Serpents Grave"],
+    aliases: ["Serpents Grave", "Serpents' Grave", "Serpent Grave"],
     x: 35.1,
     y: 38.6,
     w: 8.8,
@@ -32,7 +32,7 @@ const LABEL_TARGETS = Object.freeze([
   { id: "ninecloud", answer: "Ninecloud", x: 79.95, y: 80.3, w: 8.3, h: 4.2 },
   { id: "ashwind", answer: "Ashwind", x: 91.4, y: 75.65, w: 8.3, h: 4.2 },
   { id: "iceflower", answer: "Iceflower", x: 89.4, y: 87.5, w: 8.3, h: 4.2 },
-  { id: "rosegold", answer: "Rosegold", x: 92.8, y: 83.4, w: 8.3, h: 4.2 },
+  { id: "rosegold", answer: "Rosegold", x: 92.8, y: 91.8, w: 8.3, h: 4.2 },
 ]);
 
 const TARGET_BY_ID = Object.freeze(
@@ -310,7 +310,7 @@ export function renderCrd03Experience(context) {
           ${solveFlashMarkup(runtime)}
         </div>
       </section>
-      ${runtime.solved ? `<p class="key-hint"><strong>Atlas restored.</strong></p>` : ""}
+      ${runtime.solved ? `<section class="completion-banner" aria-live="polite"><p><strong>Atlas Restored</strong></p></section>` : ""}
       ${entryModalMarkup(runtime)}
     </article>
   `;

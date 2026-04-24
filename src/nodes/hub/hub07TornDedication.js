@@ -621,8 +621,8 @@ export function renderHub07Experience(context) {
       ${
         solvedNow
           ? `
-            <section class="hub04-status" aria-live="polite">
-              <p><strong>Fog Phrase recovered:</strong> ${escapeHtml(FOG_PHRASE)}</p>
+            <section class="completion-banner" aria-live="polite">
+              <p><strong>FOG PHRASE Recovered: The Fog Remembers</strong></p>
             </section>
           `
           : ""

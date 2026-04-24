@@ -254,8 +254,8 @@ export function renderHub04Experience(context) {
       ${
         solvedNow
           ? `
-            <section class="hub04-status" aria-live="polite">
-              <p><strong>Constellation order stabilized.</strong></p>
+            <section class="completion-banner" aria-live="polite">
+              <p><strong>CONSTELLATION ORDER Stabilized</strong></p>
             </section>
           `
           : ""

@@ -1,5 +1,4 @@
 import { escapeHtml } from "../templates/shared.js";
-import { sectionRouteSlug } from "../data/blueprint.js";
 import { renderRegionSymbol } from "../core/symbology.js";
 import { renderSlotRing } from "./slotRing.js";
 import {
@@ -10,9 +9,9 @@ import {
 } from "../core/artifacts.js";
 
 const RING_LAYOUT = Object.freeze({
-  outer: Object.freeze({ radiusPercent: 35, label: "Outer Ring" }),
-  middle: Object.freeze({ radiusPercent: 26, label: "Region Ring" }),
-  inner: Object.freeze({ radiusPercent: 19, label: "Vault Ring" }),
+  outer: Object.freeze({ radiusPercent: 32, label: "Outer Ring" }),
+  middle: Object.freeze({ radiusPercent: 24, label: "Region Ring" }),
+  inner: Object.freeze({ radiusPercent: 17, label: "Vault Ring" }),
 });
 
 function polarPositionFromTopDegrees(angleFromTop, radiusPercent) {
@@ -173,7 +172,6 @@ export function renderNexusView({ rings, selectedRingIndex, selectedItemIndices,
     Math.max((selectedRing.sections || []).length - 1, 0),
   );
   const selected = selectedRing.sections[ringItemIndex];
-  const selectedSlug = selected ? sectionRouteSlug(selected.section) : "";
 
   const orbit = `
     ${nexusRings
@@ -217,7 +215,7 @@ export function renderNexusView({ rings, selectedRingIndex, selectedItemIndices,
   return `
     <article class="nexus-page">
       <div class="nexus-stage" aria-label="Nexus Sector Map">
-        <div class="nexus-core">
+        <div class="nexus-core nexus-core--nexus">
           <h2>Nexus</h2>
           ${keySlotMarkup(state, selectedArtifactReward)}
         </div>
@@ -239,8 +237,6 @@ export function renderNexusView({ rings, selectedRingIndex, selectedItemIndices,
         <p>${escapeHtml(selected ? String(selected.solved) : "0")}/${escapeHtml(selected ? String(selected.total) : "0")} solved</p>
         <div class="progress-bar"><span style="width:${selected ? selected.percent : 0}%"></span></div>
         ${selected && selected.progressLabel ? `<p class="key-hint" style="margin-top:8px;">${escapeHtml(selected.progressLabel)}</p>` : ""}
-        <p class="key-hint" style="margin-top: 8px;">Focused ring: ${escapeHtml(selectedRing.label || RING_LAYOUT[selectedRing.ringKey]?.label || "Ring")}</p>
-        <p class="key-hint">Focused sector: ${escapeHtml(selectedSlug ? selectedSlug.toUpperCase() : "N/A")}</p>
       </section>
     </article>
   `;

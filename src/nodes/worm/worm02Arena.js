@@ -30,6 +30,46 @@ const BATTLE_DIFFICULTY_CONFIG = Object.freeze({
   }),
 });
 
+const LOADOUT_SLOTS = Object.freeze([
+  { slotId: "slot-1", label: "Slot I" },
+  { slotId: "slot-2", label: "Slot II" },
+]);
+const ARENA_BOSS_CLOUT_REWARD = 260;
+const ARENA_BOSS_CARDS = Object.freeze([
+  Object.freeze({
+    id: "worm-boss-surge-jack",
+    heroName: "Jack Slash (Surge)",
+    power: "Infinite blade edge amplified by shard-tuned trajectory control.",
+    powerFull: "Arena variant of Jack Slash with shard-tuned edge extension and predictive pressure.",
+    attack: 10,
+    defense: 8,
+    endurance: 9,
+    info: 7,
+    manipulation: 9,
+    range: 10,
+    speed: 8,
+    stealth: 7,
+    rarity: 5.4,
+    rarityTier: "epic",
+  }),
+  Object.freeze({
+    id: "worm-boss-shard-crawler",
+    heroName: "Crawler (Shardbound)",
+    power: "Adaptive regenerative brute with layered combat-shell runes.",
+    powerFull: "Arena variant of Crawler with reinforced adaptation loops and shard-fed bulk.",
+    attack: 9,
+    defense: 10,
+    endurance: 12,
+    info: 5,
+    manipulation: 6,
+    range: 5,
+    speed: 6,
+    stealth: 3,
+    rarity: 5.3,
+    rarityTier: "epic",
+  }),
+]);
+
 function safeText(value) {
   return String(value == null ? "" : value).trim();
 }
@@ -41,6 +81,11 @@ function normalizeDifficulty(value) {
 
 function normalizeBattle(value) {
   return value && typeof value === "object" ? value : null;
+}
+
+function normalizePickerSlot(value) {
+  const slot = safeText(value);
+  return LOADOUT_SLOTS.some((entry) => entry.slotId === slot) ? slot : "";
 }
 
 function normalizeRuntime(runtime) {
@@ -60,6 +105,7 @@ function normalizeRuntime(runtime) {
         ? source.orderPrefs
         : {},
     helpOpen: Boolean(source.helpOpen),
+    pickerSlot: normalizePickerSlot(source.pickerSlot),
     lootEvents: Array.isArray(source.lootEvents) ? source.lootEvents.filter((entry) => entry && typeof entry === "object") : [],
     bossDefeated: Boolean(source.bossDefeated),
     solved: Boolean(source.bossDefeated),
@@ -69,40 +115,13 @@ function normalizeRuntime(runtime) {
 
 function ensureLoadout(runtime, ownedCardIds) {
   const uniqueOwned = ownedCardIds.filter((cardId, index, list) => cardId && list.indexOf(cardId) === index);
-  const fallback = uniqueOwned.slice(0, 2);
   const selected = (runtime.playerLoadout || []).filter((cardId) => uniqueOwned.includes(cardId)).slice(0, 2);
 
-  while (selected.length < 2 && fallback[selected.length]) {
-    selected.push(fallback[selected.length]);
+  while (selected.length < 2) {
+    selected.push("");
   }
 
-  if (selected.length < 2 && uniqueOwned.length >= 2) {
-    return uniqueOwned.slice(0, 2);
-  }
-  return selected;
-}
-
-function optionMarkup(entry, selectedId) {
-  return `
-    <option
-      value="${escapeHtml(entry.cardId)}"
-      data-current-hp="${escapeHtml(String(Math.max(0, Math.round(Number(entry.currentHp || 0)))))}"
-      ${entry.cardId === selectedId ? "selected" : ""}
-    >
-      ${escapeHtml(entry.card.heroName)} (R ${escapeHtml(entry.card.rarity.toFixed(1))})
-    </option>
-  `;
-}
-
-function loadoutSelectMarkup(ownedCards, slot, selectedId) {
-  return `
-    <label>
-      <span>${escapeHtml(slot)}</span>
-      <select data-worm02-loadout="${escapeHtml(slot)}">
-        ${ownedCards.map((entry) => optionMarkup(entry, selectedId)).join("")}
-      </select>
-    </label>
-  `;
+  return selected.slice(0, 2);
 }
 
 function teamCardsMarkup(team, role) {
@@ -180,97 +199,23 @@ function playerOrderMarkup(combatant, enemyTeam, preference) {
       <h4>${escapeHtml(combatant.heroName)}</h4>
       <label>
         <span>Action</span>
-        <select data-worm02-order-type>
+        <select class="worm02-select" data-worm02-order-type>
           ${actionOptions}
         </select>
       </label>
       <label>
         <span>Target</span>
-        <select data-worm02-order-target>
+        <select class="worm02-select" data-worm02-order-target>
           ${targetOptions}
         </select>
       </label>
       <label data-worm02-info-wrap ${normalized.type === "info" ? "" : "hidden"}>
         <span>Info Debuff</span>
-        <select data-worm02-order-info>
+        <select class="worm02-select" data-worm02-order-info>
           ${infoOptions}
         </select>
       </label>
     </article>
-  `;
-}
-
-function battleMarkup(runtime, cloutMultiplier) {
-  const battle = runtime.battle;
-  if (!battle) {
-    return "";
-  }
-
-  const playerTeam = Array.isArray(battle.playerTeam) ? battle.playerTeam : [];
-  const enemyTeam = Array.isArray(battle.enemyTeam) ? battle.enemyTeam : [];
-  const playerAlive = playerTeam.filter((combatant) => combatant.hp > 0);
-  const canResolve = !battle.winner && playerAlive.length > 0;
-  const winnerLabel = battle.winner
-    ? battle.winner === "player"
-      ? "Player victory"
-      : battle.winner === "enemy"
-        ? "Enemy victory"
-        : "Draw"
-    : "In progress";
-
-  return `
-    <section class="worm02-battle">
-      <header class="worm02-battle-header">
-        <p><strong>Round:</strong> ${escapeHtml(String(battle.round || 1))}</p>
-        <p><strong>Status:</strong> ${escapeHtml(winnerLabel)}</p>
-      </header>
-
-      <section class="worm02-board worm02-board-lanes">
-        <section class="worm02-team-column">
-          <h3>Player Team</h3>
-          <div class="worm02-card-grid">
-            ${teamCardsMarkup(playerTeam, "player")}
-          </div>
-        </section>
-
-        <section class="worm02-center-column">
-          <section class="worm02-controls">
-            <h3>Turn Orders</h3>
-            <div class="worm02-order-grid">
-              ${playerAlive
-    .map((combatant) => playerOrderMarkup(combatant, enemyTeam, runtime.orderPrefs[combatant.combatantId] || null))
-    .join("")}
-            </div>
-            <div class="toolbar">
-              <button type="button" data-node-id="${NODE_ID}" data-node-action="worm02-resolve-round" ${canResolve ? "" : "disabled"}>
-                Resolve Turn
-              </button>
-              <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="worm02-reset-battle">
-                Abandon Battle
-              </button>
-              <button type="button" data-node-id="${NODE_ID}" data-node-action="worm02-claim-outcome" data-clout-multiplier="${escapeHtml(String(cloutMultiplier))}" ${battle.winner ? "" : "disabled"}>
-                Claim Outcome
-              </button>
-            </div>
-          </section>
-          <section class="card worm02-feed">
-            <h3>Combat Feed</h3>
-            <div class="worm02-feed-scroll">
-              <ul class="worm02-feed-list">
-                ${(battle.log || []).slice().reverse().map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
-              </ul>
-            </div>
-          </section>
-        </section>
-
-        <section class="worm02-team-column">
-          <h3>Enemy Team</h3>
-          <div class="worm02-card-grid">
-            ${teamCardsMarkup(enemyTeam, "enemy")}
-          </div>
-        </section>
-      </section>
-    </section>
   `;
 }
 
@@ -305,29 +250,6 @@ function normalizeOrderPrefs(orders, battle) {
   return next;
 }
 
-export function initialWorm02Runtime() {
-  return normalizeRuntime({});
-}
-
-export function synchronizeWorm02Runtime(runtime, context) {
-  const current = normalizeRuntime(runtime);
-  const wormState = normalizeWormSystemState(
-    context && context.state && context.state.systems ? context.state.systems.worm : {},
-    Date.now(),
-  );
-  const owned = wormOwnedCards(wormState, Date.now());
-  const ownedIds = owned.map((entry) => entry.cardId);
-  return {
-    ...current,
-    playerLoadout: ensureLoadout(current, ownedIds),
-    battleDifficulty: normalizeDifficulty(current.battleDifficulty),
-  };
-}
-
-export function validateWorm02Runtime(runtime) {
-  return Boolean(runtime && runtime.bossDefeated);
-}
-
 function applyCardBonus(card, bonus) {
   const source = bonus && typeof bonus === "object" ? bonus : {};
   const keys = ["attack", "defense", "endurance", "info", "manipulation", "range", "speed", "stealth"];
@@ -360,6 +282,209 @@ function loadoutCards(cardPayload, bonusesByCardId = {}) {
     .slice(0, 2);
 }
 
+function loadoutEntryById(owned) {
+  const byId = {};
+  for (const entry of owned) {
+    if (!entry || !entry.cardId) {
+      continue;
+    }
+    byId[entry.cardId] = entry;
+  }
+  return byId;
+}
+
+function loadoutSlotMarkup(slot, selectedEntry, pickerOpen, locked) {
+  const hasCard = Boolean(selectedEntry && selectedEntry.card);
+  return `
+    <button
+      type="button"
+      class="worm02-loadout-slot ${hasCard ? "is-filled" : "is-empty"} ${pickerOpen ? "is-active" : ""}"
+      data-node-id="${NODE_ID}"
+      data-node-action="worm02-open-picker"
+      data-slot-id="${escapeHtml(slot.slotId)}"
+      data-worm02-loadout-slot="${escapeHtml(slot.slotId)}"
+      data-card-id="${escapeHtml(hasCard ? selectedEntry.cardId : "")}" 
+      data-current-hp="${escapeHtml(hasCard ? String(Math.max(0, Math.round(Number(selectedEntry.currentHp || 0)))) : "0")}" 
+      ${locked ? "disabled" : ""}
+      aria-label="${escapeHtml(`Select cape for ${slot.label}`)}"
+    >
+      <span class="worm02-loadout-slot-title">${escapeHtml(slot.label)}</span>
+      ${
+        hasCard
+          ? `
+              <span class="worm02-loadout-slot-name">${escapeHtml(selectedEntry.card.heroName)}</span>
+              <span class="worm02-loadout-slot-meta">R ${escapeHtml(selectedEntry.card.rarity.toFixed(1))} | HP ${escapeHtml(String(Math.max(0, Math.round(Number(selectedEntry.currentHp || 0)))))}</span>
+            `
+          : `<span class="worm02-loadout-slot-empty">Select Cape</span>`
+      }
+    </button>
+  `;
+}
+
+function pickerCardMarkup(entry, slotId, activeLoadout) {
+  const otherSlotCardId = (activeLoadout || []).find((cardId, index) => {
+    const lookupSlot = LOADOUT_SLOTS[index] ? LOADOUT_SLOTS[index].slotId : "";
+    return lookupSlot !== slotId && cardId;
+  }) || "";
+  const sameCardInOtherSlot = otherSlotCardId && otherSlotCardId === entry.cardId;
+  const disabled = Boolean(sameCardInOtherSlot);
+
+  return `
+    <button
+      type="button"
+      class="worm02-picker-card ${disabled ? "is-disabled" : ""}"
+      data-node-id="${NODE_ID}"
+      data-node-action="worm02-pick-loadout"
+      data-slot-id="${escapeHtml(slotId)}"
+      data-card-id="${escapeHtml(entry.cardId)}"
+      ${disabled ? "disabled" : ""}
+      aria-label="${escapeHtml(`Choose ${entry.card.heroName}`)}"
+    >
+      <strong>${escapeHtml(entry.card.heroName)}</strong>
+      <span>R ${escapeHtml(entry.card.rarity.toFixed(1))} | HP ${escapeHtml(String(Math.max(0, Math.round(Number(entry.currentHp || 0)))))}</span>
+      <span>x${escapeHtml(String(Math.max(1, Math.floor(Number(entry.copies || 1)))))}</span>
+    </button>
+  `;
+}
+
+function pickerMarkup(runtime, owned, activeLoadout) {
+  if (!runtime.pickerSlot) {
+    return "";
+  }
+  const slot = LOADOUT_SLOTS.find((entry) => entry.slotId === runtime.pickerSlot);
+  if (!slot) {
+    return "";
+  }
+
+  return `
+    <section class="worm02-picker-overlay" aria-modal="true" role="dialog">
+      <section class="card worm02-picker-panel">
+        <header class="worm02-picker-header">
+          <h4>Select Cape for ${escapeHtml(slot.label)}</h4>
+          <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="worm02-close-picker">Close</button>
+        </header>
+        <div class="worm02-picker-grid">
+          ${owned.map((entry) => pickerCardMarkup(entry, slot.slotId, activeLoadout)).join("")}
+        </div>
+      </section>
+    </section>
+  `;
+}
+
+function battleMarkup(runtime, cloutMultiplier) {
+  const battle = runtime.battle;
+  if (!battle) {
+    return "";
+  }
+
+  const playerTeam = Array.isArray(battle.playerTeam) ? battle.playerTeam : [];
+  const enemyTeam = Array.isArray(battle.enemyTeam) ? battle.enemyTeam : [];
+  const playerAlive = playerTeam.filter((combatant) => combatant.hp > 0);
+  const canResolve = !battle.winner && playerAlive.length > 0;
+  const winnerLabel = battle.winner
+    ? battle.winner === "player"
+      ? "Player victory"
+      : battle.winner === "enemy"
+        ? "Enemy victory"
+        : "Draw"
+    : "In progress";
+  const turnNumber = Math.max(1, Number(battle.round || 1) - 1);
+  const turnEvents = Array.isArray(battle.lastRoundEvents) && battle.lastRoundEvents.length
+    ? battle.lastRoundEvents
+    : ["No decisive actions."];
+
+  return `
+    <section class="worm02-battle">
+      <header class="worm02-battle-header">
+        <p><strong>Combat Turn:</strong> ${escapeHtml(String(turnNumber))}</p>
+        <p><strong>Status:</strong> ${escapeHtml(winnerLabel)}</p>
+      </header>
+
+      <section class="worm02-board worm02-board-lanes">
+        <section class="worm02-team-column">
+          <h3>Your Team</h3>
+          <div class="worm02-card-grid">
+            ${teamCardsMarkup(playerTeam, "player")}
+          </div>
+        </section>
+
+        <section class="worm02-center-column">
+          <section class="worm02-controls">
+            <h3>Turn Orders</h3>
+            <div class="worm02-order-grid">
+              ${playerAlive
+    .map((combatant) => playerOrderMarkup(combatant, enemyTeam, runtime.orderPrefs[combatant.combatantId] || null))
+    .join("")}
+            </div>
+            <div class="toolbar">
+              <button type="button" data-node-id="${NODE_ID}" data-node-action="worm02-resolve-round" ${canResolve ? "" : "disabled"}>
+                Resolve Turn
+              </button>
+              <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="worm02-reset-battle">
+                Abandon Battle
+              </button>
+              ${
+                battle.winner
+                  ? `
+                      <button type="button" data-node-id="${NODE_ID}" data-node-action="worm02-claim-outcome" data-clout-multiplier="${escapeHtml(String(cloutMultiplier))}">
+                        Claim Outcome
+                      </button>
+                    `
+                  : ""
+              }
+            </div>
+          </section>
+        </section>
+
+        <section class="worm02-team-column">
+          <h3>Enemy Team</h3>
+          <div class="worm02-card-grid">
+            ${teamCardsMarkup(enemyTeam, "enemy")}
+          </div>
+        </section>
+      </section>
+
+      <section class="card worm02-turn-panel">
+        <h3>Combat Turn ${escapeHtml(String(turnNumber))}</h3>
+        <div class="worm02-turn-grid">
+          ${turnEvents.map((line, index) => `
+            <article class="worm02-turn-event">
+              <span>${escapeHtml(String(index + 1))}</span>
+              <p>${escapeHtml(line)}</p>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    </section>
+  `;
+}
+
+export function initialWorm02Runtime() {
+  return normalizeRuntime({});
+}
+
+export function synchronizeWorm02Runtime(runtime, context) {
+  const current = normalizeRuntime(runtime);
+  const wormState = normalizeWormSystemState(
+    context && context.state && context.state.systems ? context.state.systems.worm : {},
+    Date.now(),
+  );
+  const owned = wormOwnedCards(wormState, Date.now());
+  const ownedIds = owned.map((entry) => entry.cardId);
+  return {
+    ...current,
+    playerLoadout: ensureLoadout(current, ownedIds),
+    battleDifficulty: normalizeDifficulty(current.battleDifficulty),
+    pickerSlot: owned.length ? current.pickerSlot : "",
+    bossDefeated: current.bossDefeated || Boolean(wormState.arenaBossCleared),
+    solved: current.solved || Boolean(wormState.arenaBossCleared),
+  };
+}
+
+export function validateWorm02Runtime(runtime) {
+  return Boolean(runtime && runtime.bossDefeated);
+}
+
 export function reduceWorm02Runtime(runtime, action) {
   const current = normalizeRuntime(runtime);
   if (!action || typeof action !== "object") {
@@ -370,6 +495,51 @@ export function reduceWorm02Runtime(runtime, action) {
     return {
       ...current,
       helpOpen: !current.helpOpen,
+    };
+  }
+
+  if (action.type === "worm02-open-picker") {
+    return {
+      ...current,
+      pickerSlot: normalizePickerSlot(action.slotId),
+    };
+  }
+
+  if (action.type === "worm02-close-picker") {
+    return {
+      ...current,
+      pickerSlot: "",
+    };
+  }
+
+  if (action.type === "worm02-pick-loadout") {
+    const slot = normalizePickerSlot(action.slotId);
+    const cardId = safeText(action.cardId);
+    if (!slot || !cardId) {
+      return current;
+    }
+
+    const nextLoadout = Array.isArray(current.playerLoadout)
+      ? current.playerLoadout.slice(0, 2)
+      : [];
+    while (nextLoadout.length < 2) {
+      nextLoadout.push("");
+    }
+    const slotIndex = LOADOUT_SLOTS.findIndex((entry) => entry.slotId === slot);
+    if (slotIndex < 0) {
+      return current;
+    }
+
+    const otherIndex = slotIndex === 0 ? 1 : 0;
+    if (nextLoadout[otherIndex] === cardId) {
+      nextLoadout[otherIndex] = "";
+    }
+    nextLoadout[slotIndex] = cardId;
+
+    return {
+      ...current,
+      playerLoadout: nextLoadout,
+      pickerSlot: "",
     };
   }
 
@@ -402,6 +572,7 @@ export function reduceWorm02Runtime(runtime, action) {
     return {
       ...current,
       playerLoadout: requestedLoadout,
+      pickerSlot: "",
       battle: createWormBattleState({
         playerCards,
         enemyCards,
@@ -416,9 +587,45 @@ export function reduceWorm02Runtime(runtime, action) {
   }
 
   if (action.type === "worm02-start-boss") {
+    if (current.bossDefeated) {
+      return {
+        ...current,
+        lastMessage: "Arena Boss already defeated.",
+      };
+    }
+    const requestedPlayerCards = Array.isArray(action.playerCards)
+      ? action.playerCards
+      : [];
+    const requestedLoadout = requestedPlayerCards.length
+      ? requestedPlayerCards.map((entry) => safeText(entry.cardId)).slice(0, 2)
+      : current.playerLoadout;
+    const bonusesByCardId = action.capeBonusesByCardId && typeof action.capeBonusesByCardId === "object"
+      ? action.capeBonusesByCardId
+      : {};
+    const playerCards = requestedPlayerCards.length
+      ? loadoutCards(requestedPlayerCards, bonusesByCardId)
+      : loadoutCards(requestedLoadout.map((cardId) => ({ cardId })), bonusesByCardId);
+    if (playerCards.length < 2) {
+      return {
+        ...current,
+        lastMessage: "A full two-cape matchup is required.",
+      };
+    }
+    const enemyCards = ARENA_BOSS_CARDS.map((card) => ({ ...card }));
     return {
       ...current,
-      lastMessage: "Arena Boss is not implemented yet.",
+      playerLoadout: requestedLoadout,
+      pickerSlot: "",
+      battle: createWormBattleState({
+        playerCards,
+        enemyCards,
+        seed: Date.now() >>> 0,
+        enemyAiMode: "boss",
+      }),
+      battleMode: "boss",
+      battleDifficulty: "hard",
+      enemyRarities: enemyCards.map((card) => Number(card.rarity || 0)).slice(0, 2),
+      lastMessage: "Arena Boss challenge initialized.",
     };
   }
 
@@ -450,18 +657,41 @@ export function reduceWorm02Runtime(runtime, action) {
     const winner = safeText(action.winner).toLowerCase();
     const mode = safeText(action.mode).toLowerCase();
     const solvedNow = mode === "boss" && winner === "player";
-    const lootEvents =
-      mode === "normal" && winner === "player"
-        ? [
-            {
-              sourceRegion: "worm",
-              triggerType: "arena-victory",
-              dropChance: 0.25,
-              outRegionChance: 0.5,
-              rarityBias: 0.2,
-            },
-          ]
-        : [];
+    const lootEvents = [];
+    if (mode === "normal" && winner === "player") {
+      lootEvents.push({
+        sourceRegion: "worm",
+        triggerType: "arena-victory",
+        dropChance: 0.25,
+        outRegionChance: 0.5,
+        rarityBias: 0.2,
+      });
+    }
+    if (mode === "boss" && winner === "player" && !current.bossDefeated) {
+      lootEvents.push(
+        {
+          sourceRegion: "worm",
+          triggerType: "arena-boss-victory",
+          dropChance: 1,
+          outRegionChance: 0.5,
+          rarityBias: 0.75,
+        },
+        {
+          sourceRegion: "crd",
+          triggerType: "arena-boss-victory",
+          dropChance: 1,
+          outRegionChance: 0,
+          rarityBias: 0.65,
+        },
+        {
+          sourceRegion: "dcc",
+          triggerType: "arena-boss-victory",
+          dropChance: 1,
+          outRegionChance: 0,
+          rarityBias: 0.65,
+        },
+      );
+    }
     return {
       ...current,
       bossDefeated: current.bossDefeated || solvedNow,
@@ -476,11 +706,25 @@ export function reduceWorm02Runtime(runtime, action) {
     return {
       ...current,
       battle: null,
+      pickerSlot: "",
       lastMessage: "Battle abandoned.",
     };
   }
 
   return current;
+}
+
+function buildSelectedLoadoutPayload(surface, slotId) {
+  const slot = surface.querySelector(`[data-worm02-loadout-slot="${slotId}"]`);
+  if (!slot) {
+    return { cardId: "", currentHp: 0 };
+  }
+  const cardId = safeText(slot.getAttribute("data-card-id"));
+  const currentHp = Number(slot.getAttribute("data-current-hp"));
+  return {
+    cardId,
+    currentHp: Number.isFinite(currentHp) ? Math.max(0, Math.round(currentHp)) : 0,
+  };
 }
 
 export function buildWorm02ActionFromElement(element, runtime) {
@@ -500,6 +744,27 @@ export function buildWorm02ActionFromElement(element, runtime) {
     };
   }
 
+  if (actionName === "worm02-open-picker") {
+    return {
+      type: "worm02-open-picker",
+      slotId: element.getAttribute("data-slot-id") || "",
+    };
+  }
+
+  if (actionName === "worm02-close-picker") {
+    return {
+      type: "worm02-close-picker",
+    };
+  }
+
+  if (actionName === "worm02-pick-loadout") {
+    return {
+      type: "worm02-pick-loadout",
+      slotId: element.getAttribute("data-slot-id") || "",
+      cardId: element.getAttribute("data-card-id") || "",
+    };
+  }
+
   if (actionName === "worm02-start-normal") {
     const difficulty = normalizeDifficulty(element.getAttribute("data-difficulty"));
     const config = BATTLE_DIFFICULTY_CONFIG[difficulty];
@@ -508,32 +773,20 @@ export function buildWorm02ActionFromElement(element, runtime) {
       maxRarity: 5,
     });
 
-    const pick = (slot) => {
-      const select = surface.querySelector(`select[data-worm02-loadout="${slot}"]`);
-      if (!select || !("value" in select)) {
-        return { cardId: "", currentHp: 0 };
-      }
-      const cardId = safeText(select.value);
-      const option = select.selectedOptions && select.selectedOptions[0] ? select.selectedOptions[0] : null;
-      const currentHp = option ? Number(option.getAttribute("data-current-hp")) : 0;
-      return {
-        cardId,
-        currentHp: Number.isFinite(currentHp) ? currentHp : 0,
-      };
-    };
-
     return {
       type: "worm02-start-normal",
       enemyCardIds: enemyCards.map((card) => card.id),
-      playerCards: [pick("slot-1"), pick("slot-2")],
+      playerCards: LOADOUT_SLOTS.map((slot) => buildSelectedLoadoutPayload(surface, slot.slotId)),
       difficulty,
       enemyAiMode: "weighted",
     };
   }
 
   if (actionName === "worm02-start-boss") {
+    const payload = LOADOUT_SLOTS.map((slot) => buildSelectedLoadoutPayload(surface, slot.slotId));
     return {
       type: "worm02-start-boss",
+      playerCards: payload,
     };
   }
 
@@ -584,6 +837,7 @@ export function buildWorm02ActionFromElement(element, runtime) {
       difficulty: current.battleDifficulty,
       winner: current.battle.winner,
       cloutMultiplier: Number(element.getAttribute("data-clout-multiplier")) || 1,
+      bossCloutReward: current.battleMode === "boss" ? ARENA_BOSS_CLOUT_REWARD : 0,
       enemyRarities: current.enemyRarities.slice(0, 2),
       playerResults,
     };
@@ -599,9 +853,10 @@ export function renderWorm02Experience(context) {
   const cloutMultiplier = Math.max(1, Number(modifiers.worm.cloutGainMultiplier || 1));
   const owned = wormOwnedCards(wormState, Date.now());
   const loadout = ensureLoadout(runtime, owned.map((entry) => entry.cardId));
+  const selectedById = loadoutEntryById(owned);
   const canBattle = owned.length >= 2;
   const battleLocked = Boolean(runtime.battle && !runtime.battle.winner);
-  const difficulty = normalizeDifficulty(runtime.battleDifficulty);
+  const loadoutComplete = loadout.every((cardId) => Boolean(cardId));
 
   const setupMarkup = `
     <section class="card worm02-setup">
@@ -609,27 +864,26 @@ export function renderWorm02Experience(context) {
       <p><strong>Clout:</strong> ${escapeHtml(String(Number(wormState.clout || 0).toFixed(2)))}</p>
       ${canBattle
     ? `
-            <div class="worm02-loadout-grid">
-              ${loadoutSelectMarkup(owned, "slot-1", loadout[0] || "")}
-              ${loadoutSelectMarkup(owned, "slot-2", loadout[1] || "")}
+            <div class="worm02-loadout-slot-grid">
+              ${LOADOUT_SLOTS.map((slot, index) => loadoutSlotMarkup(slot, selectedById[loadout[index]], runtime.pickerSlot === slot.slotId, battleLocked)).join("")}
             </div>
             <div class="toolbar">
-              <button type="button" data-node-id="${NODE_ID}" data-node-action="worm02-start-normal" data-difficulty="easy" ${battleLocked ? "disabled" : ""}>
+              <button type="button" data-node-id="${NODE_ID}" data-node-action="worm02-start-normal" data-difficulty="easy" ${battleLocked || !loadoutComplete ? "disabled" : ""}>
                 Easy Battle
               </button>
-              <button type="button" data-node-id="${NODE_ID}" data-node-action="worm02-start-normal" data-difficulty="medium" ${battleLocked ? "disabled" : ""}>
+              <button type="button" data-node-id="${NODE_ID}" data-node-action="worm02-start-normal" data-difficulty="medium" ${battleLocked || !loadoutComplete ? "disabled" : ""}>
                 Medium Battle
               </button>
-              <button type="button" data-node-id="${NODE_ID}" data-node-action="worm02-start-normal" data-difficulty="hard" ${battleLocked ? "disabled" : ""}>
+              <button type="button" data-node-id="${NODE_ID}" data-node-action="worm02-start-normal" data-difficulty="hard" ${battleLocked || !loadoutComplete ? "disabled" : ""}>
                 Hard Battle
               </button>
-              <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="worm02-start-boss" ${battleLocked ? "disabled" : ""}>
-                Fight Arena Boss
+              <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="worm02-start-boss" ${battleLocked || !loadoutComplete || runtime.bossDefeated ? "disabled" : ""}>
+                ${runtime.bossDefeated ? "Arena Boss Defeated" : "Fight Arena Boss"}
               </button>
             </div>
           `
     : `<p>You need at least 2 capes in your deck to enter the Arena.</p>`}
-      <p class="muted">Current mode: ${escapeHtml(BATTLE_DIFFICULTY_CONFIG[difficulty].label)}.</p>
+      ${pickerMarkup(runtime, owned, loadout)}
     </section>
   `;
 

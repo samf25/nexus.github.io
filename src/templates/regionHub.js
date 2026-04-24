@@ -15,6 +15,26 @@ function nodeClass(isSolved, isUnlocked) {
   return "sector-star locked";
 }
 
+function isSoftLockedNode(section, node, solvedSet) {
+  const nodeId = String(node && node.node_id ? node.node_id : "");
+  if (String(section || "") === "Nexus Hub" && (nodeId === "HUB07" || nodeId === "HUB08")) {
+    return !solvedSet.has("HUB05");
+  }
+  if (nodeId === "CRD05") {
+    return !solvedSet.has("CRD04");
+  }
+  if (nodeId === "CRD06") {
+    return !solvedSet.has("CRD05");
+  }
+  if (nodeId === "CRD07") {
+    return !solvedSet.has("CRD06");
+  }
+  if (nodeId === "WORM04") {
+    return !solvedSet.has("WORM03");
+  }
+  return false;
+}
+
 function polarPosition(index, total, radiusPercent) {
   const angle = ((Math.PI * 2) / Math.max(total, 1)) * index - Math.PI / 2;
   const x = 50 + Math.cos(angle) * radiusPercent;
@@ -36,8 +56,12 @@ export function renderRegionHub(context) {
     .map((node, index) => {
       const isSolved = solvedSet.has(node.node_id);
       const isUnlocked = unlockedNodeIds.has(node.node_id);
+      const isSoftLocked = isSoftLockedNode(section, node, solvedSet);
       const position = polarPosition(index, nodes.length, 38);
-      const classes = [nodeClass(isSolved, isUnlocked)];
+      const classes = [nodeClass(isSolved, isUnlocked && !isSoftLocked)];
+      if (isSoftLocked) {
+        classes.push("is-soft-locked");
+      }
       if (index === safeIndex) {
         classes.push("active");
       }
@@ -60,7 +84,9 @@ export function renderRegionHub(context) {
   const selectedStatus = selectedNode
     ? solvedSet.has(selectedNode.node_id)
       ? "Solved"
-      : unlockedNodeIds.has(selectedNode.node_id)
+      : isSoftLockedNode(section, selectedNode, solvedSet)
+        ? "Locked"
+        : unlockedNodeIds.has(selectedNode.node_id)
         ? "Unlocked"
         : "Locked"
     : "No nodes";
@@ -68,15 +94,13 @@ export function renderRegionHub(context) {
   return `
     <article class="nexus-page">
       <section class="nexus-stage">
-        <div class="nexus-core">
+        <div class="region-ring-guide" aria-hidden="true"></div>
+        <div class="nexus-core nexus-core--region">
           ${renderRegionSymbol({
             section,
             className: "nexus-core-symbol",
           })}
-          <h2>${escapeHtml(section)}</h2>
           <p>${escapeHtml(String(solved))}/${escapeHtml(String(nodes.length))} solved</p>
-          ${isPracticalGuide ? `<p>${escapeHtml(String(pgeWinFound))}/${escapeHtml(String(pgeWinTotal))} win paths found</p>` : ""}
-          <p class="key-hint">Arrows to choose a node. Enter to enter.</p>
         </div>
         <div class="nexus-orbit">${stars}</div>
       </section>

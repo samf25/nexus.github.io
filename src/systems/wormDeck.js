@@ -137,6 +137,12 @@ export function defaultWormSystemState() {
     starterCardIds: [],
     deck: {},
     sickbayCardIds: [],
+    arenaFirstWinsByDifficulty: {
+      easy: false,
+      medium: false,
+      hard: false,
+    },
+    arenaBossCleared: false,
   };
 }
 
@@ -158,14 +164,24 @@ export function normalizeWormSystemState(candidate, now = nowMs()) {
     starterCardIds,
     deck,
     sickbayCardIds: normalizeSickbayCardIds(deck, baseSickbayList),
+    arenaFirstWinsByDifficulty: {
+      easy: Boolean(source.arenaFirstWinsByDifficulty && source.arenaFirstWinsByDifficulty.easy),
+      medium: Boolean(source.arenaFirstWinsByDifficulty && source.arenaFirstWinsByDifficulty.medium),
+      hard: Boolean(source.arenaFirstWinsByDifficulty && source.arenaFirstWinsByDifficulty.hard),
+    },
+    arenaBossCleared: Boolean(source.arenaBossCleared),
   };
 
   return snapshotSickbayHealing(base, now);
 }
 
-function createWindowPool(maxRarity = BASIC_WINDOW_MAX_RARITY) {
+function createWindowPool(maxRarity = BASIC_WINDOW_MAX_RARITY, minRarity = 0) {
   const cap = Math.max(0, safeNumber(maxRarity, BASIC_WINDOW_MAX_RARITY));
-  return loadWormCardCatalog().filter((card) => safeNumber(card.rarity, 0) <= cap);
+  const floor = Math.max(0, safeNumber(minRarity, 0));
+  return loadWormCardCatalog().filter((card) => {
+    const rarity = safeNumber(card.rarity, 0);
+    return rarity <= cap && rarity >= floor;
+  });
 }
 
 function weightedPick(cards, { rng = Math.random, weightBase = BASIC_WINDOW_WEIGHT_BASE } = {}) {
@@ -342,8 +358,9 @@ export function wormDrawWindowCard({
   rng = Math.random,
   weightBase = BASIC_WINDOW_WEIGHT_BASE,
   maxRarity = BASIC_WINDOW_MAX_RARITY,
+  minRarity = 0,
 } = {}) {
-  const pool = createWindowPool(maxRarity);
+  const pool = createWindowPool(maxRarity, minRarity);
   return weightedPick(pool, { rng, weightBase });
 }
 
@@ -353,6 +370,7 @@ export function wormDrawWindowPack(
     rng = Math.random,
     weightBase = BASIC_WINDOW_WEIGHT_BASE,
     maxRarity = BASIC_WINDOW_MAX_RARITY,
+    minRarity = 0,
   } = {},
 ) {
   const picks = [];
@@ -362,6 +380,7 @@ export function wormDrawWindowPack(
       rng,
       weightBase,
       maxRarity,
+      minRarity,
     });
     if (card) {
       picks.push(card);
@@ -589,6 +608,8 @@ export function reduceWormSystemState(systemState, action, now = nowMs()) {
     let next = applyOutcomeToDeck(current, playerResults, now);
 
     let reward = 0;
+    let firstWinDifficulty = "";
+    let bossFirstClear = false;
     if (mode === "normal" && winner === "player") {
       const baseReward = computeArenaReward(enemyRarities);
       const cloutMultiplier = Math.max(1, safeNumber(action.cloutMultiplier, 1));
@@ -597,6 +618,27 @@ export function reduceWormSystemState(systemState, action, now = nowMs()) {
         ...next,
         clout: Number((next.clout + reward).toFixed(2)),
       };
+      if (["easy", "medium", "hard"].includes(difficulty) && !next.arenaFirstWinsByDifficulty[difficulty]) {
+        firstWinDifficulty = difficulty;
+        next = {
+          ...next,
+          arenaFirstWinsByDifficulty: {
+            ...next.arenaFirstWinsByDifficulty,
+            [difficulty]: true,
+          },
+        };
+      }
+    }
+
+    if (mode === "boss" && winner === "player") {
+      const bossCloutReward = Math.max(0, Number(action.bossCloutReward) || 0);
+      bossFirstClear = !next.arenaBossCleared;
+      next = {
+        ...next,
+        arenaBossCleared: true,
+        clout: Number((next.clout + bossCloutReward).toFixed(2)),
+      };
+      reward = bossCloutReward;
     }
 
     if (winner === "player") {
@@ -604,7 +646,7 @@ export function reduceWormSystemState(systemState, action, now = nowMs()) {
         nextState: next,
         changed: true,
         message: reward > 0 ? `Arena victory. +${reward} Clout.` : "Arena victory.",
-        meta: { reward },
+        meta: { reward, firstWinDifficulty, bossFirstClear },
       };
     }
 
@@ -613,6 +655,17 @@ export function reduceWormSystemState(systemState, action, now = nowMs()) {
       changed: true,
       message: "Defeat recorded. No Clout awarded.",
       meta: { reward: 0 },
+    };
+  }
+
+  if (action.type === "worm-apply-battle-results") {
+    const playerResults = Array.isArray(action.playerResults) ? action.playerResults : [];
+    const next = applyOutcomeToDeck(current, playerResults, now);
+    return {
+      nextState: next,
+      changed: true,
+      message: "",
+      meta: {},
     };
   }
 

@@ -348,8 +348,8 @@ export function renderHub05Experience(context) {
       ${
         solvedNow
           ? `
-            <section class="hub04-status" aria-live="polite">
-              <p><strong>Wave-I passkey forged.</strong></p>
+            <section class="completion-banner" aria-live="polite">
+              <p><strong>WAVE-I PASSKEY Forged</strong></p>
             </section>
           `
           : ""

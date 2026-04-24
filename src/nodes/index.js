@@ -10,6 +10,8 @@ import { CRD01_NODE_EXPERIENCE } from "./cradle/crd01PathSeeding.js";
 import { CRD02_NODE_EXPERIENCE } from "./cradle/crd02MadraWell.js";
 import { CRD03_NODE_EXPERIENCE } from "./cradle/crd03AuraAlignment.js";
 import { CRD04_NODE_EXPERIENCE } from "./cradle/crd04SevenYearFestival.js";
+import { CRD05_NODE_EXPERIENCE } from "./cradle/crd05HeavensGlorySchool.js";
+import { CRD06_NODE_EXPERIENCE } from "./cradle/crd06DuelWithJaiLong.js";
 import { LOG01_NODE_EXPERIENCE } from "./math/log01TruthGates.js";
 import { LOG02_NODE_EXPERIENCE } from "./math/log02WitnessGrid.js";
 import {
@@ -48,6 +50,8 @@ import { AA02_NODE_EXPERIENCE } from "./arcane/aa02ClimbersCourt.js";
 import { AA03_NODE_EXPERIENCE } from "./arcane/aa03Workshop.js";
 import { WORM01_NODE_EXPERIENCE } from "./worm/worm01DeckDuel.js";
 import { WORM02_NODE_EXPERIENCE } from "./worm/worm02Arena.js";
+import { WORM03_NODE_EXPERIENCE } from "./worm/worm03BrocktonBay.js";
+import { WORM04_NODE_EXPERIENCE } from "./worm/worm04Cleanup.js";
 import { DCC01_NODE_EXPERIENCE } from "./dungeoncrawlercarl/dcc01CrawlFloor.js";
 import {
   PGE01_NODE_EXPERIENCE,
@@ -71,6 +75,8 @@ const NODE_EXPERIENCE_REGISTRY = Object.freeze({
   CRD02: CRD02_NODE_EXPERIENCE,
   CRD03: CRD03_NODE_EXPERIENCE,
   CRD04: CRD04_NODE_EXPERIENCE,
+  CRD05: CRD05_NODE_EXPERIENCE,
+  CRD06: CRD06_NODE_EXPERIENCE,
   LOG01: LOG01_NODE_EXPERIENCE,
   LOG02: LOG02_NODE_EXPERIENCE,
   LOG03: LOG03_NODE_EXPERIENCE,
@@ -107,6 +113,8 @@ const NODE_EXPERIENCE_REGISTRY = Object.freeze({
   AA03: AA03_NODE_EXPERIENCE,
   WORM01: WORM01_NODE_EXPERIENCE,
   WORM02: WORM02_NODE_EXPERIENCE,
+  WORM03: WORM03_NODE_EXPERIENCE,
+  WORM04: WORM04_NODE_EXPERIENCE,
   DCC01: DCC01_NODE_EXPERIENCE,
   PGE01: PGE01_NODE_EXPERIENCE,
   PGE02: PGE02_NODE_EXPERIENCE,

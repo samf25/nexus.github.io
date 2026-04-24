@@ -271,6 +271,17 @@ function dccModifiers(state) {
   };
 }
 
+function dccProgressFromState(state) {
+  const source =
+    state && state.systems && state.systems.dungeonCrawl && typeof state.systems.dungeonCrawl === "object"
+      ? state.systems.dungeonCrawl
+      : {};
+  return {
+    floor3Unlocked: Boolean(source.floor3Unlocked),
+    checkpointFloor: Math.max(1, Math.floor(Number(source.checkpointFloor) || 1)),
+  };
+}
+
 function deriveBaseStats(meta, modifiers) {
   const slotCount = Math.max(2, 2 + meta.upgrades.slots + modifiers.extraAbilitySlots);
   return {
@@ -1458,6 +1469,10 @@ function descendFloor(runtime, state) {
   }
 
   const nextFloor = run.floor + 1;
+  const progress = dccProgressFromState(state);
+  if (nextFloor >= 3 && !progress.floor3Unlocked) {
+    return "A sealed gate blocks the lower floors. A keyed artifact is required.";
+  }
   runtime.solved = true;
   runtime.meta.bestFloor = Math.max(runtime.meta.bestFloor, nextFloor);
   const nextRun = startFloor(runtime, state, nextFloor);
@@ -1619,7 +1634,10 @@ function reduceDccRuntime(runtime, action, context = {}) {
         lastMessage: "A run is already active.",
       };
     }
-    const nextRun = startFloor(current, context.state, 1);
+    const progress = dccProgressFromState(context.state);
+    const requestedFloor = Math.max(1, Math.floor(Number(action.startFloor) || progress.checkpointFloor || 1));
+    const startAt = requestedFloor >= 3 && !progress.floor3Unlocked ? 1 : requestedFloor;
+    const nextRun = startFloor(current, context.state, startAt);
     enterRoom(nextRun, nextRun.currentRoomId);
     return withLootEventsFromBagGrowth(current, {
       ...current,
@@ -1629,8 +1647,40 @@ function reduceDccRuntime(runtime, action, context = {}) {
       },
       run: nextRun,
       inventoryOpen: false,
-      lastMessage: "Floor 1 generated.",
+      lastMessage: `Floor ${startAt} generated.`,
     }, action.type);
+  }
+
+  if (action.type === "dcc-unlock-floor3") {
+    if (action.atGate !== true) {
+      return {
+        ...current,
+        lastMessage: "Reach the sealed stair gate on Floor 2 first.",
+      };
+    }
+    if (action.ready !== true) {
+      return {
+        ...current,
+        lastMessage: "You need the DCC Floor-3 Key selected to unlock this gate.",
+      };
+    }
+    return {
+      ...current,
+      lastMessage: "The floor-three gate unlocks with a deep mechanical shudder.",
+    };
+  }
+
+  if (action.type === "dcc-apply-checkpoint-pyramid") {
+    if (action.ready !== true) {
+      return {
+        ...current,
+        lastMessage: "You need the Checkpoint Pyramid selected to anchor this checkpoint.",
+      };
+    }
+    return {
+      ...current,
+      lastMessage: "Checkpoint stabilized at Floor 3.",
+    };
   }
 
   if (action.type === "dcc-buy-upgrade") {
@@ -2098,10 +2148,13 @@ function dccLootPanelMarkup(runtime, state) {
   `;
 }
 
-function outsideMarkup(runtime, state) {
+function outsideMarkup(runtime, state, selectedArtifact = "") {
   const meta = runtime.meta;
   const modifiers = dccModifiers(state);
   const stats = deriveBaseStats(meta, modifiers);
+  const progress = dccProgressFromState(state);
+  const artifact = safeText(selectedArtifact);
+  const pyramidSelected = artifact === "Checkpoint Pyramid";
 
   const upgradeRows = [
     { id: "hp", label: "Max Health", value: meta.upgrades.hp },
@@ -2115,8 +2168,18 @@ function outsideMarkup(runtime, state) {
     <section class="card dcc-outside">
       <h3>Outside The Dungeon</h3>
       <p>Gold: <strong>${escapeHtml(String(meta.gold))}</strong> | Runs: ${escapeHtml(String(meta.totalRuns))} | Deaths: ${escapeHtml(String(meta.totalDeaths))} | Best Floor: ${escapeHtml(String(meta.bestFloor))}</p>
+      <p class="muted">Floor 3 Gate: ${progress.floor3Unlocked ? "Unlocked" : "Locked"} | Checkpoint Floor: ${progress.checkpointFloor}</p>
       <div class="toolbar">
-        <button type="button" data-node-id="${NODE_ID}" data-node-action="dcc-enter-floor">Enter Floor 1</button>
+        <button type="button" data-node-id="${NODE_ID}" data-node-action="dcc-enter-floor">Enter Floor ${escapeHtml(String(progress.checkpointFloor))}</button>
+        <button
+          type="button"
+          data-node-id="${NODE_ID}"
+          data-node-action="dcc-apply-checkpoint-pyramid"
+          data-artifact="${escapeHtml(artifact)}"
+          data-ready="${pyramidSelected ? "true" : "false"}"
+        >
+          Set Checkpoint: Floor 3
+        </button>
       </div>
     </section>
 
@@ -2158,11 +2221,15 @@ function outsideMarkup(runtime, state) {
   `;
 }
 
-function runMarkup(runtime, state) {
+function runMarkup(runtime, state, selectedArtifact = "") {
   const run = runtime.run;
   if (!run) {
     return "";
   }
+  const progress = dccProgressFromState(state);
+  const artifact = safeText(selectedArtifact);
+  const keySelected = artifact === "DCC Floor-3 Key";
+  const atFloorGate = run.floor === 2 && run.bossDefeated;
   const room = currentRoom(run);
   const roomState = roomStateFromRun(run);
   const enemy = run.combat && run.combat.enemy ? run.combat.enemy : null;
@@ -2186,6 +2253,17 @@ function runMarkup(runtime, state) {
           <div class="toolbar">
             <button type="button" data-node-id="${NODE_ID}" data-node-action="dcc-rest" ${run.combat || run.event ? "disabled" : ""}>Rest (R)</button>
             <button type="button" data-node-id="${NODE_ID}" data-node-action="dcc-toggle-inventory">Toggle Inventory (I)</button>
+            <button
+              type="button"
+              data-node-id="${NODE_ID}"
+              data-node-action="dcc-unlock-floor3"
+              data-artifact="${escapeHtml(artifact)}"
+              data-ready="${!progress.floor3Unlocked && keySelected && atFloorGate ? "true" : "false"}"
+              data-at-gate="${atFloorGate ? "true" : "false"}"
+              ${progress.floor3Unlocked || !atFloorGate ? "disabled" : ""}
+            >
+              Unlock Floor 3 Gate
+            </button>
             <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="dcc-reset-run">Abandon Run</button>
           </div>
         </section>
@@ -2219,13 +2297,14 @@ function runMarkup(runtime, state) {
 
 function renderDcc01(context) {
   const runtime = normalizeRuntime(context.runtime);
+  const selectedArtifact = String(context && context.selectedArtifactReward ? context.selectedArtifactReward : "");
 
   return `
     <article class="dcc01-node" data-node-id="${NODE_ID}">
       <section class="card dcc-head">
         <h3>DCC01: The Crawl</h3>
       </section>
-      ${runtime.run ? runMarkup(runtime, context.state) : outsideMarkup(runtime, context.state)}
+      ${runtime.run ? runMarkup(runtime, context.state, selectedArtifact) : outsideMarkup(runtime, context.state, selectedArtifact)}
     </article>
   `;
 }
@@ -2264,6 +2343,23 @@ function actionFromElement(element) {
   }
   if (actionName === "dcc-descend") {
     return { type: "dcc-descend", ...common };
+  }
+  if (actionName === "dcc-unlock-floor3") {
+    return {
+      type: "dcc-unlock-floor3",
+      artifact: element.getAttribute("data-artifact") || "",
+      ready: element.getAttribute("data-ready") === "true",
+      atGate: element.getAttribute("data-at-gate") === "true",
+      ...common,
+    };
+  }
+  if (actionName === "dcc-apply-checkpoint-pyramid") {
+    return {
+      type: "dcc-apply-checkpoint-pyramid",
+      artifact: element.getAttribute("data-artifact") || "",
+      ready: element.getAttribute("data-ready") === "true",
+      ...common,
+    };
   }
   if (actionName === "dcc-use-item") {
     return {

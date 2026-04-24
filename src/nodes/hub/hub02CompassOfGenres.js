@@ -189,7 +189,7 @@ function socketNameMarkup() {
       return "";
     }
 
-    const offset = socket.ringType === "outer" ? 22 : 18;
+    const offset = socket.ringType === "outer" ? 26 : 22;
     return `
       <div
         class="hub02-wheel-name hub02-wheel-name-${socket.ringType}"
@@ -387,8 +387,8 @@ export function renderHub02Experience(context) {
       ${
         solvedNow
           ? `
-            <section class="hub02-status hub02-status-immersive" aria-live="polite">
-              <p><strong>Nexus Bearings aligned.</strong></p>
+            <section class="completion-banner" aria-live="polite">
+              <p><strong>NEXUS BEARING Aligned</strong></p>
             </section>
           `
           : ""

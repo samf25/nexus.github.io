@@ -504,7 +504,7 @@ export function renderCrd04Experience(context) {
       <article class="crd04-node" data-node-id="${NODE_ID}">
         <section class="crd04-dialog">
           <h3>Seven-Year Festival Tournament</h3>
-          <p>You were cast out after defeat. The stewards bar re-entry until the next gate window.</p>
+          <p>You were cast out after defeat. You can attempt to win next year.</p>
           <p><strong>Next entry window:</strong> ${escapeHtml(formatMs(remaining))}</p>
         </section>
       </article>

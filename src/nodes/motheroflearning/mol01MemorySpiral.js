@@ -73,7 +73,7 @@ export function reduceMol01Runtime(runtime, action) {
     return {
       ...current,
       game: reduceMemoryGameBegin(current.game, { at }),
-      lastMessage: "Sequence active. Observe, then press Repeat Sequence.",
+      lastMessage: "Sequence active. Observe, then repeat it.",
     };
   }
 
@@ -146,7 +146,6 @@ export function renderMol01Experience(context) {
     <article class="mol01-node" data-node-id="${NODE_ID}">
       <section class="card mol-memory-head">
         <h3>Memory Spiral</h3>
-        <p>Press begin, watch the sequence, then repeat it.</p>
         <p><strong>Rounds Cleared:</strong> ${game.successCount}/${game.targetSuccesses}</p>
       </section>
       ${renderMemoryDisplay(game)}
@@ -159,19 +158,6 @@ export function renderMol01Experience(context) {
                   ? `
                     <button type="button" data-node-id="${NODE_ID}" data-node-action="mol01-begin-sequence">
                       Begin Sequence
-                    </button>
-                  `
-                  : ""
-              }
-              ${
-                game.phase === "show"
-                  ? `
-                    <button
-                      type="button"
-                      data-node-id="${NODE_ID}"
-                      data-node-action="mol01-enter-input"
-                    >
-                      Repeat Sequence
                     </button>
                   `
                   : ""
@@ -191,7 +177,11 @@ export function renderMol01Experience(context) {
       }
       ${
         runtime.solved
-          ? `<section class="card"><p><strong>Loop imprint stabilized.</strong> You can now initiate controlled resets.</p></section>`
+          ? `
+            <section class="completion-banner" aria-live="polite">
+              <p><strong>RESTART TOKEN Recovered</strong></p>
+            </section>
+          `
           : ""
       }
     </article>

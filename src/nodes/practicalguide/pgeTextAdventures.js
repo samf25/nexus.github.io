@@ -1,4 +1,5 @@
 import { escapeHtml } from "../../templates/shared.js";
+import { renderArtifactSymbol } from "../../core/artifacts.js";
 import {
   activePracticalGuideRoleFromState,
   normalizePracticalGuideRoleArtifact,
@@ -1932,6 +1933,7 @@ function fallbackSceneId(nodeId, choice, stage = "path") {
 
 function renderChoices(nodeId, currentScene, runtime, context, story) {
   const sceneLookup = scenesById(story);
+  const lockedRequirementSymbols = [];
   const visibleChoices = (currentScene.choices || []).filter((choice) => {
     const nextId = choiceNextId(choice);
     const nextScene = sceneLookup[nextId] || null;
@@ -1941,6 +1943,7 @@ function renderChoices(nodeId, currentScene, runtime, context, story) {
       requiresFlags: choice.requiresFlags,
     }, context, { includeFlags: false });
     if (hardLock.locked) {
+      lockedRequirementSymbols.push(...hardLock.missingRole, ...hardLock.missingArtifacts);
       return false;
     }
     if (nextScene && nextScene.type === "terminal") {
@@ -1950,14 +1953,31 @@ function renderChoices(nodeId, currentScene, runtime, context, story) {
         requiresFlags: nextScene.requiresFlags,
       }, context, { includeFlags: false });
       if (terminalHardLock.locked) {
+        lockedRequirementSymbols.push(...terminalHardLock.missingRole, ...terminalHardLock.missingArtifacts);
         return false;
       }
     }
     return true;
   });
+  const uniqueSymbols = mergeUnique(lockedRequirementSymbols);
+  const symbolStrip = uniqueSymbols.length
+    ? `
+      <section class="card pge-lock-sigil-strip" aria-label="Hidden route sigils">
+        ${uniqueSymbols.map((name) => `
+          <span class="pge-lock-sigil">
+            ${renderArtifactSymbol({
+    artifactName: name,
+    className: "artifact-symbol",
+  })}
+          </span>
+        `).join("")}
+      </section>
+    `
+    : "";
 
   if (!visibleChoices.length) {
     return `
+      ${symbolStrip}
       <section class="card pge-terminal is-fail">
         <h4>No Current Openings</h4>
         <p>None of your available roles or artifacts unlock a stable move in this scene.</p>
@@ -1966,6 +1986,7 @@ function renderChoices(nodeId, currentScene, runtime, context, story) {
   }
 
   return `
+    ${symbolStrip}
     <div class="pge-choice-grid">
       ${visibleChoices.map((choice) => {
         return `

@@ -256,11 +256,6 @@ function upgradesMarkup(regionSnapshot) {
           `;
         }).join("")}
       </div>
-      <div class="toolbar">
-        <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="mol03-clear-focus">
-          Back To Wheel
-        </button>
-      </div>
     </section>
   `;
 }
@@ -285,7 +280,21 @@ export function renderMol03Experience(context) {
         <p><strong>${escapeHtml(selectedSnapshot.regionDef.pointLabel)}:</strong> ${escapeHtml(String(selectedSnapshot.points))}</p>
         <p class="muted">Use arrows to cycle regions, then Enter to open upgrade lattice.</p>
       </section>
-      ${focusedSnapshot ? upgradesMarkup(focusedSnapshot) : ""}
+      ${
+        focusedSnapshot
+          ? `
+            <div class="crd02-tech-modal" role="dialog" aria-label="Prestige Upgrades">
+              <section class="crd02-tech-surface">
+                <header>
+                  <h3>${escapeHtml(focusedSnapshot.regionDef.label)} Upgrades</h3>
+                  <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="mol03-clear-focus">Close</button>
+                </header>
+                ${upgradesMarkup(focusedSnapshot)}
+              </section>
+            </div>
+          `
+          : ""
+      }
     </article>
   `;
 }

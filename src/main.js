@@ -111,6 +111,16 @@ const MATH_VAULT_PGE_ARTIFACT_PLACEMENTS = Object.freeze({
   NUM02: "Green Wax Seal",
   ALG02: "Sunless Lantern",
   GEO02: "Bone Key",
+  LOG03: "Oathbreaker Bell",
+  NUM03: "Sunforge Powder",
+  ALG03: "Mirror of Nine Lies",
+  GEO03: "Veiled Signet",
+  LOG04: "River-Map of Silt",
+});
+const WORM_ARENA_FIRST_WIN_ARTIFACTS = Object.freeze({
+  easy: "Ashen Treaty Pins",
+  medium: "Red Petition Docket",
+  hard: "Saintglass Vial",
 });
 const PGE_STORY_NODE_IDS = Object.freeze(new Set(["PGE02", "PGE03", "PGE04", "PGE05", "PGE06"]));
 const NODE_ARTIFACT_CONSUME_RULES = Object.freeze([
@@ -136,6 +146,13 @@ const NODE_ARTIFACT_CONSUME_RULES = Object.freeze([
     when: (action) => action.ready === true,
   }),
   Object.freeze({
+    nodeId: "CRD02",
+    actionType: "crd02-breakthrough",
+    artifact: "Jade Condensation Elixir",
+    usedBy: "CRD02",
+    when: (action) => action.ready === true,
+  }),
+  Object.freeze({
     nodeId: "CRD04",
     actionType: "crd04-enter-tournament",
     artifact: "Seven-Year Festival Tournament Pass",
@@ -149,8 +166,33 @@ const NODE_ARTIFACT_CONSUME_RULES = Object.freeze([
     usedBy: "HUB05",
     when: (action) => action.ready === true,
   }),
+  Object.freeze({
+    nodeId: "WORM03",
+    actionType: "worm03-summon-leviathan",
+    artifact: "Leviathan Summoning Amulet",
+    usedBy: "WORM03",
+    when: (action) => action.ready === true,
+  }),
+  Object.freeze({
+    nodeId: "DCC01",
+    actionType: "dcc-unlock-floor3",
+    artifact: "DCC Floor-3 Key",
+    usedBy: "DCC01",
+    when: (action) => action.ready === true,
+  }),
+  Object.freeze({
+    nodeId: "DCC01",
+    actionType: "dcc-apply-checkpoint-pyramid",
+    artifact: "Checkpoint Pyramid",
+    usedBy: "DCC01",
+    when: (action) => action.ready === true,
+  }),
 ]);
 const NODE_REWARD_OVERRIDES = Object.freeze({
+  CRD02: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze([]),
+  }),
   AA01: Object.freeze({
     suppressBlueprintReward: true,
     supplementalRewards: Object.freeze(["Enchanter Attunement"]),
@@ -166,6 +208,30 @@ const NODE_REWARD_OVERRIDES = Object.freeze({
   TWI04: Object.freeze({
     suppressBlueprintReward: true,
     supplementalRewards: Object.freeze([]),
+  }),
+  HUB07: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze([]),
+  }),
+  CRD05: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze(["Jade Condensation Elixir", "DCC Floor-3 Key", "Leviathan Summoning Amulet"]),
+  }),
+  CRD06: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze(["Checkpoint Pyramid", "Simurgh Summoning Bracelet"]),
+  }),
+  WORM03: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze(["Nightwine Ledger"]),
+  }),
+  WORM04: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze(["Mercy Bell Chime"]),
+  }),
+  WORM02: Object.freeze({
+    suppressBlueprintReward: false,
+    supplementalRewards: Object.freeze(["Ivory Truce Fork"]),
   }),
 });
 let hub08OrbHoldSession = {
@@ -315,6 +381,45 @@ function closeTopDialogIfAny() {
   }
   closeButton.click();
   return true;
+}
+
+function isRegionNodeSoftLocked(node, state) {
+  if (!node || !state) {
+    return false;
+  }
+  const nodeId = String(node.node_id || "");
+  const solved = new Set(Array.isArray(state.solvedNodeIds) ? state.solvedNodeIds : []);
+  if (nodeId === "HUB07" || nodeId === "HUB08") {
+    return !solved.has("HUB05");
+  }
+  if (nodeId === "CRD05") {
+    return !solved.has("CRD04");
+  }
+  if (nodeId === "CRD06") {
+    return !solved.has("CRD05");
+  }
+  if (nodeId === "CRD07") {
+    return !solved.has("CRD06");
+  }
+  if (nodeId === "WORM04") {
+    return !solved.has("WORM03");
+  }
+  return false;
+}
+
+function applyPostSolveArtifactCleanup(state, node) {
+  if (!node) {
+    return state;
+  }
+  let next = state;
+  const nodeId = String(node.node_id || "");
+  if (nodeId === "HUB05") {
+    next = consumeReward(next, "Constellation Order", "HUB05");
+  }
+  if (nodeId === "HUB07") {
+    next = consumeReward(next, "Index String", "HUB07");
+  }
+  return next;
 }
 
 function grantSupplementalReward(state, rewardName, node) {
@@ -527,21 +632,31 @@ function withArcaneTick() {
 }
 
 function ensureDerivedRewards(state) {
-  const solved = new Set(state.solvedNodeIds || []);
+  let next = state;
+  const solved = new Set(next.solvedNodeIds || []);
+
+  if (solved.has("HUB05")) {
+    next = consumeReward(next, "Constellation Order", "HUB05");
+  }
+  if (solved.has("HUB07")) {
+    next = consumeReward(next, "Index String", "HUB07");
+    next = consumeReward(next, "Fog Phrase", "HUB07");
+  }
+
   if (!solved.has("HUB05")) {
-    return state;
+    return next;
   }
 
-  if (hasWaveOnePasskey(state)) {
-    return state;
+  if (hasWaveOnePasskey(next)) {
+    return next;
   }
 
-  const rewards = rewardsMap(state);
+  const rewards = rewardsMap(next);
   if (rewards["Wave-I Passkey"] || rewards["Wave 1 Passkey"]) {
-    return state;
+    return next;
   }
 
-  return grantSupplementalReward(state, "Wave-I Passkey", {
+  return grantSupplementalReward(next, "Wave-I Passkey", {
     node_id: "HUB05",
     section: "Nexus Hub",
   });
@@ -764,6 +879,12 @@ function openSelectedSectionNode() {
     return;
   }
 
+  if (isRegionNodeSoftLocked(node, appState)) {
+    setBanner("That node is still dormant.");
+    renderApp();
+    return;
+  }
+
   navigate(node.route);
 }
 
@@ -853,7 +974,7 @@ function dispatchActiveNodeAction(action) {
   withState((current) => {
     let next = current;
     let runtimeAction = action;
-    if (node.node_id === "WORM02" && action.type === "worm02-start-normal") {
+    if (node.node_id === "WORM02" && (action.type === "worm02-start-normal" || action.type === "worm02-start-boss")) {
       const payload = Array.isArray(action.playerCards) ? action.playerCards : [];
       const bonuses = {};
       for (const entry of payload) {
@@ -868,12 +989,49 @@ function dispatchActiveNodeAction(action) {
         capeBonusesByCardId: bonuses,
       };
     }
-    const wormSystemResult = reduceWormSystemState(next.systems.worm, action, Date.now());
+    const wormSystemAction =
+      (node.node_id === "WORM03" || node.node_id === "WORM04") && (action.type === "worm03-claim-outcome" || action.type === "worm04-claim-outcome")
+        ? {
+          type: "worm-apply-battle-results",
+          playerResults: Array.isArray(action.playerResults) ? action.playerResults : [],
+        }
+        : action;
+    const wormSystemResult = reduceWormSystemState(next.systems.worm, wormSystemAction, Date.now());
     if (wormSystemResult.changed) {
       next = updateSystemState(next, "worm", wormSystemResult.nextState);
       if (wormSystemResult.message) {
         setBanner(wormSystemResult.message);
       }
+
+      if (node.node_id === "WORM02" && action.type === "worm02-claim-outcome") {
+        const firstWinDifficulty = String(wormSystemResult.meta && wormSystemResult.meta.firstWinDifficulty ? wormSystemResult.meta.firstWinDifficulty : "");
+        if (firstWinDifficulty && WORM_ARENA_FIRST_WIN_ARTIFACTS[firstWinDifficulty]) {
+          next = grantSupplementalReward(next, WORM_ARENA_FIRST_WIN_ARTIFACTS[firstWinDifficulty], node);
+          setBanner(`Recovered ${WORM_ARENA_FIRST_WIN_ARTIFACTS[firstWinDifficulty]}.`);
+        }
+      }
+    }
+
+    if (node.node_id === "DCC01" && action.type === "dcc-unlock-floor3" && action.ready === true && action.atGate === true) {
+      const currentDccSystem =
+        next && next.systems && next.systems.dungeonCrawl && typeof next.systems.dungeonCrawl === "object"
+          ? next.systems.dungeonCrawl
+          : {};
+      next = updateSystemState(next, "dungeonCrawl", {
+        ...currentDccSystem,
+        floor3Unlocked: true,
+      });
+    }
+
+    if (node.node_id === "DCC01" && action.type === "dcc-apply-checkpoint-pyramid" && action.ready === true) {
+      const currentDccSystem =
+        next && next.systems && next.systems.dungeonCrawl && typeof next.systems.dungeonCrawl === "object"
+          ? next.systems.dungeonCrawl
+          : {};
+      next = updateSystemState(next, "dungeonCrawl", {
+        ...currentDccSystem,
+        checkpointFloor: 3,
+      });
     }
 
     if (node.node_id === "CRD02" && runtimeAction.type === "crd02-equip-soul-slot") {
@@ -1560,7 +1718,30 @@ function dispatchActiveNodeAction(action) {
       () => experience.initialState({ node, state: runtimeState }),
     );
 
-    const runtime = readNodeRuntime(next, node, experience);
+    let runtime = readNodeRuntime(next, node, experience);
+
+    if ((node.node_id === "WORM03" || node.node_id === "WORM04") && Number(runtime && runtime.pendingCloutAward) > 0) {
+      const award = Math.max(0, Number(runtime.pendingCloutAward) || 0);
+      const wormState =
+        next && next.systems && next.systems.worm && typeof next.systems.worm === "object"
+          ? next.systems.worm
+          : {};
+      next = updateSystemState(next, "worm", {
+        ...wormState,
+        clout: Number((Number(wormState.clout || 0) + award).toFixed(2)),
+      });
+      next = updateNodeRuntime(
+        next,
+        node.node_id,
+        (currentRuntime) => ({
+          ...(currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {}),
+          pendingCloutAward: 0,
+        }),
+        () => experience.initialState({ node, state: next }),
+      );
+      runtime = readNodeRuntime(next, node, experience);
+      setBanner(`Cleanup payout: +${award} Clout.`);
+    }
 
     const lootResolution = applyRuntimeLootEvents(next, node.node_id, runtime);
     if (lootResolution.consumed) {
@@ -1607,6 +1788,7 @@ function dispatchActiveNodeAction(action) {
 
     if (solvedNow && !solvedBefore) {
       next = applyNodeSolveSystemOverrides(markNodeSolvedWithOverrides(next, node), node);
+      next = applyPostSolveArtifactCleanup(next, node);
       let bonusReward = "";
       if (node.node_id === "CRD04") {
         next = grantSupplementalReward(next, "Suriel's Marble", node);
@@ -2050,6 +2232,16 @@ function contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress) {
 
   const node = blueprintIndex.nodesByRoute.get(route);
   if (node) {
+    if (isRegionNodeSoftLocked(node, appState)) {
+      return {
+        html: `
+          <article class="animated-fade">
+            <h2>Node Dormant</h2>
+            <p class="muted">This path has not opened yet.</p>
+          </article>
+        `,
+      };
+    }
     appState = markNodeSeen(appState, node.node_id);
 
     const customExperience = getNodeExperience(node.node_id);
@@ -2229,10 +2421,14 @@ function handleClick(event) {
   if (action === "toggle-widget") {
     const widget = button.getAttribute("data-widget");
     if (widget && Object.prototype.hasOwnProperty.call(widgetState, widget)) {
+      const closingArtifacts = widget === "artifacts" && widgetState.artifacts;
       widgetState = {
         ...widgetState,
         [widget]: !widgetState[widget],
       };
+      if (closingArtifacts) {
+        selectedArtifactReward = "";
+      }
       renderApp();
     }
     return;
@@ -2520,7 +2716,12 @@ function handleClick(event) {
       return;
     }
 
-    withState((current) => applyNodeSolveSystemOverrides(markNodeSolvedWithOverrides(current, node), node));
+    withState((current) =>
+      applyPostSolveArtifactCleanup(
+        applyNodeSolveSystemOverrides(markNodeSolvedWithOverrides(current, node), node),
+        node,
+      ),
+    );
     setBanner(`${node.node_id} solved. Reward added: ${solveRewardLabel(node)}.`);
     renderApp();
     return;
@@ -2540,6 +2741,7 @@ function handleClick(event) {
 
     withState((current) => {
       let next = applyNodeSolveSystemOverrides(markNodeSolvedWithOverrides(current, node), node);
+      next = applyPostSolveArtifactCleanup(next, node);
       if (node.node_id === "CRD04") {
         next = grantSupplementalReward(next, "Suriel's Marble", node);
       }
@@ -2833,7 +3035,7 @@ async function bootstrap() {
       if (document.visibilityState === "hidden") {
         return;
       }
-      if (widgetState.artifacts || widgetState.signals || widgetState.save) {
+      if (widgetState.artifacts || widgetState.loot || widgetState.signals || widgetState.save) {
         return;
       }
       const route = getCurrentRoute();

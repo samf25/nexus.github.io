@@ -179,12 +179,27 @@ export function applyPracticalGuideRoleReset(state) {
 
   const solved = new Set(state && Array.isArray(state.solvedNodeIds) ? state.solvedNodeIds : []);
   solved.delete("PGE01");
+  const currentPrestige =
+    state && state.systems && state.systems.prestige && typeof state.systems.prestige === "object"
+      ? state.systems.prestige
+      : {};
+  const nextPracticalGuideResets = Math.max(
+    0,
+    Math.floor(Number(currentPrestige.practicalGuideResets || 0)) + 1,
+  );
 
   return {
     nextState: {
       ...state,
       solvedNodeIds: [...solved],
       nodeRuntime: runtimeRoot,
+      systems: {
+        ...(state.systems || {}),
+        prestige: {
+          ...currentPrestige,
+          practicalGuideResets: nextPracticalGuideResets,
+        },
+      },
       inventory: {
         ...(state.inventory || {}),
         rewards,

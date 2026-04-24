@@ -7,10 +7,10 @@ const NORMALIZED_FOG_PHRASE = "THEFOGREMEMBERS";
 const MADRA_SINK_COST = 3;
 
 const REQUIRED_SOCKETS = Object.freeze([
-  { slotId: "mol01", label: "MOL01", reward: "Restart Token", x: 50, y: 16 },
-  { slotId: "twi01", label: "TWI01", reward: "Ledger Key", x: 84, y: 50 },
-  { slotId: "log01", label: "LOG01", reward: "Lemma of implication", x: 50, y: 84 },
-  { slotId: "num01", label: "NUM01", reward: "Mod Wheel", x: 16, y: 50 },
+  { slotId: "mol01", label: "MOL01", reward: "Restart Token" },
+  { slotId: "twi01", label: "TWI01", reward: "Ledger Key" },
+  { slotId: "log01", label: "LOG01", reward: "Lemma of implication" },
+  { slotId: "num01", label: "NUM01", reward: "Mod Wheel" },
 ]);
 
 const SOCKET_BY_ID = Object.freeze(
@@ -31,6 +31,14 @@ function normalizePhrase(value) {
 
 function rewardMatches(left, right) {
   return normalizeText(left) === normalizeText(right);
+}
+
+function ringPosition(index, total, radiusPct = 40) {
+  const angle = ((Math.PI * 2) / Math.max(1, total)) * index - Math.PI / 2;
+  return {
+    x: 50 + Math.cos(angle) * radiusPct,
+    y: 50 + Math.sin(angle) * radiusPct,
+  };
 }
 
 function normalizedSockets(candidate) {
@@ -330,39 +338,42 @@ export function renderHub08Experience(context) {
         !runtime.roomOpen
           ? `
             <section class="hub08-seal-stage">
-              <div class="hub08-seal-core">
-                <span class="hub08-seal-pulse" aria-hidden="true"></span>
+              <div class="hub08-seal-ring">
+                <div class="hub08-seal-core">
+                  <span class="hub08-seal-pulse" aria-hidden="true"></span>
+                </div>
+                ${REQUIRED_SOCKETS.map((socket, index) => {
+                  const position = ringPosition(index, REQUIRED_SOCKETS.length, 40);
+                  const filled = Boolean(runtime.sockets[socket.slotId]);
+                  const ready = !filled && rewardMatches(selectedArtifact, socket.reward);
+                  return `
+                    <button
+                      type="button"
+                      class="hub08-socket ${filled ? "is-filled" : ""} ${ready ? "is-ready" : ""}"
+                      style="left:${position.x}%; top:${position.y}%;"
+                      data-node-id="${NODE_ID}"
+                      data-node-action="hub08-socket-artifact"
+                      data-slot-id="${escapeHtml(socket.slotId)}"
+                      data-selected-artifact="${escapeHtml(selectedArtifact)}"
+                      data-ready="${ready ? "true" : "false"}"
+                      aria-disabled="${filled ? "true" : "false"}"
+                      aria-label="${escapeHtml(`${socket.label} socket`)}"
+                    >
+                      ${
+                        filled
+                          ? renderArtifactSymbol({
+                              artifactName: socket.reward,
+                              className: "hub08-socket-symbol artifact-symbol",
+                            })
+                          : renderArtifactSymbol({
+                              artifactName: socket.reward,
+                              className: "hub08-socket-symbol artifact-symbol is-ghost",
+                            })
+                      }
+                    </button>
+                  `;
+                }).join("")}
               </div>
-              ${REQUIRED_SOCKETS.map((socket) => {
-                const filled = Boolean(runtime.sockets[socket.slotId]);
-                const ready = !filled && rewardMatches(selectedArtifact, socket.reward);
-                return `
-                  <button
-                    type="button"
-                    class="hub08-socket ${filled ? "is-filled" : ""} ${ready ? "is-ready" : ""}"
-                    style="left:${socket.x}%; top:${socket.y}%;"
-                    data-node-id="${NODE_ID}"
-                    data-node-action="hub08-socket-artifact"
-                    data-slot-id="${escapeHtml(socket.slotId)}"
-                    data-selected-artifact="${escapeHtml(selectedArtifact)}"
-                    data-ready="${ready ? "true" : "false"}"
-                    aria-disabled="${filled ? "true" : "false"}"
-                    aria-label="${escapeHtml(`${socket.label} socket`)}"
-                  >
-                    ${
-                      filled
-                        ? renderArtifactSymbol({
-                            artifactName: socket.reward,
-                            className: "hub08-socket-symbol artifact-symbol",
-                          })
-                        : renderArtifactSymbol({
-                            artifactName: socket.reward,
-                            className: "hub08-socket-symbol artifact-symbol is-ghost",
-                          })
-                    }
-                  </button>
-                `;
-              }).join("")}
             </section>
           `
           : ""
@@ -449,7 +460,7 @@ export function renderHub08Experience(context) {
       ${
         solvedNow
           ? `
-            <section class="hub08-status" aria-live="polite">
+            <section class="completion-banner" aria-live="polite">
               <p><strong>Wave-II passkey forged.</strong></p>
             </section>
           `

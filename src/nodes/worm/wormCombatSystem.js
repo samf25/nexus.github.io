@@ -24,6 +24,7 @@ const INFO_DEBUFF_KEYS = Object.freeze(STAT_KEYS.slice());
 const ENEMY_AI_MODES = Object.freeze({
   basic: "basic",
   weighted: "weighted",
+  boss: "boss",
 });
 
 function clamp(value, min, max) {
@@ -165,6 +166,7 @@ function cloneBattleState(state) {
     playerTeam: Array.isArray(state.playerTeam) ? state.playerTeam.map(cloneCombatant) : [],
     enemyTeam: Array.isArray(state.enemyTeam) ? state.enemyTeam.map(cloneCombatant) : [],
     log: Array.isArray(state.log) ? state.log.slice() : [],
+    lastRoundEvents: Array.isArray(state.lastRoundEvents) ? state.lastRoundEvents.slice() : [],
   };
 }
 
@@ -521,10 +523,77 @@ function defaultEnemyOrdersWeighted(state) {
   return orders;
 }
 
+function defaultEnemyOrdersBoss(state) {
+  const orders = {};
+  let seed = state.seed;
+  const enemies = livingTeamMembers(state, "enemy");
+  const allies = livingTeamMembers(state, "enemy");
+  for (const actor of enemies) {
+    const opponents = livingTeamMembers(state, "player");
+    const targetPick = targetByAction(state, actor, WORM_ACTION_TYPES.attack, seed);
+    seed = targetPick.seed;
+    const target = targetPick.target;
+    const targetId = target ? target.combatantId : "";
+
+    const name = safeText(actor.heroName).toLowerCase();
+    let actionType = WORM_ACTION_TYPES.attack;
+
+    if (name.includes("jack")) {
+      const actionPick = pickWeighted(
+        [WORM_ACTION_TYPES.manipulation, WORM_ACTION_TYPES.attack, WORM_ACTION_TYPES.info, WORM_ACTION_TYPES.stealth],
+        (entry) => (entry === WORM_ACTION_TYPES.manipulation ? 5 : entry === WORM_ACTION_TYPES.attack ? 4 : 2.5),
+        seed,
+        311,
+      );
+      seed = actionPick.seed;
+      actionType = actionPick.value || WORM_ACTION_TYPES.attack;
+    } else if (name.includes("crawler")) {
+      const allyMissing = allies.some((ally) => Number(ally.hp || 0) < Number(ally.maxHp || 1) * 0.5);
+      const actionPick = pickWeighted(
+        [WORM_ACTION_TYPES.defense, WORM_ACTION_TYPES.attack, WORM_ACTION_TYPES.speed],
+        (entry) => (entry === WORM_ACTION_TYPES.defense ? (allyMissing ? 5 : 3) : entry === WORM_ACTION_TYPES.attack ? 4 : 2.2),
+        seed,
+        313,
+      );
+      seed = actionPick.seed;
+      actionType = actionPick.value || WORM_ACTION_TYPES.attack;
+    } else if (opponents.length === 1) {
+      actionType = WORM_ACTION_TYPES.attack;
+    } else {
+      const actionPick = pickWeighted(
+        [WORM_ACTION_TYPES.attack, WORM_ACTION_TYPES.manipulation, WORM_ACTION_TYPES.info, WORM_ACTION_TYPES.speed],
+        (entry) => (entry === WORM_ACTION_TYPES.attack ? 4 : entry === WORM_ACTION_TYPES.manipulation ? 3.6 : 2),
+        seed,
+        317,
+      );
+      seed = actionPick.seed;
+      actionType = actionPick.value || WORM_ACTION_TYPES.attack;
+    }
+
+    let infoStat = "attack";
+    if (actionType === WORM_ACTION_TYPES.info && target) {
+      const debuffPick = pickInfoDebuffStat(state, target, seed);
+      seed = debuffPick.seed;
+      infoStat = debuffPick.statKey;
+    }
+
+    orders[actor.combatantId] = {
+      type: actionType,
+      targetId,
+      infoStat,
+    };
+  }
+  state.seed = seed;
+  return orders;
+}
+
 function defaultEnemyOrders(state) {
   const mode = safeText(state.enemyAiMode || ENEMY_AI_MODES.weighted).toLowerCase();
   if (mode === ENEMY_AI_MODES.basic) {
     return defaultEnemyOrdersBasic(state);
+  }
+  if (mode === ENEMY_AI_MODES.boss) {
+    return defaultEnemyOrdersBoss(state);
   }
   return defaultEnemyOrdersWeighted(state);
 }
@@ -848,12 +917,16 @@ function normalizeBattleState(state) {
     round: Math.max(1, Math.floor(Number(source.round) || 1)),
     seed: Number.isFinite(Number(source.seed)) ? Number(source.seed) >>> 0 : Date.now() >>> 0,
     enemyAiMode:
-      safeText(source.enemyAiMode || ENEMY_AI_MODES.weighted).toLowerCase() === ENEMY_AI_MODES.basic
-        ? ENEMY_AI_MODES.basic
+      [ENEMY_AI_MODES.basic, ENEMY_AI_MODES.weighted, ENEMY_AI_MODES.boss]
+        .includes(safeText(source.enemyAiMode || ENEMY_AI_MODES.weighted).toLowerCase())
+        ? safeText(source.enemyAiMode || ENEMY_AI_MODES.weighted).toLowerCase()
         : ENEMY_AI_MODES.weighted,
     playerTeam,
     enemyTeam,
     log: Array.isArray(source.log) ? source.log.slice(-24).map((line) => safeText(line)) : [],
+    lastRoundEvents: Array.isArray(source.lastRoundEvents)
+      ? source.lastRoundEvents.map((line) => safeText(line)).filter((line) => line).slice(0, 12)
+      : [],
     winner: safeText(source.winner),
   };
 }
@@ -874,6 +947,7 @@ export function createWormBattleState({
     playerTeam,
     enemyTeam,
     log: ["Battle initialized."],
+    lastRoundEvents: ["Battle initialized."],
     winner: "",
   });
   updateWinner(state);
@@ -903,6 +977,7 @@ export function resolveWormRound(
 
   const resolvedEnemyOrders =
     enemyOrders && typeof enemyOrders === "object" ? enemyOrders : defaultEnemyOrders(next);
+  const startLogLength = next.log.length;
 
   const order = buildInitiativeOrder(next);
   for (const combatantId of order) {
@@ -921,6 +996,8 @@ export function resolveWormRound(
     updateWinner(next);
   }
 
+  const roundEvents = next.log.slice(startLogLength).filter(Boolean);
+  next.lastRoundEvents = roundEvents.length ? roundEvents.slice(0, 12) : ["No decisive actions."];
   next.round += 1;
   return next;
 }

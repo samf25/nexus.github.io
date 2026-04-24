@@ -320,7 +320,7 @@ function cellMarkup(runtime, rowIndex, guest, field) {
   const solved = runtime.solvedCells.includes(cellId);
   const flash = solved && runtime.flashCellId === cellId && Date.now() < runtime.flashUntil;
   if (solved) {
-    return `<span class="twi01-cell-solved ${flash ? "is-flash" : ""}">${escapeHtml(value)}</span>`;
+    return `<span class="twi01-cell-fixed twi01-cell-solved ${flash ? "is-flash" : ""}">${escapeHtml(value)}</span>`;
   }
 
   return `
@@ -345,7 +345,6 @@ export function renderTwi01Experience(context) {
     <article class="twi01-node" data-node-id="${NODE_ID}">
       <section class="twi01-header">
         <h3>The True Guest Ledger</h3>
-        <p class="muted">Restore the missing entries. Press Enter inside a cell to submit.</p>
         <p><strong>${solvedCount}</strong> / ${totalMissing} missing entries restored</p>
       </section>
 
@@ -369,7 +368,7 @@ export function renderTwi01Experience(context) {
           </tbody>
         </table>
       </section>
-      ${runtime.solved ? `<p class="key-hint"><strong>Ledger fully restored.</strong></p>` : ""}
+      ${runtime.solved ? `<section class="completion-banner" aria-live="polite"><p><strong>Ledger Restored</strong></p></section>` : ""}
     </article>
   `;
 }

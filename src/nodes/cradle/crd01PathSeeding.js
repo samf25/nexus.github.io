@@ -167,10 +167,14 @@ export function renderCrd01Experience(context) {
   const pattern = patternByIndex(RHYTHM_PATTERNS, runtime.patternIndex);
   const cadence = patternCadence(pattern);
   const feedbackActive = runtime.feedback && Date.now() < runtime.feedbackUntil;
-  const showHitFlash = feedbackActive && runtime.feedback === "good";
+  const showHitFlash = !solvedNow && feedbackActive && runtime.feedback === "good";
   const completed = solvedNow ? RHYTHM_PATTERNS.length : runtime.patternIndex;
   const progressPercent = Math.round((completed / RHYTHM_PATTERNS.length) * 100);
   const phaseDelay = pulsePhaseDelaySeconds(pattern, runtime.patternStartedAt);
+  const coreClass = solvedNow
+    ? "crd01-core is-complete"
+    : `crd01-core is-pattern-${escapeHtml(String(runtime.patternIndex))}`;
+  const coreStyle = solvedNow ? "" : `style="animation-delay: ${escapeHtml(phaseDelay.toFixed(3))}s;"`;
 
   if (!runtime.introDismissed) {
     return `
@@ -197,8 +201,8 @@ export function renderCrd01Experience(context) {
     <article class="crd01-node" data-node-id="${NODE_ID}">
       <section class="crd01-stage">
         <div
-          class="crd01-core is-pattern-${escapeHtml(String(runtime.patternIndex))}"
-          style="animation-delay: ${escapeHtml(phaseDelay.toFixed(3))}s;"
+          class="${coreClass}"
+          ${coreStyle}
           aria-hidden="true"
         >
           <span class="crd01-stream stream-a"></span>
@@ -227,8 +231,8 @@ export function renderCrd01Experience(context) {
       ${
         solvedNow
           ? `
-            <section class="hub04-status" aria-live="polite">
-              <p><strong>Starter core seeded.</strong></p>
+            <section class="completion-banner" aria-live="polite">
+              <p><strong>STARTER CORE Seeded</strong></p>
             </section>
           `
           : ""

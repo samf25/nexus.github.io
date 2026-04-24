@@ -1,155 +1,48 @@
-import { escapeHtml } from "../../templates/shared.js";
-
-function normalizeChoiceRuntime(candidate, rows) {
-  const source = candidate && typeof candidate === "object" ? candidate : {};
-  const selections = source.selections && typeof source.selections === "object" ? source.selections : {};
-  const normalizedSelections = {};
-
-  for (const row of rows) {
-    const selected = String(selections[row.id] || "");
-    normalizedSelections[row.id] = row.choices.includes(selected) ? selected : "";
-  }
-
-  const solved = rows.every((row) => normalizedSelections[row.id] === row.target);
-  return {
-    selections: normalizedSelections,
-    solved: Boolean(source.solved) || solved,
-    lastMessage: String(source.lastMessage || ""),
-  };
-}
-
-function createChoiceNodeExperience(config) {
-  const { nodeId, title, subtitle, rows, solvedMessage } = config;
-  const rowById = Object.freeze(Object.fromEntries(rows.map((row) => [row.id, row])));
-
-  function initialState() {
-    return normalizeChoiceRuntime({}, rows);
-  }
-
-  function validateRuntime(runtime) {
-    return Boolean(normalizeChoiceRuntime(runtime, rows).solved);
-  }
-
-  function reduceRuntime(runtime, action) {
-    const current = normalizeChoiceRuntime(runtime, rows);
-    if (!action || typeof action !== "object") {
-      return current;
-    }
-    if (action.type !== "math-choose") {
-      return current;
-    }
-
-    const rowId = String(action.rowId || "");
-    const choice = String(action.choice || "");
-    const row = rowById[rowId];
-    if (!row || !row.choices.includes(choice)) {
-      return current;
-    }
-
-    const nextSelections = {
-      ...current.selections,
-      [rowId]: choice,
-    };
-    const solved = rows.every((entry) => nextSelections[entry.id] === entry.target);
-    return {
-      ...current,
-      selections: nextSelections,
-      solved,
-      lastMessage: solved ? solvedMessage : "",
-    };
-  }
-
-  function buildActionFromElement(element) {
-    if (element.getAttribute("data-node-action") !== "math-choose") {
-      return null;
-    }
-    return {
-      type: "math-choose",
-      rowId: element.getAttribute("data-row-id") || "",
-      choice: element.getAttribute("data-choice") || "",
-      at: Date.now(),
-    };
-  }
-
-  function render(context) {
-    const runtime = normalizeChoiceRuntime(context.runtime, rows);
-    return `
-      <article class="math-choice-node" data-node-id="${escapeHtml(nodeId)}">
-        <section class="card math-choice-head">
-          <h3>${escapeHtml(title)}</h3>
-          <p>${escapeHtml(subtitle)}</p>
-        </section>
-        <section class="math-choice-grid">
-          ${rows.map((row) => {
-            const selected = runtime.selections[row.id];
-            const correct = selected && selected === row.target;
-            return `
-              <article class="card math-choice-row ${correct ? "is-correct" : ""}">
-                <h4>${escapeHtml(row.label)}</h4>
-                <div class="math-choice-options">
-                  ${row.choices.map((choice) => {
-                    const isSelected = selected === choice;
-                    return `
-                      <button
-                        type="button"
-                        class="math-choice-option ${isSelected ? "is-selected" : ""}"
-                        data-node-id="${escapeHtml(nodeId)}"
-                        data-node-action="math-choose"
-                        data-row-id="${escapeHtml(row.id)}"
-                        data-choice="${escapeHtml(choice)}"
-                      >
-                        ${escapeHtml(choice)}
-                      </button>
-                    `;
-                  }).join("")}
-                </div>
-              </article>
-            `;
-          }).join("")}
-        </section>
-      </article>
-    `;
-  }
-
-  return {
-    nodeId,
-    initialState,
-    render,
-    reduceRuntime,
-    validateRuntime,
-    buildActionFromElement,
-  };
-}
+import { createMathStageNodeExperience } from "./mathStageNodeEngine.js";
+import { integerCheck, numberCheck } from "./mathAnswerChecks.js";
 
 const LOG03_CONFIG = {
   nodeId: "LOG03",
   title: "Fitch Staircase",
-  subtitle: "Pick the correct rule or conclusion for each proof step.",
-  solvedMessage: "Proof frame assembled.",
-  rows: [
+  subtitle: "Resolve SAT and inference checkpoints in sequence.",
+  solvedMessage: "PROOF FRAME Recovered",
+  stages: [
     {
-      id: "log03-r1",
-      label: "From p -> q and p, conclude:",
-      choices: ["q", "p", "not q"],
-      target: "q",
+      id: "log03-s1",
+      label: "Clause Audit",
+      prompt:
+        "For (a or b) and (~a or c) and (~b or ~c), does a=1, b=0, c=1 satisfy all clauses? Enter T or F.",
+      placeholder: "T/F",
+      answers: ["t", "true"],
+      hint: "Check all three clauses, not just the first two.",
+      solvedText: "Satisfiable profile confirmed.",
     },
     {
-      id: "log03-r2",
-      label: "To prove p -> q in a direct proof, begin by assuming:",
-      choices: ["p", "q", "not p"],
-      target: "p",
+      id: "log03-s2",
+      label: "Two-True Model",
+      prompt: "Enter abc bits for a satisfying assignment with exactly two true values.",
+      placeholder: "example: 101",
+      answers: ["101", "a=1,b=0,c=1", "a1b0c1"],
+      hint: "The model from stage one already meets the two-true condition.",
+      solvedText: "Model witness captured.",
     },
     {
-      id: "log03-r3",
-      label: "If an assumption leads to contradiction, infer:",
-      choices: ["negation of the assumption", "repeat the assumption", "a tautology"],
-      target: "negation of the assumption",
+      id: "log03-s3",
+      label: "Unit Propagation",
+      prompt: "From clauses (x) and (~x or y), what must y be? Enter 1 or 0.",
+      placeholder: "1 or 0",
+      answers: ["1", "true", "t"],
+      hint: "x is forced first, then propagate into the second clause.",
+      solvedText: "Propagation chain complete.",
     },
     {
-      id: "log03-r4",
-      label: "Rule turning (p -> q) and (q -> r) into (p -> r):",
-      choices: ["hypothetical syllogism", "DeMorgan", "contraposition"],
-      target: "hypothetical syllogism",
+      id: "log03-s4",
+      label: "Unique Model",
+      prompt: "For (p or q) and (~p or q) and (p or ~q), enter the only satisfying pq bits.",
+      placeholder: "example: 11",
+      answers: ["11", "p=1,q=1", "p1q1"],
+      hint: "Each mixed clause eliminates one corner of the truth table.",
+      solvedText: "Proof frame locked in.",
     },
   ],
 };
@@ -157,65 +50,89 @@ const LOG03_CONFIG = {
 const LOG04_CONFIG = {
   nodeId: "LOG04",
   title: "Modality Lanterns",
-  subtitle: "Align modal meanings with their correct scope.",
-  solvedMessage: "Necessity lens calibrated.",
-  rows: [
+  subtitle: "Kripke frame: w0 -> {w1,w2}, w1 -> {w1}, w2 -> {w2}. p@w1, q@w2, r@{w1,w2}.",
+  solvedMessage: "NECESSITY LENS Recovered",
+  stages: [
     {
-      id: "log04-r1",
-      label: "Necessary means true in:",
-      choices: ["all worlds", "at least one world", "no worlds"],
-      target: "all worlds",
+      id: "log04-s1",
+      label: "Possibility",
+      prompt: "At w0, is Diamond p true? Enter T or F.",
+      placeholder: "T/F",
+      answers: ["t", "true"],
+      hint: "Diamond asks for at least one accessible world.",
+      solvedText: "Possibility channel lit.",
     },
     {
-      id: "log04-r2",
-      label: "Possible means true in:",
-      choices: ["at least one world", "all worlds", "no worlds"],
-      target: "at least one world",
+      id: "log04-s2",
+      label: "Necessity",
+      prompt: "At w0, is Box p true? Enter T or F.",
+      placeholder: "T/F",
+      answers: ["f", "false"],
+      hint: "Box requires truth in every accessible world.",
+      solvedText: "Necessity channel corrected.",
     },
     {
-      id: "log04-r3",
-      label: "Impossible means true in:",
-      choices: ["no worlds", "all worlds", "exactly two worlds"],
-      target: "no worlds",
+      id: "log04-s3",
+      label: "Universal Reach",
+      prompt: "At w0, is Box r true? Enter T or F.",
+      placeholder: "T/F",
+      answers: ["t", "true"],
+      hint: "r is true in both worlds reachable from w0.",
+      solvedText: "Shared truth stabilized.",
     },
     {
-      id: "log04-r4",
-      label: "If a claim is necessary, it is also:",
-      choices: ["possible", "impossible", "independent"],
-      target: "possible",
+      id: "log04-s4",
+      label: "Nested Modal",
+      prompt: "At w0, is Box Diamond q true? Enter T or F.",
+      placeholder: "T/F",
+      answers: ["f", "false"],
+      hint: "Check whether every world reachable from w0 can itself reach a q-world.",
+      solvedText: "Lens calibration complete.",
     },
   ],
 };
 
 const LOG05_CONFIG = {
   nodeId: "LOG05",
-  title: "Self-Reference Cell",
-  subtitle: "Resolve the metamathematical statements into their right category.",
-  solvedMessage: "Consistency key stabilized.",
-  rows: [
+  title: "Quantifier Chamber",
+  subtitle: "Domain is {-2,-1,0,1,2}. Resolve truth values and quantifier negation.",
+  solvedMessage: "CONSISTENCY KEY Recovered",
+  stages: [
     {
-      id: "log05-r1",
-      label: "Sentence: 'This sentence is false' is:",
-      choices: ["paradoxical", "necessary", "tautological"],
-      target: "paradoxical",
+      id: "log05-s1",
+      label: "Existential Response",
+      prompt: "Truth of: for all x there exists y with x + y = 0. Enter T or F.",
+      placeholder: "T/F",
+      answers: ["t", "true"],
+      hint: "Try y = -x for each domain value.",
+      solvedText: "Universal-existential check accepted.",
     },
     {
-      id: "log05-r2",
-      label: "A consistent system cannot prove both P and:",
-      choices: ["not P", "Q", "P and Q"],
-      target: "not P",
+      id: "log05-s2",
+      label: "Universal Trap",
+      prompt: "Truth of: there exists x such that for all y, x + y = 0. Enter T or F.",
+      placeholder: "T/F",
+      answers: ["f", "false"],
+      hint: "One fixed x cannot cancel every possible y.",
+      solvedText: "False universal witness rejected.",
     },
     {
-      id: "log05-r3",
-      label: "A Godel-style sentence encodes a claim about:",
-      choices: ["provability", "geometry", "probability"],
-      target: "provability",
+      id: "log05-s3",
+      label: "Square Bound",
+      prompt: "Truth of: for all x, x^2 >= 0. Enter T or F.",
+      placeholder: "T/F",
+      answers: ["t", "true"],
+      hint: "Squares over integers are never negative.",
+      solvedText: "Order axiom logged.",
     },
     {
-      id: "log05-r4",
-      label: "To avoid collapse, a formal system needs:",
-      choices: ["consistency", "randomness", "infinite axioms"],
-      target: "consistency",
+      id: "log05-s4",
+      label: "Negation Law",
+      prompt: "Is not(for all x P(x)) equivalent to there exists x not P(x)? Enter T or F.",
+      placeholder: "T/F",
+      answers: ["t", "true"],
+      hint: "This is the standard quantifier-negation rule.",
+      solvedText: "Consistency lock secured.",
     },
   ],
 };
@@ -223,263 +140,359 @@ const LOG05_CONFIG = {
 const LOG06_CONFIG = {
   nodeId: "LOG06",
   title: "Proof of Passage",
-  subtitle: "Finalize the gate by selecting the proper proof instruments.",
-  solvedMessage: "Proof stamp impressed.",
-  rows: [
+  subtitle: "Name the inference instrument or resulting form at each checkpoint.",
+  solvedMessage: "PROOF STAMP Recovered",
+  stages: [
     {
-      id: "log06-r1",
-      label: "From P and (P -> Q), validly infer:",
-      choices: ["Q", "not Q", "P -> Q"],
-      target: "Q",
+      id: "log06-s1",
+      label: "Inference Name",
+      prompt: "From (p -> q) and not q, infer not p. Enter the rule name.",
+      placeholder: "rule name",
+      answers: ["modus tollens"],
+      hint: "It is the contrapositive-style elimination rule.",
+      solvedText: "Rule stamp accepted.",
     },
     {
-      id: "log06-r2",
-      label: "From not not P, infer:",
-      choices: ["P", "not P", "P and not P"],
-      target: "P",
+      id: "log06-s2",
+      label: "DeMorgan Form",
+      prompt: "Rewrite not(p or q) using DeMorgan.",
+      placeholder: "not p and not q",
+      answers: ["not p and not q", "~p and ~q", "~p ^ ~q"],
+      hint: "Negated disjunction becomes conjunction of negations.",
+      solvedText: "Negation transform applied.",
     },
     {
-      id: "log06-r3",
-      label: "From for all x P(x), infer:",
-      choices: ["P(c)", "exists x not P(x)", "for all x not P(x)"],
-      target: "P(c)",
+      id: "log06-s3",
+      label: "Consistency Check",
+      prompt: "If a system proves both r and not r, is it consistent? Enter T or F.",
+      placeholder: "T/F",
+      answers: ["f", "false"],
+      hint: "Consistency forbids deriving contradictions.",
+      solvedText: "Contradiction sensor tripped.",
     },
     {
-      id: "log06-r4",
-      label: "A formal proof is complete when each line has:",
-      choices: ["a justification", "a color code", "a contradiction"],
-      target: "a justification",
+      id: "log06-s4",
+      label: "Chain Rule",
+      prompt: "From (p -> q) and (q -> r), infer (p -> r) by what rule?",
+      placeholder: "rule name",
+      answers: ["hypothetical syllogism", "transitivity"],
+      hint: "It is the implication-chain rule.",
+      solvedText: "Final proof seal impressed.",
     },
   ],
 };
 
 const NUM03_CONFIG = {
   nodeId: "NUM03",
-  title: "Chinese Gate",
-  subtitle: "Set the congruence components to open the paired lock.",
-  solvedMessage: "Congruence pair secured.",
-  rows: [
+  title: "Bezout Beacon",
+  subtitle: "Track gcd structure and congruence solution multiplicity.",
+  solvedMessage: "CONGRUENCE PAIR Recovered",
+  stages: [
     {
-      id: "num03-r1",
-      label: "n mod 3 should be:",
-      choices: ["0", "1", "2"],
-      target: "2",
+      id: "num03-s1",
+      label: "Core gcd",
+      prompt: "Compute gcd(252, 198).",
+      placeholder: "gcd",
+      check: integerCheck(18),
+      hint: "Use Euclid's algorithm.",
+      solvedText: "gcd beacon activated.",
     },
     {
-      id: "num03-r2",
-      label: "n mod 5 should be:",
-      choices: ["2", "3", "4"],
-      target: "4",
+      id: "num03-s2",
+      label: "Bezout Coefficient",
+      prompt: "18 = 252u + 198v. If u = 4, what is v?",
+      placeholder: "v",
+      check: integerCheck(-5),
+      hint: "Substitute u and solve the linear equation.",
+      solvedText: "Coefficient pair anchored.",
     },
     {
-      id: "num03-r3",
-      label: "n mod 7 should be:",
-      choices: ["0", "1", "6"],
-      target: "1",
+      id: "num03-s3",
+      label: "Reduced Congruence",
+      prompt: "Solve 198x congruent to 18 (mod 252). Smallest nonnegative x?",
+      placeholder: "x",
+      check: integerCheck(9),
+      hint: "Divide by gcd first, then invert modulo 14.",
+      solvedText: "Reduced class solved.",
     },
     {
-      id: "num03-r4",
-      label: "The theorem used to combine coprime congruences is:",
-      choices: ["Chinese remainder theorem", "Euclidean algorithm", "Fermat little theorem"],
-      target: "Chinese remainder theorem",
+      id: "num03-s4",
+      label: "Solution Count",
+      prompt: "How many incongruent solutions modulo 252 does 198x congruent to 18 (mod 252) have?",
+      placeholder: "count",
+      check: integerCheck(18),
+      hint: "Use gcd(a,m) when divisibility holds.",
+      solvedText: "Beacon fully synchronized.",
     },
   ],
 };
 
 const NUM04_CONFIG = {
   nodeId: "NUM04",
-  title: "Quadratic Orchard",
-  subtitle: "Classify root behavior and complete the orchard chart.",
-  solvedMessage: "Square-root lantern lit.",
-  rows: [
+  title: "Totient Telegraph",
+  subtitle: "Compute totients, primitive-root counts, and a semiprime reconstruction.",
+  solvedMessage: "SQUARE ROOT LANTERN Recovered",
+  stages: [
     {
-      id: "num04-r1",
-      label: "If discriminant > 0, a quadratic has:",
-      choices: ["two distinct real roots", "one repeated real root", "two non-real roots"],
-      target: "two distinct real roots",
+      id: "num04-s1",
+      label: "Totient I",
+      prompt: "Compute phi(45).",
+      placeholder: "value",
+      check: integerCheck(24),
+      hint: "Use 45 = 3^2 * 5.",
+      solvedText: "First totient channel tuned.",
     },
     {
-      id: "num04-r2",
-      label: "If discriminant = 0, a quadratic has:",
-      choices: ["one repeated real root", "two distinct real roots", "no roots"],
-      target: "one repeated real root",
+      id: "num04-s2",
+      label: "Totient II",
+      prompt: "Compute phi(84).",
+      placeholder: "value",
+      check: integerCheck(24),
+      hint: "Use 84 = 2^2 * 3 * 7.",
+      solvedText: "Composite channel tuned.",
     },
     {
-      id: "num04-r3",
-      label: "If discriminant < 0, a quadratic has:",
-      choices: ["two non-real roots", "one repeated real root", "two distinct real roots"],
-      target: "two non-real roots",
+      id: "num04-s3",
+      label: "Primitive Roots",
+      prompt: "How many generators does multiplicative group modulo 17 have?",
+      placeholder: "count",
+      check: integerCheck(8),
+      hint: "The group has size 16 and is cyclic.",
+      solvedText: "Generator count confirmed.",
     },
     {
-      id: "num04-r4",
-      label: "Completing the square rewrites ax^2+bx+c into:",
-      choices: ["vertex form", "prime form", "residue form"],
-      target: "vertex form",
+      id: "num04-s4",
+      label: "Semiprime Recovery",
+      prompt: "If n = pq (distinct odd primes) and phi(n) = 40, find n.",
+      placeholder: "n",
+      check: integerCheck(55),
+      hint: "Solve (p-1)(q-1)=40 with prime p<q.",
+      solvedText: "Lantern key recovered.",
     },
   ],
 };
 
 const NUM05_CONFIG = {
   nodeId: "NUM05",
-  title: "Totient Telegraph",
-  subtitle: "Tune the channel by matching each value with its Euler totient.",
-  solvedMessage: "Public-private key generated.",
-  rows: [
+  title: "Cycle Observatory",
+  subtitle: "Use multiplicative order and cycle length to shortcut huge exponents.",
+  solvedMessage: "PUBLIC-PRIVATE KEY Recovered",
+  stages: [
     {
-      id: "num05-r1",
-      label: "phi(9) equals:",
-      choices: ["4", "6", "8"],
-      target: "6",
+      id: "num05-s1",
+      label: "Order Check",
+      prompt: "What is the multiplicative order of 2 modulo 7?",
+      placeholder: "order",
+      check: integerCheck(3),
+      hint: "Find smallest k with 2^k congruent to 1 (mod 7).",
+      solvedText: "Order cycle measured.",
     },
     {
-      id: "num05-r2",
-      label: "phi(10) equals:",
-      choices: ["2", "4", "6"],
-      target: "4",
+      id: "num05-s2",
+      label: "Fast Power",
+      prompt: "Compute 3^100 mod 7.",
+      placeholder: "remainder",
+      check: integerCheck(4),
+      hint: "Reduce exponent by the cycle length modulo 6.",
+      solvedText: "Exponent reduction complete.",
     },
     {
-      id: "num05-r3",
-      label: "phi(14) equals:",
-      choices: ["4", "6", "8"],
-      target: "6",
+      id: "num05-s3",
+      label: "Last Digit",
+      prompt: "What is the last digit of 7^2026?",
+      placeholder: "digit",
+      check: integerCheck(9),
+      hint: "Last digits of powers of 7 repeat with period 4.",
+      solvedText: "Digit loop resolved.",
     },
     {
-      id: "num05-r4",
-      label: "For prime p, phi(p) is:",
-      choices: ["p - 1", "p + 1", "1"],
-      target: "p - 1",
+      id: "num05-s4",
+      label: "Order Again",
+      prompt: "Smallest k > 0 with 10^k congruent to 1 (mod 27)?",
+      placeholder: "k",
+      check: integerCheck(3),
+      hint: "Compute powers: 10, 19, 1 mod 27.",
+      solvedText: "Key cycle finalized.",
     },
   ],
 };
 
 const NUM06_CONFIG = {
   nodeId: "NUM06",
-  title: "Calendar of Remainders",
-  subtitle: "Resolve the final residue calendar across all dials.",
-  solvedMessage: "Congruence lens focused.",
-  rows: [
+  title: "Chinese Gate",
+  subtitle: "Build a CRT solution step-by-step, then verify and count classes.",
+  solvedMessage: "CONGRUENCE LENS Recovered",
+  stages: [
     {
-      id: "num06-r1",
-      label: "Set n mod 4 to:",
-      choices: ["0", "1", "2", "3"],
-      target: "1",
+      id: "num06-s1",
+      label: "Starter System",
+      prompt: "Smallest x with x congruent to 1 (mod 8) and congruent to 2 (mod 3).",
+      placeholder: "x",
+      check: integerCheck(17),
+      hint: "Step through numbers congruent to 1 mod 8.",
+      solvedText: "Dual modulus aligned.",
     },
     {
-      id: "num06-r2",
-      label: "Set n mod 6 to:",
-      choices: ["1", "3", "5"],
-      target: "5",
+      id: "num06-s2",
+      label: "Add Third Dial",
+      prompt: "Now also require x congruent to 4 (mod 5). Smallest x?",
+      placeholder: "x",
+      check: integerCheck(89),
+      hint: "Use x = 17 + 24k and solve for k modulo 5.",
+      solvedText: "Three-way CRT solved.",
     },
     {
-      id: "num06-r3",
-      label: "Set n mod 9 to:",
-      choices: ["2", "4", "8"],
-      target: "2",
+      id: "num06-s3",
+      label: "Cross-Check",
+      prompt: "For that x, compute x mod 7.",
+      placeholder: "remainder",
+      check: integerCheck(5),
+      hint: "Reduce your stage-2 value modulo 7.",
+      solvedText: "Audit residue recorded.",
     },
     {
-      id: "num06-r4",
-      label: "Set n mod 11 to:",
-      choices: ["1", "7", "9"],
-      target: "7",
+      id: "num06-s4",
+      label: "Class Count",
+      prompt: "How many incongruent solutions are there modulo 120 for the stage-2 system?",
+      placeholder: "count",
+      check: integerCheck(1),
+      hint: "The moduli 8, 3, and 5 are pairwise coprime.",
+      solvedText: "CRT lens focused.",
     },
   ],
 };
 
 const ALG01_CONFIG = {
   nodeId: "ALG01",
-  title: "Cayley Banquet",
-  subtitle: "Match each product in the cyclic table.",
-  solvedMessage: "Operation card stamped.",
-  rows: [
+  title: "Permutation Dock",
+  subtitle: "Let sigma=(1 2 3 4), tau=(1 3)(2 4). Composition is right-to-left.",
+  solvedMessage: "OPERATION CARD Recovered",
+  stages: [
     {
-      id: "alg01-r1",
-      label: "In C3 with generator r, r * r equals:",
-      choices: ["e", "r", "r^2"],
-      target: "r^2",
+      id: "alg01-s1",
+      label: "Image",
+      prompt: "Compute sigma(3).",
+      placeholder: "value",
+      check: integerCheck(4),
+      hint: "Follow the 4-cycle directly.",
+      solvedText: "Cycle map started.",
     },
     {
-      id: "alg01-r2",
-      label: "r * r^2 equals:",
-      choices: ["e", "r", "r^2"],
-      target: "e",
+      id: "alg01-s2",
+      label: "Composition",
+      prompt: "Compute (tau o sigma)(1).",
+      placeholder: "value",
+      check: integerCheck(4),
+      hint: "Apply sigma first, then tau.",
+      solvedText: "Composition verified.",
     },
     {
-      id: "alg01-r3",
-      label: "r^2 * r^2 equals:",
-      choices: ["e", "r", "r^2"],
-      target: "r",
+      id: "alg01-s3",
+      label: "Power",
+      prompt: "Compute sigma^2(1).",
+      placeholder: "value",
+      check: integerCheck(3),
+      hint: "Apply sigma twice.",
+      solvedText: "Second iterate confirmed.",
     },
     {
-      id: "alg01-r4",
-      label: "Identity element action:",
-      choices: ["leaves every element unchanged", "squares each element", "maps all to e"],
-      target: "leaves every element unchanged",
+      id: "alg01-s4",
+      label: "Order",
+      prompt: "What is the order of sigma?",
+      placeholder: "order",
+      check: integerCheck(4),
+      hint: "Cycle length equals order.",
+      solvedText: "Permutation dock completed.",
     },
   ],
 };
 
 const ALG02_CONFIG = {
   nodeId: "ALG02",
-  title: "Permutation Dance",
-  subtitle: "Track the cycle map through each position.",
-  solvedMessage: "Orbit ribbon braided.",
-  rows: [
+  title: "Dihedral Watch",
+  subtitle: "Use D4 with rotation r and reflection s relations.",
+  solvedMessage: "ORBIT RIBBON Recovered",
+  stages: [
     {
-      id: "alg02-r1",
-      label: "For cycle (1 2 3), image of 1 is:",
-      choices: ["2", "3", "1"],
-      target: "2",
+      id: "alg02-s1",
+      label: "Rotation Closure",
+      prompt: "In D4, is r^4 = e true? Enter T or F.",
+      placeholder: "T/F",
+      answers: ["t", "true"],
+      hint: "A full turn returns to identity.",
+      solvedText: "Rotation anchor set.",
     },
     {
-      id: "alg02-r2",
-      label: "For cycle (1 2 3), image of 2 is:",
-      choices: ["1", "2", "3"],
-      target: "3",
+      id: "alg02-s2",
+      label: "Reflection Relation",
+      prompt: "In D4, is srs = r^-1 true? Enter T or F.",
+      placeholder: "T/F",
+      answers: ["t", "true"],
+      hint: "Reflection reverses orientation of rotation.",
+      solvedText: "Conjugation relation accepted.",
     },
     {
-      id: "alg02-r3",
-      label: "For cycle (1 2 3), image of 3 is:",
-      choices: ["1", "2", "3"],
-      target: "1",
+      id: "alg02-s3",
+      label: "Element Order",
+      prompt: "What is the order of any reflection in D4?",
+      placeholder: "order",
+      check: integerCheck(2),
+      hint: "Reflect twice.",
+      solvedText: "Reflection period fixed.",
     },
     {
-      id: "alg02-r4",
-      label: "Inverse of (1 2 3) is:",
-      choices: ["(1 3 2)", "(1 2 3)", "(2 3)"],
-      target: "(1 3 2)",
+      id: "alg02-s4",
+      label: "Group Size",
+      prompt: "How many elements are in D4?",
+      placeholder: "size",
+      check: integerCheck(8),
+      hint: "Count 4 rotations and 4 reflections.",
+      solvedText: "Watch mechanism complete.",
     },
   ],
 };
 
 const ALG03_CONFIG = {
   nodeId: "ALG03",
-  title: "Isomorphism Mirror",
-  subtitle: "Choose the defining properties of an isomorphism.",
-  solvedMessage: "Mirror pair aligned.",
-  rows: [
+  title: "Homomorphism Mirror",
+  subtitle: "Map f: Z -> Z12 by f(n)=5n (mod 12).",
+  solvedMessage: "MIRROR PAIR Recovered",
+  stages: [
     {
-      id: "alg03-r1",
-      label: "An isomorphism must be:",
-      choices: ["bijective", "constant", "partial"],
-      target: "bijective",
+      id: "alg03-s1",
+      label: "Image Value",
+      prompt: "Compute f(7).",
+      placeholder: "value in Z12",
+      check: integerCheck(11),
+      hint: "Reduce 35 modulo 12.",
+      solvedText: "Mirror output logged.",
     },
     {
-      id: "alg03-r2",
-      label: "It must preserve the:",
-      choices: ["operation", "node color", "set size only"],
-      target: "operation",
+      id: "alg03-s2",
+      label: "Kernel Period",
+      prompt: "Smallest positive n in ker(f)?",
+      placeholder: "n",
+      check: integerCheck(12),
+      hint: "Solve 5n congruent to 0 (mod 12).",
+      solvedText: "Kernel generator identified.",
     },
     {
-      id: "alg03-r3",
-      label: "Identity maps to:",
-      choices: ["identity", "generator", "zero divisor"],
-      target: "identity",
+      id: "alg03-s3",
+      label: "Image Size",
+      prompt: "How many distinct elements are in im(f)?",
+      placeholder: "size",
+      check: integerCheck(12),
+      hint: "5 is invertible modulo 12.",
+      solvedText: "Image cardinality measured.",
     },
     {
-      id: "alg03-r4",
-      label: "Inverse elements map to:",
-      choices: ["inverse elements", "identity always", "idempotents"],
-      target: "inverse elements",
+      id: "alg03-s4",
+      label: "Injectivity",
+      prompt: "Is f injective as a map from Z to Z12? Enter T or F.",
+      placeholder: "T/F",
+      answers: ["f", "false"],
+      hint: "A nontrivial kernel blocks injectivity on Z.",
+      solvedText: "Mirror theorem sealed.",
     },
   ],
 };
@@ -487,32 +500,44 @@ const ALG03_CONFIG = {
 const ALG04_CONFIG = {
   nodeId: "ALG04",
   title: "Subgroup Lattice",
-  subtitle: "Lock each lattice statement to the correct algebraic fact.",
-  solvedMessage: "Lattice hook secured.",
-  rows: [
+  subtitle: "Blend matrix and subgroup facts to lock the lattice pins.",
+  solvedMessage: "LATTICE HOOK Recovered",
+  stages: [
     {
-      id: "alg04-r1",
-      label: "Order of H divides order of G by:",
-      choices: ["Lagrange theorem", "Sylow theorem", "Noether normalization"],
-      target: "Lagrange theorem",
+      id: "alg04-s1",
+      label: "Determinant Pin",
+      prompt: "For A=[[2,1],[5,3]], compute det(A).",
+      placeholder: "determinant",
+      check: integerCheck(1),
+      hint: "Use ad-bc.",
+      solvedText: "Matrix pin seated.",
     },
     {
-      id: "alg04-r2",
-      label: "Index [G:H] equals:",
-      choices: ["|G| / |H|", "|H| / |G|", "|G| + |H|"],
-      target: "|G| / |H|",
+      id: "alg04-s2",
+      label: "Invertibility",
+      prompt: "Is A invertible over R? Enter T or F.",
+      placeholder: "T/F",
+      answers: ["t", "true"],
+      hint: "A 2x2 matrix is invertible iff determinant is nonzero.",
+      solvedText: "Inverse latch engaged.",
     },
     {
-      id: "alg04-r3",
-      label: "Quotient group G/H exists when H is:",
-      choices: ["normal", "cyclic", "finite"],
-      target: "normal",
+      id: "alg04-s3",
+      label: "Index",
+      prompt: "If |G|=84 and |H|=12, what is index [G:H]?",
+      placeholder: "index",
+      check: integerCheck(7),
+      hint: "Apply Lagrange: [G:H]=|G|/|H|.",
+      solvedText: "Index rung aligned.",
     },
     {
-      id: "alg04-r4",
-      label: "Normality condition is:",
-      choices: ["gHg^-1 = H", "gH = H for one g", "H subseteq g for all g"],
-      target: "gHg^-1 = H",
+      id: "alg04-s4",
+      label: "Normal Quotient",
+      prompt: "If H is normal in G, does G/H exist as a group? Enter T or F.",
+      placeholder: "T/F",
+      answers: ["t", "true"],
+      hint: "Normality is exactly the quotient condition.",
+      solvedText: "Lattice hook locked.",
     },
   ],
 };
@@ -520,32 +545,44 @@ const ALG04_CONFIG = {
 const ALG05_CONFIG = {
   nodeId: "ALG05",
   title: "Ringwork Workshop",
-  subtitle: "Route each ring-homomorphism fact to its proper socket.",
-  solvedMessage: "Homomorphism key forged.",
-  rows: [
+  subtitle: "Factor, divide, and classify polynomial behavior.",
+  solvedMessage: "HOMOMORPHISM KEY Recovered",
+  stages: [
     {
-      id: "alg05-r1",
-      label: "A ring homomorphism preserves:",
-      choices: ["addition and multiplication", "only multiplication", "only additive inverses"],
-      target: "addition and multiplication",
+      id: "alg05-s1",
+      label: "Root Scan",
+      prompt: "For x^2 - 5x + 6, enter the smaller integer root.",
+      placeholder: "root",
+      check: integerCheck(2),
+      hint: "Factor into two linear terms.",
+      solvedText: "First root fixed.",
     },
     {
-      id: "alg05-r2",
-      label: "Kernel of a ring homomorphism is an:",
-      choices: ["ideal", "orbit", "basis"],
-      target: "ideal",
+      id: "alg05-s2",
+      label: "Polynomial gcd",
+      prompt: "gcd(x^2-1, x^2-3x+2) = ?",
+      placeholder: "x-1",
+      answers: ["x-1", "(x-1)"],
+      hint: "Factor each polynomial first.",
+      solvedText: "Common factor identified.",
     },
     {
-      id: "alg05-r3",
-      label: "Homomorphism is injective iff kernel is:",
-      choices: ["{0}", "whole ring", "a maximal ideal"],
-      target: "{0}",
+      id: "alg05-s3",
+      label: "Remainder",
+      prompt: "Remainder when x^3 + 2x^2 + x + 5 is divided by x+1?",
+      placeholder: "remainder",
+      check: integerCheck(5),
+      hint: "Use the Remainder Theorem at x=-1.",
+      solvedText: "Division residue computed.",
     },
     {
-      id: "alg05-r4",
-      label: "Image of a ring homomorphism is a:",
-      choices: ["subring", "quotient module", "field always"],
-      target: "subring",
+      id: "alg05-s4",
+      label: "Reducibility",
+      prompt: "Is x^2 + 1 reducible over the integers? Enter T or F.",
+      placeholder: "T/F",
+      answers: ["f", "false"],
+      hint: "No integer roots implies no linear integer factors.",
+      solvedText: "Workshop lock completed.",
     },
   ],
 };
@@ -553,65 +590,89 @@ const ALG05_CONFIG = {
 const ALG06_CONFIG = {
   nodeId: "ALG06",
   title: "Action on the Archive",
-  subtitle: "Finalize the group-action console with orbit and stabilizer facts.",
-  solvedMessage: "Symmetry mirror awakened.",
-  rows: [
+  subtitle: "Resolve rank, nullity, and determinant constraints to finish symmetry control.",
+  solvedMessage: "SYMMETRY MIRROR Recovered",
+  stages: [
     {
-      id: "alg06-r1",
-      label: "Orbit-stabilizer theorem states:",
-      choices: ["|G| = |Orb(x)| * |Stab(x)|", "|G| = |Orb(x)| + |Stab(x)|", "|G| = |Stab(x)|^2"],
-      target: "|G| = |Orb(x)| * |Stab(x)|",
+      id: "alg06-s1",
+      label: "Rank",
+      prompt: "Rank of matrix [[1,2],[2,4]]?",
+      placeholder: "rank",
+      check: integerCheck(1),
+      hint: "Second row is a scalar multiple of the first.",
+      solvedText: "Rank channel set.",
     },
     {
-      id: "alg06-r2",
-      label: "A transitive action has:",
-      choices: ["one orbit", "one stabilizer only", "no fixed points"],
-      target: "one orbit",
+      id: "alg06-s2",
+      label: "Nullity",
+      prompt: "Nullity of the same matrix over R?",
+      placeholder: "nullity",
+      check: integerCheck(1),
+      hint: "Use rank-nullity in dimension 2.",
+      solvedText: "Kernel dimension fixed.",
     },
     {
-      id: "alg06-r3",
-      label: "x is fixed when g.x = x for:",
-      choices: ["every g in G", "one nontrivial g", "all x only"],
-      target: "every g in G",
+      id: "alg06-s3",
+      label: "Parameterized Solve",
+      prompt: "For x + 2y = 5, if y=1 then x=?",
+      placeholder: "x",
+      check: integerCheck(3),
+      hint: "Substitute directly.",
+      solvedText: "Linear constraint routed.",
     },
     {
-      id: "alg06-r4",
-      label: "Burnside's lemma averages:",
-      choices: ["fixed points", "orbit sizes directly", "kernel dimensions"],
-      target: "fixed points",
+      id: "alg06-s4",
+      label: "Diagonal Determinant",
+      prompt: "det(diag(3,2,5)) = ?",
+      placeholder: "determinant",
+      check: integerCheck(30),
+      hint: "Multiply diagonal entries.",
+      solvedText: "Archive action finalized.",
     },
   ],
 };
 
 const GEO01_CONFIG = {
   nodeId: "GEO01",
-  title: "Geodesic Postcards",
-  subtitle: "Identify the shortest-path geometry for each surface.",
-  solvedMessage: "Path thread wound tight.",
-  rows: [
+  title: "Curvature Defects",
+  subtitle: "Track angle sums, excess, and defect across geometric worlds.",
+  solvedMessage: "PATH THREAD Recovered",
+  stages: [
     {
-      id: "geo01-r1",
-      label: "Geodesics on a sphere are:",
-      choices: ["great circles", "latitude circles only", "straight chords"],
-      target: "great circles",
+      id: "geo01-s1",
+      label: "Euclidean Sum",
+      prompt: "A Euclidean triangle has angles 50 deg and 60 deg. What is the third angle?",
+      placeholder: "degrees",
+      check: integerCheck(70),
+      hint: "Euclidean angle sum is 180 deg.",
+      solvedText: "Flat-space baseline set.",
     },
     {
-      id: "geo01-r2",
-      label: "Geodesics on a plane are:",
-      choices: ["straight lines", "parabolas", "spirals"],
-      target: "straight lines",
+      id: "geo01-s2",
+      label: "Spherical Excess",
+      prompt: "On a sphere, triangle angles are 90, 90, 90 degrees. What is the spherical excess (in degrees)?",
+      placeholder: "degrees",
+      check: integerCheck(90),
+      hint: "Excess = (angle sum) - 180.",
+      solvedText: "Positive curvature measured.",
     },
     {
-      id: "geo01-r3",
-      label: "A cylinder geodesic can be viewed as:",
-      choices: ["a straight line on the unwrapped sheet", "a circle around the axis", "a random curve"],
-      target: "a straight line on the unwrapped sheet",
+      id: "geo01-s3",
+      label: "Hyperbolic Defect",
+      prompt: "Hyperbolic triangle angles are 50, 60, 60 degrees. What is the defect (in degrees)?",
+      placeholder: "degrees",
+      check: integerCheck(10),
+      hint: "Defect = 180 - (angle sum).",
+      solvedText: "Negative curvature measured.",
     },
     {
-      id: "geo01-r4",
-      label: "Shortest paths are determined by the:",
-      choices: ["metric", "coloring", "chart name"],
-      target: "metric",
+      id: "geo01-s4",
+      label: "Radian Conversion",
+      prompt: "Convert 90 degrees to radians as a decimal (two decimals).",
+      placeholder: "example: 1.57",
+      check: numberCheck(1.57, 0.02),
+      hint: "Multiply by pi/180.",
+      solvedText: "Curvature ledger closed.",
     },
   ],
 };
@@ -619,65 +680,89 @@ const GEO01_CONFIG = {
 const GEO02_CONFIG = {
   nodeId: "GEO02",
   title: "Atlas Transition",
-  subtitle: "Match each atlas rule to its transition-map requirement.",
-  solvedMessage: "Chart pair synchronized.",
-  rows: [
+  subtitle: "Transition map: u=x+y, v=x-y. Use local chart mechanics.",
+  solvedMessage: "CHART PAIR Recovered",
+  stages: [
     {
-      id: "geo02-r1",
-      label: "Overlap maps between charts should be:",
-      choices: ["smooth", "piecewise random", "integer-valued"],
-      target: "smooth",
+      id: "geo02-s1",
+      label: "Jacobian",
+      prompt: "Compute det(d(u,v)/d(x,y)).",
+      placeholder: "determinant",
+      check: integerCheck(-2),
+      hint: "Jacobian matrix is [[1,1],[1,-1]].",
+      solvedText: "Transition differential pinned.",
     },
     {
-      id: "geo02-r2",
-      label: "A transition map converts:",
-      choices: ["coordinates in one chart to coordinates in another", "points to colors", "vectors to scalars only"],
-      target: "coordinates in one chart to coordinates in another",
+      id: "geo02-s2",
+      label: "Inverse Map",
+      prompt: "If u=6 and v=2, what is x?",
+      placeholder: "x",
+      check: integerCheck(4),
+      hint: "x=(u+v)/2.",
+      solvedText: "Inverse chart move validated.",
     },
     {
-      id: "geo02-r3",
-      label: "Jacobian matrix tracks changes of:",
-      choices: ["coordinate basis directions", "topology class", "curvature sign only"],
-      target: "coordinate basis directions",
+      id: "geo02-s3",
+      label: "Metric Coefficient",
+      prompt: "With Euclidean ds^2=dx^2+dy^2, what is the coefficient of du^2 in (u,v)-coordinates?",
+      placeholder: "coefficient",
+      check: numberCheck(0.5, 1e-6),
+      hint: "dx=(du+dv)/2 and dy=(du-dv)/2.",
+      solvedText: "Metric pullback computed.",
     },
     {
-      id: "geo02-r4",
-      label: "A compatible atlas needs transitions that are:",
-      choices: ["smooth and invertible", "constant", "linear only"],
-      target: "smooth and invertible",
+      id: "geo02-s4",
+      label: "Orientation",
+      prompt: "Does this chart transition preserve orientation? Enter T or F.",
+      placeholder: "T/F",
+      answers: ["f", "false"],
+      hint: "Orientation is preserved only when Jacobian determinant is positive.",
+      solvedText: "Atlas pair stabilized.",
     },
   ],
 };
 
 const GEO03_CONFIG = {
   nodeId: "GEO03",
-  title: "Curvature Defects",
-  subtitle: "Assign each curvature statement to its correct regime.",
-  solvedMessage: "Curvature chip seated.",
-  rows: [
+  title: "Vector Field Garden",
+  subtitle: "Analyze divergence, curl, gradients, and conservative circulation.",
+  solvedMessage: "CURVATURE CHIP Recovered",
+  stages: [
     {
-      id: "geo03-r1",
-      label: "Triangle angle sum on a sphere is:",
-      choices: ["greater than 180", "equal to 180", "less than 180"],
-      target: "greater than 180",
+      id: "geo03-s1",
+      label: "Divergence",
+      prompt: "For F(x,y)=(x,y), compute div(F).",
+      placeholder: "value",
+      check: integerCheck(2),
+      hint: "Take partial derivatives of each component with respect to its variable.",
+      solvedText: "Source strength measured.",
     },
     {
-      id: "geo03-r2",
-      label: "Triangle angle sum on hyperbolic space is:",
-      choices: ["less than 180", "equal to 180", "greater than 180"],
-      target: "less than 180",
+      id: "geo03-s2",
+      label: "Curl",
+      prompt: "For F(x,y)=(-y,x), compute scalar curl (dQ/dx - dP/dy).",
+      placeholder: "value",
+      check: integerCheck(2),
+      hint: "Differentiate Q=x and P=-y.",
+      solvedText: "Rotation intensity mapped.",
     },
     {
-      id: "geo03-r3",
-      label: "Gaussian curvature of Euclidean plane is:",
-      choices: ["0", "1", "-1"],
-      target: "0",
+      id: "geo03-s3",
+      label: "Gradient Component",
+      prompt: "If f(x,y)=x^2+y^2, what is the x-component of grad(f) at (1,-2)?",
+      placeholder: "component",
+      check: integerCheck(2),
+      hint: "grad(f)=(2x,2y).",
+      solvedText: "Directional slope fixed.",
     },
     {
-      id: "geo03-r4",
-      label: "Positive curvature tends to make geodesics:",
-      choices: ["converge", "diverge", "stay parallel forever"],
-      target: "converge",
+      id: "geo03-s4",
+      label: "Closed Loop",
+      prompt: "Line integral of grad(x^2+y^2) around a closed loop equals what number?",
+      placeholder: "value",
+      check: integerCheck(0),
+      hint: "Conservative fields have path-independent potential differences.",
+      solvedText: "Field cycle closed.",
     },
   ],
 };
@@ -685,65 +770,89 @@ const GEO03_CONFIG = {
 const GEO04_CONFIG = {
   nodeId: "GEO04",
   title: "Tangent Courier",
-  subtitle: "Route vectors through transport and connection rules.",
-  solvedMessage: "Transport arrow fixed.",
-  rows: [
+  subtitle: "Use holonomy intuition: flat loops rotate 0, curved loops rotate by enclosed curvature.",
+  solvedMessage: "TRANSPORT ARROW Recovered",
+  stages: [
     {
-      id: "geo04-r1",
-      label: "A tangent vector at x belongs to:",
-      choices: ["the tangent space at x", "the cotangent space at all points", "only Euclidean R3"],
-      target: "the tangent space at x",
+      id: "geo04-s1",
+      label: "Flat Holonomy",
+      prompt: "Parallel transport around a rectangle in the plane rotates a vector by how many degrees?",
+      placeholder: "degrees",
+      check: integerCheck(0),
+      hint: "Flat curvature gives no net rotation.",
+      solvedText: "Flat transport baseline set.",
     },
     {
-      id: "geo04-r2",
-      label: "Parallel transport along a Levi-Civita connection preserves:",
-      choices: ["inner products", "coordinates exactly", "curvature value"],
-      target: "inner products",
+      id: "geo04-s2",
+      label: "Spherical Loop",
+      prompt: "A spherical loop has enclosed excess of pi/2 radians. Holonomy in degrees?",
+      placeholder: "degrees",
+      check: integerCheck(90),
+      hint: "Convert radians to degrees.",
+      solvedText: "Curved transport verified.",
     },
     {
-      id: "geo04-r3",
-      label: "A connection defines:",
-      choices: ["directional differentiation of vector fields", "global coordinates", "group multiplication"],
-      target: "directional differentiation of vector fields",
+      id: "geo04-s3",
+      label: "Integrated Curvature",
+      prompt: "If enclosed total Gaussian curvature is 0.30 radians, holonomy angle is?",
+      placeholder: "radians",
+      check: numberCheck(0.3, 1e-6),
+      hint: "For this setup they are equal.",
+      solvedText: "Courier phase calibrated.",
     },
     {
-      id: "geo04-r4",
-      label: "Holonomy captures:",
-      choices: ["net rotation after transporting around a loop", "total area only", "distance to origin"],
-      target: "net rotation after transporting around a loop",
+      id: "geo04-s4",
+      label: "Geodesic Behavior",
+      prompt: "Positive curvature tends to make nearby geodesics converge. Enter T or F.",
+      placeholder: "T/F",
+      answers: ["t", "true"],
+      hint: "Contrast with hyperbolic divergence.",
+      solvedText: "Transport arrow fixed.",
     },
   ],
 };
 
 const GEO05_CONFIG = {
   nodeId: "GEO05",
-  title: "Vector Field Garden",
-  subtitle: "Bind each field diagnostic to the right physical meaning.",
-  solvedMessage: "Field marker planted.",
-  rows: [
+  title: "Topology Lantern",
+  subtitle: "Use Euler characteristic and genus relations for closed orientable surfaces.",
+  solvedMessage: "FIELD MARKER Recovered",
+  stages: [
     {
-      id: "geo05-r1",
-      label: "Positive divergence indicates a local:",
-      choices: ["source", "sink", "shear only"],
-      target: "source",
+      id: "geo05-s1",
+      label: "Sphere",
+      prompt: "Euler characteristic of a sphere?",
+      placeholder: "chi",
+      check: integerCheck(2),
+      hint: "Start from the classic polyhedron case.",
+      solvedText: "Spherical invariant stamped.",
     },
     {
-      id: "geo05-r2",
-      label: "Curl in 2D tracks local:",
-      choices: ["rotation", "compression", "translation"],
-      target: "rotation",
+      id: "geo05-s2",
+      label: "Torus",
+      prompt: "Euler characteristic of a torus?",
+      placeholder: "chi",
+      check: integerCheck(0),
+      hint: "Use chi = 2 - 2g with g=1.",
+      solvedText: "Handle count integrated.",
     },
     {
-      id: "geo05-r3",
-      label: "Gradient points toward:",
-      choices: ["steepest ascent", "steepest descent", "zero change always"],
-      target: "steepest ascent",
+      id: "geo05-s3",
+      label: "Genus Recovery",
+      prompt: "If chi = -2, what genus g does the closed orientable surface have?",
+      placeholder: "g",
+      check: integerCheck(2),
+      hint: "Solve 2 - 2g = -2.",
+      solvedText: "Genus checkpoint solved.",
     },
     {
-      id: "geo05-r4",
-      label: "Zero winding around a loop suggests:",
-      choices: ["no net topological turn", "maximal vortex strength", "positive curvature"],
-      target: "no net topological turn",
+      id: "geo05-s4",
+      label: "Connected Sum",
+      prompt: "Euler characteristic of torus # sphere equals?",
+      placeholder: "chi",
+      check: integerCheck(0),
+      hint: "Sphere acts as identity for connected sum of closed surfaces.",
+      solvedText: "Topology lantern complete.",
     },
   ],
 };
@@ -751,56 +860,68 @@ const GEO05_CONFIG = {
 const GEO06_CONFIG = {
   nodeId: "GEO06",
   title: "Cartographer's Manifold",
-  subtitle: "Complete the manifold axioms and metric machinery.",
-  solvedMessage: "Curvature compass aligned.",
-  rows: [
+  subtitle: "Blend shortest-path geometry with great-circle distance and geodesic intuition.",
+  solvedMessage: "CURVATURE COMPASS Recovered",
+  stages: [
     {
-      id: "geo06-r1",
-      label: "A manifold locally looks like:",
-      choices: ["Euclidean space", "a finite field", "a single polygon"],
-      target: "Euclidean space",
+      id: "geo06-s1",
+      label: "Euclidean Segment",
+      prompt: "Distance squared from (0,0) to (2,1) in the plane?",
+      placeholder: "distance squared",
+      check: integerCheck(5),
+      hint: "Use dx^2 + dy^2.",
+      solvedText: "Planar metric locked.",
     },
     {
-      id: "geo06-r2",
-      label: "Manifold dimension is the number of:",
-      choices: ["local coordinates in a chart", "connected components", "boundary points"],
-      target: "local coordinates in a chart",
+      id: "geo06-s2",
+      label: "Rectangle Geodesic",
+      prompt: "Distance squared from one corner to opposite in a 2 by 3 rectangle?",
+      placeholder: "distance squared",
+      check: integerCheck(13),
+      hint: "Treat as a straight line in Euclidean coordinates.",
+      solvedText: "Chart diagonal fixed.",
     },
     {
-      id: "geo06-r3",
-      label: "A Riemannian metric assigns:",
-      choices: ["an inner product on each tangent space", "a global vector field", "one scalar to each chart"],
-      target: "an inner product on each tangent space",
+      id: "geo06-s3",
+      label: "Great-Circle Arc",
+      prompt: "On a unit sphere, central angle 60 deg gives arc length (decimal, two places).",
+      placeholder: "example: 1.05",
+      check: numberCheck(1.0472, 0.03),
+      hint: "Arc length = radius * angle in radians.",
+      solvedText: "Spherical route computed.",
     },
     {
-      id: "geo06-r4",
-      label: "Geodesic equations are built from metric and:",
-      choices: ["Christoffel symbols", "Fourier coefficients", "group presentations"],
-      target: "Christoffel symbols",
+      id: "geo06-s4",
+      label: "Geodesic Fact",
+      prompt: "In Euclidean geometry, geodesics are straight lines. Enter T or F.",
+      placeholder: "T/F",
+      answers: ["t", "true"],
+      hint: "This is the defining flat-space case.",
+      solvedText: "Cartographer compass aligned.",
     },
   ],
 };
 
-export const LOG03_NODE_EXPERIENCE = createChoiceNodeExperience(LOG03_CONFIG);
-export const LOG04_NODE_EXPERIENCE = createChoiceNodeExperience(LOG04_CONFIG);
-export const LOG05_NODE_EXPERIENCE = createChoiceNodeExperience(LOG05_CONFIG);
-export const LOG06_NODE_EXPERIENCE = createChoiceNodeExperience(LOG06_CONFIG);
+export const LOG03_NODE_EXPERIENCE = createMathStageNodeExperience(LOG03_CONFIG);
+export const LOG04_NODE_EXPERIENCE = createMathStageNodeExperience(LOG04_CONFIG);
+export const LOG05_NODE_EXPERIENCE = createMathStageNodeExperience(LOG05_CONFIG);
+export const LOG06_NODE_EXPERIENCE = createMathStageNodeExperience(LOG06_CONFIG);
 
-export const NUM03_NODE_EXPERIENCE = createChoiceNodeExperience(NUM03_CONFIG);
-export const NUM04_NODE_EXPERIENCE = createChoiceNodeExperience(NUM04_CONFIG);
-export const NUM05_NODE_EXPERIENCE = createChoiceNodeExperience(NUM05_CONFIG);
-export const NUM06_NODE_EXPERIENCE = createChoiceNodeExperience(NUM06_CONFIG);
+export const NUM03_NODE_EXPERIENCE = createMathStageNodeExperience(NUM03_CONFIG);
+export const NUM04_NODE_EXPERIENCE = createMathStageNodeExperience(NUM04_CONFIG);
+export const NUM05_NODE_EXPERIENCE = createMathStageNodeExperience(NUM05_CONFIG);
+export const NUM06_NODE_EXPERIENCE = createMathStageNodeExperience(NUM06_CONFIG);
 
-export const ALG01_NODE_EXPERIENCE = createChoiceNodeExperience(ALG01_CONFIG);
-export const ALG02_NODE_EXPERIENCE = createChoiceNodeExperience(ALG02_CONFIG);
-export const ALG03_NODE_EXPERIENCE = createChoiceNodeExperience(ALG03_CONFIG);
-export const ALG04_NODE_EXPERIENCE = createChoiceNodeExperience(ALG04_CONFIG);
-export const ALG05_NODE_EXPERIENCE = createChoiceNodeExperience(ALG05_CONFIG);
-export const ALG06_NODE_EXPERIENCE = createChoiceNodeExperience(ALG06_CONFIG);
+export const ALG01_NODE_EXPERIENCE = createMathStageNodeExperience(ALG01_CONFIG);
+export const ALG02_NODE_EXPERIENCE = createMathStageNodeExperience(ALG02_CONFIG);
+export const ALG03_NODE_EXPERIENCE = createMathStageNodeExperience(ALG03_CONFIG);
+export const ALG04_NODE_EXPERIENCE = createMathStageNodeExperience(ALG04_CONFIG);
+export const ALG05_NODE_EXPERIENCE = createMathStageNodeExperience(ALG05_CONFIG);
+export const ALG06_NODE_EXPERIENCE = createMathStageNodeExperience(ALG06_CONFIG);
 
-export const GEO01_NODE_EXPERIENCE = createChoiceNodeExperience(GEO01_CONFIG);
-export const GEO02_NODE_EXPERIENCE = createChoiceNodeExperience(GEO02_CONFIG);
-export const GEO03_NODE_EXPERIENCE = createChoiceNodeExperience(GEO03_CONFIG);
-export const GEO04_NODE_EXPERIENCE = createChoiceNodeExperience(GEO04_CONFIG);
-export const GEO05_NODE_EXPERIENCE = createChoiceNodeExperience(GEO05_CONFIG);
-export const GEO06_NODE_EXPERIENCE = createChoiceNodeExperience(GEO06_CONFIG);
+export const GEO01_NODE_EXPERIENCE = createMathStageNodeExperience(GEO01_CONFIG);
+export const GEO02_NODE_EXPERIENCE = createMathStageNodeExperience(GEO02_CONFIG);
+export const GEO03_NODE_EXPERIENCE = createMathStageNodeExperience(GEO03_CONFIG);
+export const GEO04_NODE_EXPERIENCE = createMathStageNodeExperience(GEO04_CONFIG);
+export const GEO05_NODE_EXPERIENCE = createMathStageNodeExperience(GEO05_CONFIG);
+export const GEO06_NODE_EXPERIENCE = createMathStageNodeExperience(GEO06_CONFIG);
