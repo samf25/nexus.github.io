@@ -32,9 +32,9 @@ const REQUIRED_ARTIFACTS = Object.freeze([
 ]);
 
 const WIN_ARTIFACTS = Object.freeze([
-  "Westwall Dawn Standard",
-  "Claimant's Broken Halo",
-  "Culvert Crown Writ",
+  "Underlord Revelation I",
+  "Underlord Revelation II",
+  "Underlord Revelation Cipher",
   "Gallery Verdict Arrow",
   "Triune Succession Ledger",
   "Winter Mask Mandate",

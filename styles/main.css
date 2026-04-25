@@ -591,7 +591,7 @@ a:hover {
 
 .nexus-stage {
   position: relative;
-  width: min(100%, 740px);
+  width: min(100%, 700px);
   aspect-ratio: 1 / 1;
   margin: 0 auto;
   border: 1px solid #2f4b7a;
@@ -621,10 +621,10 @@ a:hover {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(22vw, 160px);
-  height: min(22vw, 160px);
-  min-width: 118px;
-  min-height: 118px;
+  width: min(21vw, 152px);
+  height: min(21vw, 152px);
+  min-width: 110px;
+  min-height: 110px;
   border: 1px solid #4f7ab3;
   border-radius: 50%;
   display: block;
@@ -800,7 +800,7 @@ a:hover {
 }
 
 .nexus-key-slot-ring {
-  width: 92px;
+  width: 84px;
   border-color: #5f7fb1;
   position: absolute;
   left: 50%;
@@ -856,8 +856,8 @@ a:hover {
   --sector-border: #7a9ad0;
   --sector-ring: #0d1c38;
   position: absolute;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   transform: translate(-50%, -50%);
   border: 1px solid var(--sector-border);
@@ -908,8 +908,8 @@ a:hover {
 }
 
 .sector-star.active {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-color: #ffe087;
   background: var(--sector-fill);
   box-shadow: 0 0 0 4px #1c2e56, 0 0 20px #ffd56a80;
@@ -3167,7 +3167,7 @@ a:hover {
   position: absolute;
   left: 0;
   top: 0;
-  width: max(720px, 100%);
+  width: max(var(--tech-grid-width, 720px), 100%);
   height: 100%;
   pointer-events: none;
   z-index: 0;
@@ -3181,10 +3181,10 @@ a:hover {
 .crd02-tech-constellation {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(6, minmax(96px, 1fr));
-  grid-template-rows: repeat(3, minmax(70px, 1fr));
+  grid-template-columns: repeat(var(--tech-cols, 6), minmax(90px, 1fr));
+  grid-template-rows: repeat(var(--tech-rows, 3), minmax(68px, 1fr));
   gap: 0;
-  width: max(720px, 100%);
+  width: max(var(--tech-grid-width, 720px), 100%);
   min-height: 270px;
   padding: 0;
 }
@@ -3233,6 +3233,11 @@ a:hover {
     radial-gradient(circle at 30% 22%, #b2f2d72e 0, #0000 52%),
     linear-gradient(180deg, #143431e6, #132636e8);
   box-shadow: inset 0 0 0 1px #8adcb86b;
+}
+
+.crd02-combat-slot-ring {
+  max-width: 168px;
+  margin-inline: auto;
 }
 
 .crd02-tech-node.is-hidden {
@@ -4332,41 +4337,40 @@ a:hover {
 
 .aa02-tome-book {
   border-color: #8d7543;
-  background: linear-gradient(165deg, #2a1f12f3, #1a130be8);
+  background: linear-gradient(165deg, #23190ff2, #171008ee);
 }
 
 .aa02-tome-spread {
   position: relative;
   border: 1px solid #6f5b33;
   border-radius: 12px;
-  background: linear-gradient(180deg, #161108f4, #110d08ed);
-  padding: 12px;
-  min-height: 190px;
+  background: linear-gradient(180deg, #1a130ae9, #120c06eb);
+  padding: 10px;
+  min-height: 210px;
 }
 
 .aa02-tome-spread::before {
   content: "";
   position: absolute;
   left: 50%;
-  top: 8px;
-  bottom: 8px;
-  width: 7px;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
   transform: translateX(-50%);
   border-radius: 999px;
-  background: linear-gradient(180deg, #3b2b17, #20160c);
-  opacity: 0.7;
+  background: linear-gradient(180deg, #5b4625, #2a1f10);
+  opacity: 0.45;
 }
 
 .aa02-tome-page {
   position: relative;
   border: 1px solid #5f4d2d;
   border-radius: 10px;
-  background:
-    linear-gradient(175deg, #f4e8c9f5, #ebdcc0f3),
-    linear-gradient(180deg, #dec6a0f1, #d7bc94f1);
+  background: linear-gradient(176deg, #efe3c6f2, #dfcfabf0);
   color: #2a1e0f;
-  min-height: 156px;
-  padding: 10px;
+  min-height: 186px;
+  padding: 12px;
+  box-shadow: inset 0 0 24px #0000001f;
 }
 
 .aa02-tome-page p {
@@ -4383,45 +4387,42 @@ a:hover {
 }
 
 .aa02-tome-flash {
-  min-height: 132px;
+  min-height: 156px;
   position: relative;
 }
 
 .aa02-tome-flash-name {
   position: absolute;
   left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  top: 45%;
+  transform: translate(-50%, -50%) scale(1);
   margin: 0;
-  opacity: 0;
+  opacity: 1;
   display: grid;
   justify-items: center;
-  gap: 0;
+  gap: 8px;
   text-align: center;
   font-size: 0.72rem;
-  color: #ffe7ad;
-  text-shadow: 0 0 18px #f7cf6a88;
-  animation: aa02-glyph-flash 2500ms ease forwards;
+  color: #2d2417;
+  text-shadow: none;
+}
+
+.aa02-tome-flash-label {
+  margin: 0;
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  font-size: 0.86rem;
+  font-family: "Fraunces", Georgia, serif;
+  color: #2f2418;
+  letter-spacing: 0.02em;
+  text-align: center;
 }
 
 .aa02-glyph-symbol {
   width: 56px;
   height: 56px;
-}
-
-@keyframes aa02-glyph-flash {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.72);
-  }
-  28% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1.08);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.94);
-  }
 }
 
 .aa03-workshop-layout {

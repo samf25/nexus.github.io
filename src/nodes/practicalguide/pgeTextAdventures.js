@@ -740,9 +740,9 @@ const PGE_STORIES = Object.freeze({
         },
       ]),
       failScene("PGE02-MISS-ending", "The thread snaps under witness. Westwall's line folds before dawn."),
-      winScene("PGE02-W1", "Third beat lands exactly on dawn. The siege breaks because the story says it must.", ["Westwall Ram"], [], "Westwall Dawn Standard"),
-      winScene("PGE02-W2", "You wore the villain mask until the claimant stepped into your ending.", ["Oathbreaker Bell", "Sunforge Powder"], [], "Claimant's Broken Halo"),
-      winScene("PGE02-W3", "The wall was always a decoy. The true victory left through dark water.", ["Sunforge Powder", "Westwall Ram"], [], "Culvert Crown Writ"),
+      winScene("PGE02-W1", "Third beat lands exactly on dawn. The siege breaks because the story says it must.", ["Westwall Ram"], [], "Underlord Revelation I"),
+      winScene("PGE02-W2", "You wore the villain mask until the claimant stepped into your ending.", ["Oathbreaker Bell", "Sunforge Powder"], [], "Underlord Revelation II"),
+      winScene("PGE02-W3", "The wall was always a decoy. The true victory left through dark water.", ["Sunforge Powder", "Westwall Ram"], [], "Underlord Revelation Cipher"),
       failScene("PGE02-L1", "Sunforge fire runs through dry beams. The keep becomes a cautionary tale."),
       failScene("PGE02-L2", "Without witnesses, your truth dies before the dead are counted."),
       failScene("PGE02-L3", "Two official versions survive. The war pauses, but your authority does not."),
@@ -2044,7 +2044,6 @@ function renderTerminal(nodeId, story, runtime, currentScene) {
           claimed
             ? `
               <p class="muted">Role already claimed. To change Role, complete a Practical Guide reset in MOL02.</p>
-              <p class="muted">Path: <code>/mol/month-calendar</code></p>
             `
             : `
               <div class="toolbar">

@@ -219,14 +219,40 @@ export function buildMol03KeyAction(event, runtime) {
   return null;
 }
 
-function upgradesMarkup(regionSnapshot) {
+function hasReachedUnderlord(state) {
+  const solved = Array.isArray(state && state.solvedNodeIds) ? state.solvedNodeIds : [];
+  if (solved.includes("CRD07") || solved.includes("CRD08")) {
+    return true;
+  }
+  const crd02 =
+    state && state.nodeRuntime && state.nodeRuntime.CRD02 && typeof state.nodeRuntime.CRD02 === "object"
+      ? state.nodeRuntime.CRD02
+      : {};
+  return String(crd02.cultivationStage || "").trim().toLowerCase() === "underlord";
+}
+
+function upgradesMarkup(regionSnapshot, state) {
   const region = regionSnapshot.regionDef;
-  const upgrades = prestigeUpgradesForRegion(region.id);
+  const reachedUnderlord = hasReachedUnderlord(state);
+  const upgrades = prestigeUpgradesForRegion(region.id).filter((upgrade) => {
+    if (region.id !== "cradle") {
+      return true;
+    }
+    if (upgrade.id === "soulfire-surge" || upgrade.id === "soulfire-forge") {
+      return reachedUnderlord;
+    }
+    return true;
+  });
 
   return `
     <section class="card mol-upgrade-panel">
       <h4>Region Upgrades</h4>
       <p><strong>${escapeHtml(region.pointLabel)}:</strong> ${escapeHtml(String(regionSnapshot.points))}</p>
+      ${
+        region.id === "cradle" && !reachedUnderlord
+          ? `<p class="muted">Soulfire prestige upgrades unlock after first reaching Underlord.</p>`
+          : ""
+      }
       <div class="mol-upgrade-grid">
         ${upgrades.map((upgrade) => {
           const purchased = Number(regionSnapshot.upgrades[upgrade.id] || 0) > 0;
@@ -289,7 +315,7 @@ export function renderMol03Experience(context) {
                   <h3>${escapeHtml(focusedSnapshot.regionDef.label)} Upgrades</h3>
                   <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="mol03-clear-focus">Close</button>
                 </header>
-                ${upgradesMarkup(focusedSnapshot)}
+                ${upgradesMarkup(focusedSnapshot, context.state)}
               </section>
             </div>
           `

@@ -15,7 +15,7 @@ function nodeClass(isSolved, isUnlocked) {
   return "sector-star locked";
 }
 
-function isSoftLockedNode(section, node, solvedSet) {
+function isSoftLockedNode(section, node, solvedSet, state) {
   const nodeId = String(node && node.node_id ? node.node_id : "");
   if (String(section || "") === "Nexus Hub" && (nodeId === "HUB07" || nodeId === "HUB08")) {
     return !solvedSet.has("HUB05");
@@ -29,14 +29,24 @@ function isSoftLockedNode(section, node, solvedSet) {
   if (nodeId === "CRD07") {
     return !solvedSet.has("CRD06");
   }
+  if (nodeId === "CRD08") {
+    const crd02 =
+      state && state.nodeRuntime && state.nodeRuntime.CRD02 && typeof state.nodeRuntime.CRD02 === "object"
+        ? state.nodeRuntime.CRD02
+        : {};
+    return String(crd02.cultivationStage || "").trim().toLowerCase() !== "underlord";
+  }
   if (nodeId === "WORM04") {
     return !solvedSet.has("WORM03");
   }
   return false;
 }
 
-function polarPosition(index, total, radiusPercent) {
-  const angle = ((Math.PI * 2) / Math.max(total, 1)) * index - Math.PI / 2;
+function polarPosition(index, total, radiusPercent, angleOffsetDegrees = 0) {
+  const angle =
+    ((Math.PI * 2) / Math.max(total, 1)) * index -
+    Math.PI / 2 +
+    ((Number(angleOffsetDegrees) || 0) * Math.PI) / 180;
   const x = 50 + Math.cos(angle) * radiusPercent;
   const y = 50 + Math.sin(angle) * radiusPercent;
   return { x, y };
@@ -56,8 +66,15 @@ export function renderRegionHub(context) {
     .map((node, index) => {
       const isSolved = solvedSet.has(node.node_id);
       const isUnlocked = unlockedNodeIds.has(node.node_id);
-      const isSoftLocked = isSoftLockedNode(section, node, solvedSet);
-      const position = polarPosition(index, nodes.length, 38);
+      const isSoftLocked = isSoftLockedNode(section, node, solvedSet, state);
+      const useDualRing = nodes.length > 10;
+      const outerNodes = Math.ceil(nodes.length / 2);
+      const innerNodes = Math.floor(nodes.length / 2);
+      const isOuter = !useDualRing || index % 2 === 0;
+      const localIndex = useDualRing ? Math.floor(index / 2) : index;
+      const position = isOuter
+        ? polarPosition(localIndex, useDualRing ? outerNodes : nodes.length, 38, 0)
+        : polarPosition(localIndex, Math.max(1, innerNodes), 29, innerNodes > 0 ? 360 / (innerNodes * 2) : 0);
       const classes = [nodeClass(isSolved, isUnlocked && !isSoftLocked)];
       if (isSoftLocked) {
         classes.push("is-soft-locked");
@@ -84,7 +101,7 @@ export function renderRegionHub(context) {
   const selectedStatus = selectedNode
     ? solvedSet.has(selectedNode.node_id)
       ? "Solved"
-      : isSoftLockedNode(section, selectedNode, solvedSet)
+      : isSoftLockedNode(section, selectedNode, solvedSet, state)
         ? "Locked"
         : unlockedNodeIds.has(selectedNode.node_id)
         ? "Unlocked"

@@ -22,6 +22,7 @@ const WAVE_TWO_SECTIONS = new Set([
   "A Practical Guide to Evil",
   "Practical Guide",
 ]);
+const ALWAYS_UNLOCKED_NODE_IDS = new Set(["WORM03"]);
 
 export function computeUnlockedNodeIds(index, state) {
   const solved = new Set(state.solvedNodeIds || []);
@@ -30,6 +31,11 @@ export function computeUnlockedNodeIds(index, state) {
   const waveTwoUnlocked = hasWaveTwoPasskey(state);
 
   for (const node of index.raw.nodes) {
+    if (ALWAYS_UNLOCKED_NODE_IDS.has(node.node_id)) {
+      unlocked.add(node.node_id);
+      continue;
+    }
+
     if (node.section === "Nexus Hub" && (node.node_id === "HUB04" || node.node_id === "HUB05" || node.node_id === "HUB06")) {
       unlocked.add(node.node_id);
       continue;
@@ -43,9 +49,7 @@ export function computeUnlockedNodeIds(index, state) {
       deps.includes("HUB05");
     const passesWaveOneGate = !waveOneGateNode || waveOneUnlocked;
     const waveOneBypass = waveOneUnlocked && waveOneGateNode;
-    const waveTwoGateNode =
-      WAVE_TWO_SECTIONS.has(node.section) &&
-      deps.includes("HUB08");
+    const waveTwoGateNode = WAVE_TWO_SECTIONS.has(node.section);
     const passesWaveTwoGate = !waveTwoGateNode || waveTwoUnlocked;
     const waveTwoBypass = waveTwoUnlocked && waveTwoGateNode;
 
@@ -62,6 +66,9 @@ export function computeUnlockedNodeIds(index, state) {
 
   for (const node of index.raw.nodes) {
     if (unlockedSections.has(node.section)) {
+      if (WAVE_TWO_SECTIONS.has(node.section) && !waveTwoUnlocked) {
+        continue;
+      }
       unlocked.add(node.node_id);
     }
   }
@@ -74,6 +81,12 @@ export function computeSectionProgress(index, state, unlockedNodeIds) {
   const result = [];
   const pgeWinTotal = practicalGuideWinArtifacts().length;
   const pgeWinFound = countPracticalGuideWinArtifacts(state);
+  const dccRuntime =
+    state && state.nodeRuntime && state.nodeRuntime.DCC01 && typeof state.nodeRuntime.DCC01 === "object"
+      ? state.nodeRuntime.DCC01
+      : {};
+  const dccMeta = dccRuntime.meta && typeof dccRuntime.meta === "object" ? dccRuntime.meta : {};
+  const dccBestFloor = Math.max(1, Number(dccMeta.bestFloor) || 1);
 
   for (const [section, nodes] of index.sectionNodes.entries()) {
     const standardTotal = nodes.length;
@@ -84,13 +97,18 @@ export function computeSectionProgress(index, state, unlockedNodeIds) {
     const solved = isPracticalGuide ? pgeWinFound : standardSolved;
     const percent = total === 0 ? 0 : Math.round((solved / total) * 100);
 
+    const isDcc = section === "Dungeon Crawler Carl";
     result.push({
       section,
       total,
       solved,
       unlocked,
       percent,
-      progressLabel: isPracticalGuide ? `${pgeWinFound}/${pgeWinTotal} win paths found` : "",
+      progressLabel: isPracticalGuide
+        ? `${pgeWinFound}/${pgeWinTotal} win paths found`
+        : isDcc
+          ? `Max floor reached: ${dccBestFloor}`
+          : "",
     });
   }
 

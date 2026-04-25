@@ -7,6 +7,7 @@ const COMBAT_STAGES = Object.freeze([
   "lowgold",
   "highgold",
   "truegold",
+  "underlord",
 ]);
 
 const DEFENSE_MULTIPLIER = Object.freeze({
@@ -18,6 +19,7 @@ const DEFENSE_MULTIPLIER = Object.freeze({
   lowgold: 0.36,
   highgold: 0.3,
   truegold: 0.24,
+  underlord: 0.19,
 });
 
 const ATTACK_MULTIPLIER = Object.freeze({
@@ -29,6 +31,19 @@ const ATTACK_MULTIPLIER = Object.freeze({
   lowgold: 2.2,
   highgold: 2.55,
   truegold: 2.95,
+  underlord: 3.55,
+});
+
+const MADRA_POOL_MULTIPLIER = Object.freeze({
+  foundation: 1,
+  copper: 1.35,
+  iron: 1.85,
+  jade: 2.4,
+  gold: 3.05,
+  lowgold: 3.05,
+  highgold: 3.8,
+  truegold: 4.6,
+  underlord: 5.7,
 });
 
 export function normalizeCombatStage(stageId) {
@@ -42,6 +57,10 @@ export function attackMultiplierForStage(stageId) {
 
 export function defenseMultiplierForStage(stageId) {
   return DEFENSE_MULTIPLIER[normalizeCombatStage(stageId)] || 1;
+}
+
+export function madraPoolMultiplierForStage(stageId) {
+  return MADRA_POOL_MULTIPLIER[normalizeCombatStage(stageId)] || 1;
 }
 
 export function nextSeed(seed, salt = 0) {

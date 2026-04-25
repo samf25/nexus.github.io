@@ -316,7 +316,21 @@ function catalogCardByName(name) {
   if (!target) {
     return null;
   }
-  return loadWormCardCatalog().find((card) => safeText(card.heroName).toLowerCase() === target) || null;
+  const catalog = loadWormCardCatalog();
+  for (const card of catalog) {
+    const heroName = safeText(card.heroName).toLowerCase();
+    if (heroName === target) {
+      return card;
+    }
+    const aliasHead = heroName.split("/")[0].trim();
+    if (aliasHead === target) {
+      return card;
+    }
+    if (heroName.startsWith(`${target} /`) || heroName.startsWith(`${target}/`)) {
+      return card;
+    }
+  }
+  return null;
 }
 
 function chooseCleanupEnemies(runtime, difficulty) {

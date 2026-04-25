@@ -10,6 +10,7 @@ import { renderWormCard } from "./wormCardRenderer.js";
 import { wormCardById } from "./wormData.js";
 import { normalizeWormSystemState, wormOwnedCards } from "../../systems/wormDeck.js";
 import { getWormCapeLootBonuses } from "../../systems/loot.js";
+import { renderSlotRing } from "../../ui/slotRing.js";
 
 const NODE_ID = "WORM03";
 const LEVIATHAN_AMULET = "Leviathan Summoning Amulet";
@@ -552,19 +553,33 @@ export function renderWorm03Experience(context) {
           runtime.solved
             ? `<p class="muted">Leviathan has been defeated. The bay is yours for now.</p>`
             : `
-              <div class="worm03-amulet-slot">
-                ${renderArtifactSymbol({ artifactName: LEVIATHAN_AMULET, className: "slot-ring-symbol artifact-symbol" })}
-                <button
-                  type="button"
-                  data-node-id="${NODE_ID}"
-                  data-node-action="worm03-summon-leviathan"
-                  data-artifact="${escapeHtml(selectedArtifact)}"
-                  data-ready="${hasAmulet ? "true" : "false"}"
-                  ${runtime.summoned ? "disabled" : ""}
-                >
-                  ${runtime.summoned ? "Leviathan Summoned" : "Invoke The Amulet"}
-                </button>
-              </div>
+              ${renderSlotRing({
+    slots: [
+      {
+        filled: runtime.summoned,
+        clickable: !runtime.summoned,
+        ready: hasAmulet,
+        title: runtime.summoned
+          ? "Leviathan Summoning Amulet consumed."
+          : hasAmulet
+            ? "Socket selected artifact."
+            : "Select the Leviathan Summoning Amulet, then click.",
+        ariaLabel: "Leviathan amulet socket",
+        symbolHtml: renderArtifactSymbol({
+          artifactName: LEVIATHAN_AMULET,
+          className: "slot-ring-symbol artifact-symbol",
+        }),
+        attrs: {
+          "data-node-id": NODE_ID,
+          "data-node-action": "worm03-summon-leviathan",
+          "data-artifact": selectedArtifact,
+          "data-ready": hasAmulet ? "true" : "false",
+        },
+      },
+    ],
+    className: "worm03-amulet-slot-ring",
+    ariaLabel: "Leviathan summoning socket",
+  })}
               ${runtime.summoned && !runtime.battle ? `
                 <div class="toolbar">
                   <button type="button" data-node-id="${NODE_ID}" data-node-action="worm03-start-battle" ${availableTeam.length < 2 ? "disabled" : ""}>

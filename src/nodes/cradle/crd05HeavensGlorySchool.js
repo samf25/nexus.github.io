@@ -1,5 +1,6 @@
 import { escapeHtml } from "../../templates/shared.js";
 import {
+  madraPoolMultiplierForStage,
   normalizeCombatStage,
   randomUnit,
   rollDamage,
@@ -69,7 +70,7 @@ function combatProfileFromState(state) {
     meleeBonus: soulCloak + consume + hollowDomain,
     dodgeBonus: soulCloak + hollowDomain,
     maxHp: 118 + ironBody * 24 + (stage === "copper" ? 16 : stage === "iron" ? 34 : 0),
-    maxMadra: 105 + (stage === "copper" ? 16 : stage === "iron" ? 34 : 0),
+    maxMadra: Math.round((100 + soulCloak * 4 + consume * 5 + hollowDomain * 6) * madraPoolMultiplierForStage(stage)),
   };
 }
 
@@ -78,6 +79,19 @@ function appendLog(runtime, line) {
     ...runtime,
     log: [...runtime.log.slice(-9), line],
   };
+}
+
+function barMarkup(label, current, max, className = "") {
+  const safeMax = Math.max(1, Number(max) || 1);
+  const value = Math.max(0, Number(current) || 0);
+  const percent = Math.min(100, Math.max(0, (value / safeMax) * 100));
+  return `
+    <div class="crd04-bar ${className}">
+      <div class="crd04-bar-label">${escapeHtml(label)}</div>
+      <div class="crd04-bar-track"><span style="width:${percent.toFixed(2)}%"></span></div>
+      <div class="crd04-bar-value">${escapeHtml(String(Math.round(value)))}/${escapeHtml(String(Math.round(safeMax)))}</div>
+    </div>
+  `;
 }
 
 function startBattle(runtime, action) {
@@ -362,11 +376,11 @@ export function renderCrd05Experience(context) {
 
   if (runtime.phase === "intro") {
     return `
-      <article class="crd05-node" data-node-id="${NODE_ID}">
-        <section class="card">
+      <article class="crd04-node" data-node-id="${NODE_ID}">
+        <section class="crd04-dialog">
           <h3>CRD05: The Heaven's Glory School</h3>
           <p>You stand before Elder Rahm, Jade elder of Heaven's Glory. Survive his techniques and claim the vault.</p>
-          <div class="toolbar">
+          <div class="crd04-actions">
             <button
               type="button"
               data-node-id="${NODE_ID}"
@@ -381,7 +395,7 @@ export function renderCrd05Experience(context) {
               Challenge Elder Rahm
             </button>
           </div>
-          ${runtime.lastMessage ? `<p class="muted">${escapeHtml(runtime.lastMessage)}</p>` : ""}
+          ${runtime.lastMessage ? `<p>${escapeHtml(runtime.lastMessage)}</p>` : ""}
         </section>
       </article>
     `;
@@ -389,30 +403,39 @@ export function renderCrd05Experience(context) {
 
   if (runtime.phase === "victory") {
     return `
-      <article class="crd05-node" data-node-id="${NODE_ID}">
-        <section class="card">
+      <article class="crd04-node" data-node-id="${NODE_ID}">
+        <section class="crd04-dialog">
           <h3>CRD05: The Heaven's Glory School</h3>
           <p>Elder Rahm collapses. The Heaven's Glory vault opens and ancient relics spill into your hands.</p>
-          <p class="muted">Node complete.</p>
         </section>
       </article>
     `;
   }
 
   return `
-    <article class="crd05-node" data-node-id="${NODE_ID}">
-      <section class="card">
-        <h3>CRD05: Duel in Heaven's Glory</h3>
-        <p><strong>You:</strong> ${escapeHtml(String(Math.round(runtime.playerHp)))}/${escapeHtml(String(Math.round(runtime.playerMaxHp)))} HP | ${escapeHtml(String(Math.round(runtime.playerMadra)))}/${escapeHtml(String(Math.round(runtime.playerMaxMadra)))} Madra</p>
-        <p><strong>Elder Rahm:</strong> ${escapeHtml(String(Math.round(runtime.enemy.hp)))}/${escapeHtml(String(Math.round(runtime.enemy.maxHp)))} HP</p>
-        <div class="toolbar">
+    <article class="crd04-node" data-node-id="${NODE_ID}">
+      <section class="crd04-combat-head">
+        <h3>Duel in Heaven's Glory</h3>
+        <p class="muted">Your stage: ${escapeHtml(runtime.playerStage)} | Opponent: Elder Rahm (Jade)</p>
+      </section>
+
+      <section class="crd04-bars">
+        ${barMarkup("Health", runtime.playerHp, runtime.playerMaxHp, "is-health")}
+        ${barMarkup("Madra", runtime.playerMadra, runtime.playerMaxMadra, "is-madra")}
+      </section>
+
+      <section class="crd04-bars enemy">
+        ${barMarkup("Elder Rahm HP", runtime.enemy.hp, runtime.enemy.maxHp, "is-enemy")}
+      </section>
+
+      <section class="crd04-actions">
           <button type="button" data-node-id="${NODE_ID}" data-node-action="crd05-combat" data-move="melee">Melee</button>
           <button type="button" data-node-id="${NODE_ID}" data-node-action="crd05-combat" data-move="dodge">Dodge</button>
           <button type="button" data-node-id="${NODE_ID}" data-node-action="crd05-combat" data-move="empty-palm">Empty Palm</button>
-        </div>
       </section>
-      <section class="card">
-        <h4>Battle Log</h4>
+
+      <section class="crd04-log">
+        <h4>Combat Log</h4>
         <ul>
           ${logLines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
         </ul>
@@ -430,4 +453,3 @@ export const CRD05_NODE_EXPERIENCE = {
   validateRuntime: validateCrd05Runtime,
   buildActionFromElement: buildCrd05ActionFromElement,
 };
-

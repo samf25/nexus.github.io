@@ -28,10 +28,11 @@ const BREAKTHROUGH_COSTS = Object.freeze({
   jade: 12000,
   lowgold: 36000,
   highgold: 90000,
+  truegold: 220000,
 });
 const IRON_BREAKTHROUGH_ARTIFACT = "Cultivation Potion";
 const JADE_BREAKTHROUGH_ARTIFACT = "Jade Condensation Elixir";
-const CULTIVATION_STAGES = Object.freeze(["foundation", "copper", "iron", "jade", "lowgold", "highgold", "truegold"]);
+const CULTIVATION_STAGES = Object.freeze(["foundation", "copper", "iron", "jade", "lowgold", "highgold", "truegold", "underlord"]);
 const STAGE_LABELS = Object.freeze({
   foundation: "Foundation",
   copper: "Copper",
@@ -40,6 +41,7 @@ const STAGE_LABELS = Object.freeze({
   lowgold: "Low Gold",
   highgold: "High Gold",
   truegold: "True Gold",
+  underlord: "Underlord",
 });
 const STAGE_PASSIVE_MULTIPLIER = Object.freeze({
   foundation: 1,
@@ -49,6 +51,7 @@ const STAGE_PASSIVE_MULTIPLIER = Object.freeze({
   lowgold: 8.8,
   highgold: 13.5,
   truegold: 20,
+  underlord: 30,
 });
 const STAGE_MANUAL_MULTIPLIER = Object.freeze({
   foundation: 1,
@@ -58,6 +61,7 @@ const STAGE_MANUAL_MULTIPLIER = Object.freeze({
   lowgold: 6,
   highgold: 8.4,
   truegold: 12,
+  underlord: 16,
 });
 
 const COMBAT_UPGRADES = Object.freeze([
@@ -73,6 +77,7 @@ const COMBAT_UPGRADES = Object.freeze([
     label: "Blood Forged Iron Body",
     baseCost: 500,
     maxLevel: 1,
+    minStage: "iron",
     requires: [{ id: "empty-palm", minLevel: 1 }],
   },
   {
@@ -80,31 +85,75 @@ const COMBAT_UPGRADES = Object.freeze([
     label: "Soul Cloak",
     baseCost: 1000,
     maxLevel: 1,
+    minStage: "iron",
     requires: [{ id: "blood-forged-iron-body", minLevel: 1 }],
+  },
+  {
+    id: "dragon-breath",
+    label: "Dragon's Breath",
+    baseCost: 3200,
+    maxLevel: 1,
+    minStage: "copper",
+    requires: [{ id: "soul-cloak", minLevel: 1 }],
   },
   {
     id: "consume",
     label: "Consume",
     baseCost: 10000,
     maxLevel: 1,
+    minStage: "jade",
     requires: [{ id: "soul-cloak", minLevel: 1 }],
+  },
+  {
+    id: "burning-cloak",
+    label: "Burning Cloak",
+    baseCost: 18000,
+    maxLevel: 1,
+    minStage: "jade",
+    requires: [
+      { id: "dragon-breath", minLevel: 1 },
+      { id: "consume", minLevel: 1 },
+    ],
   },
   {
     id: "hollow-domain",
     label: "Hollow Domain",
     baseCost: 100000,
     maxLevel: 1,
+    minStage: "lowgold",
     requires: [{ id: "consume", minLevel: 1 }],
+  },
+  {
+    id: "void-dragons-dance",
+    label: "Void Dragon's Dance",
+    baseCost: 240000,
+    maxLevel: 1,
+    minStage: "lowgold",
+    requires: [
+      { id: "burning-cloak", minLevel: 1 },
+      { id: "spiral-confluence", minLevel: 1 },
+    ],
   },
   {
     id: "heart-of-twin-stars-combat",
     label: "Heart of Twin Stars",
     baseCost: 1000000,
     maxLevel: 1,
-    minStage: "copper",
+    minStage: "lowgold",
     requires: [
       { id: "hollow-domain", minLevel: 1 },
       { id: "skyline-annulus", minLevel: 1 },
+    ],
+  },
+  {
+    id: "dross-battle-planning",
+    label: "Dross Battle Planning",
+    baseCost: 2200000,
+    maxLevel: 1,
+    minStage: "highgold",
+    requires: [
+      { id: "heart-of-twin-stars-combat", minLevel: 1 },
+      { id: "void-dragons-dance", minLevel: 1 },
     ],
   },
 ]);
@@ -188,6 +237,20 @@ const WELL_UPGRADES = Object.freeze([
       { id: "spiral-confluence", minLevel: 1 },
     ],
   },
+  {
+    id: "cycling-furnace",
+    label: "Cycling Furnace",
+    baseCost: 52000,
+    growth: 2.5,
+    maxLevel: 3,
+    repeatable: true,
+    effect: "+20% passive gain per level",
+    minStage: "jade",
+    requires: [
+      { id: "spiral-confluence", minLevel: 1 },
+      { id: "dragon-breath", minLevel: 1 },
+    ],
+  },
 ]);
 
 const ALL_UPGRADES = Object.freeze([...COMBAT_UPGRADES, ...WELL_UPGRADES]);
@@ -201,16 +264,23 @@ const TECH_TREE_LAYOUT = Object.freeze([
   { id: "blood-forged-iron-body", col: 3, row: 1, shape: "diamond" },
   { id: "well-reservoir", col: 3, row: 3, shape: "triangle" },
   { id: "soul-cloak", col: 4, row: 1, shape: "diamond" },
+  { id: "dragon-breath", col: 4, row: 4, shape: "diamond" },
   { id: "core-harmonization", col: 4, row: 2, shape: "hex" },
   { id: "consume", col: 5, row: 1, shape: "diamond" },
   { id: "spiral-confluence", col: 5, row: 3, shape: "triangle" },
+  { id: "burning-cloak", col: 5, row: 4, shape: "diamond" },
   { id: "hollow-domain", col: 6, row: 1, shape: "diamond" },
   { id: "skyline-annulus", col: 6, row: 3, shape: "triangle" },
-  { id: "heart-of-twin-stars-combat", col: 6, row: 2, shape: "circle" },
+  { id: "cycling-furnace", col: 6, row: 4, shape: "triangle" },
+  { id: "heart-of-twin-stars-combat", col: 7, row: 2, shape: "circle" },
+  { id: "void-dragons-dance", col: 7, row: 4, shape: "diamond" },
+  { id: "dross-battle-planning", col: 8, row: 3, shape: "hex" },
 ]);
 const TECH_LAYOUT_BY_ID = Object.freeze(
   Object.fromEntries(TECH_TREE_LAYOUT.map((node) => [node.id, node])),
 );
+const TECH_GRID_COLS = Math.max(...TECH_TREE_LAYOUT.map((node) => Number(node.col) || 1), 1);
+const TECH_GRID_ROWS = Math.max(...TECH_TREE_LAYOUT.map((node) => Number(node.row) || 1), 1);
 
 function normalizeText(value) {
   return String(value || "")
@@ -289,7 +359,7 @@ function normalizeUpgradeLevels(candidate) {
 function normalizeRuntime(runtime) {
   const source = runtime && typeof runtime === "object" ? runtime : {};
   const tabCandidate = normalizeText(source.activeTab);
-  const activeTab = tabCandidate === "soul" ? "soul" : "well";
+  const activeTab = tabCandidate === "soul" || tabCandidate === "combat" || tabCandidate === "soulfire" ? tabCandidate : "well";
   const manualSource = source.manual && typeof source.manual === "object" ? source.manual : {};
   const introPhase = source.introPhase === "well" || source.introPhase === "rejected" ? source.introPhase : "origin";
   const upgrades = normalizeUpgradeLevels(source.upgrades);
@@ -325,6 +395,15 @@ function normalizeRuntime(runtime) {
       madraGainMultiplier: Math.max(1, Number(source.prestige && source.prestige.madraGainMultiplier) || 1),
       cyclingCostDivider: Math.max(1, Number(source.prestige && source.prestige.cyclingCostDivider) || 1),
       combatAttackMultiplier: Math.max(1, Number(source.prestige && source.prestige.combatAttackMultiplier) || 1),
+      soulfireGainMultiplier: Math.max(1, Number(source.prestige && source.prestige.soulfireGainMultiplier) || 1),
+      soulfireCostDivider: Math.max(1, Number(source.prestige && source.prestige.soulfireCostDivider) || 1),
+    },
+    soulfire: {
+      unlocked: Boolean(source.soulfire && source.soulfire.unlocked),
+      amount: roundMadra(source.soulfire && source.soulfire.amount),
+      totalGenerated: roundMadra(source.soulfire && source.soulfire.totalGenerated),
+      madraCyclerLevel: Math.max(0, Math.floor(Number(source.soulfire && source.soulfire.madraCyclerLevel) || 0)),
+      soulfireCyclerLevel: Math.max(0, Math.floor(Number(source.soulfire && source.soulfire.soulfireCyclerLevel) || 0)),
     },
     lastMessage: String(source.lastMessage || ""),
     solved: Boolean(source.solved),
@@ -403,6 +482,20 @@ function cyclingCostWithPrestige(baseCost, runtime) {
   return Math.max(1, Math.round(baseCost / divider));
 }
 
+function passiveSoulfirePerSecond(runtime) {
+  if (stageIndex(runtime.cultivationStage) < stageIndex("underlord")) {
+    return 0;
+  }
+  const madraCycler = Math.max(0, Number(runtime.soulfire && runtime.soulfire.madraCyclerLevel) || 0);
+  const soulfireCycler = Math.max(0, Number(runtime.soulfire && runtime.soulfire.soulfireCyclerLevel) || 0);
+  const base = 0.03;
+  const madraRate = madraCycler * 0.015;
+  const soulfireRate = soulfireCycler * 0.02;
+  const underlordBoost = 1 + Math.max(0, stageIndex(runtime.cultivationStage) - stageIndex("underlord")) * 0.12;
+  const prestigeMultiplier = Math.max(1, Number(runtime.prestige && runtime.prestige.soulfireGainMultiplier) || 1);
+  return (base + madraRate + soulfireRate) * underlordBoost * prestigeMultiplier;
+}
+
 function applyPassiveTick(runtime, now) {
   if (!runtime.wellUnlocked) {
     return runtime;
@@ -422,7 +515,9 @@ function applyPassiveTick(runtime, now) {
   const elapsedSeconds = Math.min(OFFLINE_CAP_SECONDS, elapsedMs / 1000);
   const mps = passiveMadraPerSecond(runtime);
   const produced = mps * elapsedSeconds;
-  if (produced <= 0) {
+  const sps = passiveSoulfirePerSecond(runtime);
+  const soulfireProduced = sps * elapsedSeconds;
+  if (produced <= 0 && soulfireProduced <= 0) {
     return {
       ...runtime,
       lastTickAt: now,
@@ -433,6 +528,14 @@ function applyPassiveTick(runtime, now) {
     ...runtime,
     madra: roundMadra(runtime.madra + produced),
     totalMadraGenerated: roundMadra(runtime.totalMadraGenerated + produced),
+    soulfire: {
+      ...(runtime.soulfire || {}),
+      unlocked: stageIndex(runtime.cultivationStage) >= stageIndex("underlord") || Boolean(runtime.soulfire && runtime.soulfire.unlocked),
+      amount: roundMadra((runtime.soulfire && runtime.soulfire.amount) + soulfireProduced),
+      totalGenerated: roundMadra((runtime.soulfire && runtime.soulfire.totalGenerated) + soulfireProduced),
+      madraCyclerLevel: Math.max(0, Number(runtime.soulfire && runtime.soulfire.madraCyclerLevel) || 0),
+      soulfireCyclerLevel: Math.max(0, Number(runtime.soulfire && runtime.soulfire.soulfireCyclerLevel) || 0),
+    },
     lastTickAt: now,
   };
 }
@@ -503,6 +606,14 @@ export function initialCrd02Runtime(context = {}) {
     upgrades: defaultUpgradeLevels(),
     manual: emptyManualRuntime(),
     techniquesOpen: false,
+    activeTab: "well",
+    soulfire: {
+      unlocked: false,
+      amount: 0,
+      totalGenerated: 0,
+      madraCyclerLevel: 0,
+      soulfireCyclerLevel: 0,
+    },
     lastMessage: "",
     solved: false,
   };
@@ -530,6 +641,14 @@ export function synchronizeCrd02Runtime(runtime, { now = nowMs(), state = null }
         Number(modifiers.cradle && modifiers.cradle.combatAttackMultiplier ? modifiers.cradle.combatAttackMultiplier : 1)
           * Number(lootModifiers.combatAttackMultiplier || 1),
       ),
+      soulfireGainMultiplier: Math.max(
+        1,
+        Number(modifiers.cradle && modifiers.cradle.soulfireGainMultiplier ? modifiers.cradle.soulfireGainMultiplier : 1),
+      ),
+      soulfireCostDivider: Math.max(
+        1,
+        Number(modifiers.cradle && modifiers.cradle.soulfireCostDivider ? modifiers.cradle.soulfireCostDivider : 1),
+      ),
     },
   };
   const solvedIds = new Set(state && Array.isArray(state.solvedNodeIds) ? state.solvedNodeIds : []);
@@ -547,12 +666,22 @@ export function synchronizeCrd02Runtime(runtime, { now = nowMs(), state = null }
   }
 
   const ticked = applyPassiveTick(current, Number(now) || nowMs());
-  const solved = solveState(ticked);
-  if (ticked.solved === solved) {
-    return ticked;
+  const soulfireUnlocked = stageIndex(ticked.cultivationStage) >= stageIndex("underlord");
+  const afterUnlock = soulfireUnlocked && !ticked.soulfire.unlocked
+    ? {
+      ...ticked,
+      soulfire: {
+        ...ticked.soulfire,
+        unlocked: true,
+      },
+    }
+    : ticked;
+  const solved = solveState(afterUnlock);
+  if (afterUnlock.solved === solved) {
+    return afterUnlock;
   }
   return {
-    ...ticked,
+    ...afterUnlock,
     solved,
   };
 }
@@ -570,9 +699,10 @@ export function reduceCrd02Runtime(runtime, action) {
   }
 
   if (action.type === "crd02-open-tab") {
+    const nextTab = normalizeText(action.tab);
     return {
       ...current,
-      activeTab: normalizeText(action.tab) === "soul" ? "soul" : "well",
+      activeTab: nextTab === "soul" || nextTab === "combat" || nextTab === "soulfire" ? nextTab : "well",
     };
   }
 
@@ -924,6 +1054,64 @@ export function reduceCrd02Runtime(runtime, action) {
     };
   }
 
+  if (action.type === "crd02-buy-soulfire-upgrade") {
+    if (stageIndex(current.cultivationStage) < stageIndex("underlord")) {
+      return current;
+    }
+    const upgradeId = String(action.upgradeId || "");
+    if (upgradeId === "madra-cycler") {
+      const level = Math.max(0, Number(current.soulfire && current.soulfire.madraCyclerLevel) || 0);
+      const divider = Math.max(1, Number(current.prestige && current.prestige.soulfireCostDivider) || 1);
+      const cost = Math.max(1, Math.round((9000 * Math.pow(2.1, level)) / divider));
+      if (current.madra < cost) {
+        return current;
+      }
+      return {
+        ...current,
+        madra: roundMadra(current.madra - cost),
+        soulfire: {
+          ...current.soulfire,
+          unlocked: true,
+          madraCyclerLevel: level + 1,
+        },
+      };
+    }
+    if (upgradeId === "soulfire-cycler") {
+      const level = Math.max(0, Number(current.soulfire && current.soulfire.soulfireCyclerLevel) || 0);
+      const divider = Math.max(1, Number(current.prestige && current.prestige.soulfireCostDivider) || 1);
+      const cost = roundMadra((6 * Math.pow(2.5, level)) / divider);
+      const currentSoulfire = Math.max(0, Number(current.soulfire && current.soulfire.amount) || 0);
+      if (currentSoulfire < cost) {
+        return current;
+      }
+      return {
+        ...current,
+        soulfire: {
+          ...current.soulfire,
+          unlocked: true,
+          amount: roundMadra(currentSoulfire - cost),
+          soulfireCyclerLevel: level + 1,
+        },
+      };
+    }
+    return current;
+  }
+
+  if (action.type === "crd02-set-underlord") {
+    if (stageIndex(current.cultivationStage) >= stageIndex("underlord")) {
+      return current;
+    }
+    return {
+      ...current,
+      cultivationStage: "underlord",
+      soulfire: {
+        ...current.soulfire,
+        unlocked: true,
+      },
+      lastMessage: "Underlord stage achieved.",
+    };
+  }
+
   if (action.type === "crd02-loot-message") {
     return {
       ...current,
@@ -1026,6 +1214,14 @@ export function buildCrd02ActionFromElement(element) {
     };
   }
 
+  if (actionName === "crd02-buy-soulfire-upgrade") {
+    return {
+      type: "crd02-buy-soulfire-upgrade",
+      upgradeId: element.getAttribute("data-upgrade-id"),
+      at: nowMs(),
+    };
+  }
+
   if (actionName === "crd02-equip-soul-slot") {
     return {
       type: "crd02-equip-soul-slot",
@@ -1047,6 +1243,13 @@ export function buildCrd02ActionFromElement(element) {
     return {
       type: "crd02-equip-combat-item",
       itemId: element.getAttribute("data-item-id") || "",
+      at: nowMs(),
+    };
+  }
+
+  if (actionName === "crd02-unequip-combat-item") {
+    return {
+      type: "crd02-unequip-combat-item",
       at: nowMs(),
     };
   }
@@ -1147,8 +1350,8 @@ function upgradeRequirementText(runtime, upgrade) {
 
 function layoutCenter(layoutNode) {
   return {
-    x: ((layoutNode.col - 0.5) / 6) * 100,
-    y: ((layoutNode.row - 0.5) / 3) * 100,
+    x: ((layoutNode.col - 0.5) / TECH_GRID_COLS) * 100,
+    y: ((layoutNode.row - 0.5) / TECH_GRID_ROWS) * 100,
   };
 }
 
@@ -1237,7 +1440,13 @@ function techniquesModalMarkup(runtime) {
           <svg class="crd02-tech-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
             ${techLinksMarkup(viewById)}
           </svg>
-          <div class="crd02-tech-constellation">
+          <div
+            class="crd02-tech-constellation"
+            style="--tech-cols:${TECH_GRID_COLS}; --tech-rows:${TECH_GRID_ROWS}; --tech-grid-width:${Math.max(
+              720,
+              TECH_GRID_COLS * 116,
+            )}px;"
+          >
             ${TECH_TREE_LAYOUT.map((layoutNode) => upgradeNodeMarkup(runtime, layoutNode, viewById[layoutNode.id])).join("")}
           </div>
         </div>
@@ -1298,7 +1507,6 @@ function soulCircuitMarkup({
   soulSlotIds,
   lootState,
   selectedLootItemId,
-  equippedCombatId,
   soulCrystals,
 } = {}) {
   const slotCount = Math.min(6, Math.max(0, Number(unlockedSoulSlots) || 0));
@@ -1321,10 +1529,7 @@ function soulCircuitMarkup({
             artifactName: equippedItem.label,
             className: "slot-ring-symbol artifact-symbol",
           })
-        : renderArtifactSymbol({
-            artifactName: "Soul Crystal Socket",
-            className: "slot-ring-symbol artifact-symbol is-slot-ghost",
-          }),
+        : "",
       attrs: clickToEquip
         ? {
             "data-action": "loot-equip-target",
@@ -1341,31 +1546,6 @@ function soulCircuitMarkup({
     };
   });
 
-  const combatItem = equippedCombatId ? lootState.items[equippedCombatId] : null;
-  const combatCenter = `
-    <button
-      type="button"
-      class="slot-ring-center-button ${combatItem ? "is-filled" : ""}"
-      data-action="loot-equip-target"
-      data-region="crd"
-      data-slot-id="-1"
-      title="${escapeHtml(combatItem ? `Combat item: ${combatItem.label}` : "Combat focus slot")}"
-      aria-label="Combat item slot"
-    >
-      ${
-        combatItem
-          ? renderArtifactSymbol({
-              artifactName: combatItem.label,
-              className: "slot-ring-symbol artifact-symbol",
-            })
-          : renderRegionSymbol({
-              section: "Cradle",
-              className: "slot-ring-center-symbol",
-            })
-      }
-    </button>
-  `;
-
   return `
     <section class="crd02-panel">
       <h4>Soul Crystal Circuit (${slotCount}/6)</h4>
@@ -1373,10 +1553,62 @@ function soulCircuitMarkup({
         slots,
         className: "crd02-soul-slot-ring",
         radiusPct: 42,
-        centerHtml: combatCenter,
+        centerHtml: renderRegionSymbol({
+          section: "Cradle",
+          className: "slot-ring-center-symbol",
+        }),
         ariaLabel: "Cradle soul crystal circuit",
       })}
       <p><strong>Available Soul Crystals:</strong> ${soulCrystals.length}</p>
+      <div class="toolbar">
+        <button type="button" data-action="toggle-widget" data-widget="loot">Open Loot Panel</button>
+      </div>
+    </section>
+  `;
+}
+
+function combatLoadoutMarkup({ lootState, selectedLootItemId, equippedCombatId, combatRelics }) {
+  const selectedLoot = selectedLootItemId ? lootState.items[selectedLootItemId] : null;
+  const equippedItem = equippedCombatId ? lootState.items[equippedCombatId] : null;
+  const clickToEquip = Boolean(selectedLoot);
+  const clickToUnequip = Boolean(equippedItem) && !clickToEquip;
+  const slots = [
+    {
+      filled: Boolean(equippedItem),
+      clickable: clickToEquip || clickToUnequip,
+      title: equippedItem ? `${equippedItem.label} (${equippedItem.rarity || "common"})` : "Empty combat gear slot",
+      ariaLabel: "Combat gear slot",
+      symbolHtml: equippedItem
+        ? renderArtifactSymbol({
+            artifactName: equippedItem.label,
+            className: "slot-ring-symbol artifact-symbol",
+          })
+        : "",
+      attrs: clickToEquip
+        ? {
+            "data-action": "loot-equip-target",
+            "data-region": "crd",
+            "data-slot-id": "-1",
+          }
+        : clickToUnequip
+          ? {
+              "data-node-id": NODE_ID,
+              "data-node-action": "crd02-unequip-combat-item",
+            }
+          : {},
+    },
+  ];
+
+  return `
+    <section class="crd02-panel">
+      <h4>Combat Gear</h4>
+      ${renderSlotRing({
+        slots,
+        className: "crd02-combat-slot-ring",
+        radiusPct: 41,
+        ariaLabel: "Cradle combat gear slot",
+      })}
+      <p><strong>Available Combat Relics:</strong> ${combatRelics.length}</p>
       <div class="toolbar">
         <button type="button" data-action="toggle-widget" data-widget="loot">Open Loot Panel</button>
       </div>
@@ -1393,7 +1625,6 @@ export function renderCrd02Experience(context) {
   const crd06Solved = solvedIds.has("CRD06");
   const mps = passiveMadraPerSecond(runtime);
   const canSeeMenus = runtime.manualCompletions > 0;
-  const statusMessage = visibleRuntimeMessage(runtime.lastMessage);
 
   if (!runtime.wellUnlocked) {
     if (runtime.introPhase !== "rejected") {
@@ -1413,7 +1644,6 @@ export function renderCrd02Experience(context) {
             >
               Place Hand In Pure Madra
             </button>
-            ${statusMessage ? `<p class="key-hint">${escapeHtml(statusMessage)}</p>` : ""}
           </section>
         </article>
       `;
@@ -1445,6 +1675,7 @@ export function renderCrd02Experience(context) {
       : [];
   const crdLootItems = Object.values(lootState.items || {}).filter((item) => item.region === "crd");
   const soulCrystals = crdLootItems.filter((item) => item.kind === "soul_crystal");
+  const combatRelics = crdLootItems.filter((item) => item.kind === "crd_combat_relic");
   const equippedCombatId =
     lootState.loadouts && lootState.loadouts.cradle ? lootState.loadouts.cradle.combatItemId : null;
   const selectedLootItemId = String(context.selectedLootItemId || "");
@@ -1478,9 +1709,13 @@ export function renderCrd02Experience(context) {
               ? `Breakthrough: High Gold (${BREAKTHROUGH_COSTS.lowgold} Madra)`
               : currentStage === "highgold"
                 ? `Breakthrough: True Gold (${BREAKTHROUGH_COSTS.highgold} Madra)`
-                : "Stage cap reached";
+                : currentStage === "truegold"
+                  ? "Underlord advancement is forged in Nightwheel Valley."
+                  : "Stage cap reached";
 
-  const activeTab = runtime.activeTab === "soul" ? "soul" : "well";
+  const activeTab = runtime.activeTab === "soul" || runtime.activeTab === "combat" || runtime.activeTab === "soulfire"
+    ? runtime.activeTab
+    : "well";
   const wellPanel = canSeeMenus
     ? `
       <section class="crd02-panel">
@@ -1529,9 +1764,58 @@ export function renderCrd02Experience(context) {
     soulSlotIds,
     lootState,
     selectedLootItemId,
-    equippedCombatId,
     soulCrystals,
   });
+  const combatPanel = combatLoadoutMarkup({
+    lootState,
+    selectedLootItemId,
+    equippedCombatId,
+    combatRelics,
+  });
+  const currentSoulfire = Math.max(0, Number(runtime.soulfire && runtime.soulfire.amount) || 0);
+  const soulfirePerSecond = passiveSoulfirePerSecond(runtime);
+  const madraCyclerLevel = Math.max(0, Number(runtime.soulfire && runtime.soulfire.madraCyclerLevel) || 0);
+  const soulfireCyclerLevel = Math.max(0, Number(runtime.soulfire && runtime.soulfire.soulfireCyclerLevel) || 0);
+  const soulfireCostDivider = Math.max(1, Number(runtime.prestige && runtime.prestige.soulfireCostDivider) || 1);
+  const madraCyclerCost = Math.max(1, Math.round((9000 * Math.pow(2.1, madraCyclerLevel)) / soulfireCostDivider));
+  const soulfireCyclerCost = roundMadra((6 * Math.pow(2.5, soulfireCyclerLevel)) / soulfireCostDivider);
+  const soulfirePanel = `
+    <section class="crd02-panel">
+      <h4>Soulfire</h4>
+      <p><strong>Soulfire:</strong> ${escapeHtml(currentSoulfire.toFixed(2))}</p>
+      <p class="muted">${escapeHtml(soulfirePerSecond.toFixed(3))}/sec passive</p>
+      <div class="crd02-tech-row">
+        <div>
+          <p><strong>Soulfire Furnace</strong></p>
+          <p class="muted">Level ${escapeHtml(String(madraCyclerLevel))} | Costs Madra</p>
+        </div>
+        <button
+          type="button"
+          data-node-id="${NODE_ID}"
+          data-node-action="crd02-buy-soulfire-upgrade"
+          data-upgrade-id="madra-cycler"
+          ${runtime.madra >= madraCyclerCost ? "" : "disabled"}
+        >
+          Upgrade (${escapeHtml(String(madraCyclerCost))} Madra)
+        </button>
+      </div>
+      <div class="crd02-tech-row">
+        <div>
+          <p><strong>Soulfire Condensation Wheel</strong></p>
+          <p class="muted">Level ${escapeHtml(String(soulfireCyclerLevel))} | Costs Soulfire</p>
+        </div>
+        <button
+          type="button"
+          data-node-id="${NODE_ID}"
+          data-node-action="crd02-buy-soulfire-upgrade"
+          data-upgrade-id="soulfire-cycler"
+          ${currentSoulfire >= soulfireCyclerCost ? "" : "disabled"}
+        >
+          Upgrade (${escapeHtml(soulfireCyclerCost.toFixed(2))} Soulfire)
+        </button>
+      </div>
+    </section>
+  `;
 
   return `
     <article class="crd02-node" data-node-id="${NODE_ID}">
@@ -1581,12 +1865,24 @@ export function renderCrd02Experience(context) {
         <div class="toolbar">
           <button type="button" data-node-id="${NODE_ID}" data-node-action="crd02-open-tab" data-tab="well" ${activeTab === "well" ? "disabled" : ""}>Madra Well</button>
           <button type="button" data-node-id="${NODE_ID}" data-node-action="crd02-open-tab" data-tab="soul" ${activeTab === "soul" ? "disabled" : ""}>Soul Crystals</button>
+          <button type="button" data-node-id="${NODE_ID}" data-node-action="crd02-open-tab" data-tab="combat" ${activeTab === "combat" ? "disabled" : ""}>Combat Gear</button>
+          ${
+            stageIndex(currentStage) >= stageIndex("underlord") || runtime.soulfire.unlocked
+              ? `<button type="button" data-node-id="${NODE_ID}" data-node-action="crd02-open-tab" data-tab="soulfire" ${activeTab === "soulfire" ? "disabled" : ""}>Soulfire</button>`
+              : ""
+          }
         </div>
       </section>
 
-      ${activeTab === "soul" ? soulPanel : wellPanel}
-
-      ${statusMessage ? `<p class="key-hint">${escapeHtml(statusMessage)}</p>` : ""}
+      ${
+        activeTab === "soul"
+          ? soulPanel
+          : activeTab === "combat"
+            ? combatPanel
+            : activeTab === "soulfire"
+              ? soulfirePanel
+              : wellPanel
+      }
       ${techniquesModalMarkup(runtime)}
       ${manualModalMarkup(runtime, manualReward)}
     </article>

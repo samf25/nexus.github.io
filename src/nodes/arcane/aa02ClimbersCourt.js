@@ -5,6 +5,7 @@ import {
   arcaneSystemFromState,
   computeTomePullCost,
   enhancementGlyphPool,
+  glyphDisplayName,
   regionGlyphPool,
 } from "../../systems/arcaneAscension.js";
 import {
@@ -17,6 +18,7 @@ import {
 
 const NODE_ID = "AA02";
 const SHOP_OFFER_COUNT = 5;
+const TOME_FLASH_STEP_MS = 1050;
 
 function safeText(value) {
   return String(value || "").trim();
@@ -127,6 +129,7 @@ function normalizeRuntime(runtime) {
     activeTab,
     revealQueue,
     revealTick: Math.max(0, safeInt(source.revealTick, 0)),
+    revealStartedAt: Math.max(0, safeInt(source.revealStartedAt, 0)),
     lastRevealRouteNonce: Math.max(0, safeInt(source.lastRevealRouteNonce, 0)),
     lastMessage: safeText(source.lastMessage),
     solved: Boolean(source.solved),
@@ -143,11 +146,9 @@ function displayItemLabel(item) {
 }
 
 function readableGlyphName(glyphId) {
-  return safeText(glyphId)
-    .split("-")
-    .map((part) => part ? `${part[0].toUpperCase()}${part.slice(1)}` : "")
-    .join(" ")
-    .trim();
+  const normalized = safeText(glyphId).toLowerCase();
+  const isRegion = regionGlyphPool().includes(normalized);
+  return glyphDisplayName(normalized, isRegion ? "region" : "enhancement");
 }
 
 function renderGlyphSymbol(glyphId) {
@@ -189,21 +190,34 @@ export function synchronizeAa02Runtime(runtime, context = {}) {
   const arcane = arcaneSystemFromState(context.state || {}, now);
   const routeNonce = Math.max(0, safeInt(context.routeVisitNonce, 0));
   const shouldClearReveal = current.revealQueue.length > 0 && routeNonce > current.lastRevealRouteNonce;
+  const elapsed = Math.max(0, now - current.revealStartedAt);
+  const revealTick = current.revealQueue.length
+    ? Math.min(current.revealQueue.length, Math.floor(elapsed / TOME_FLASH_STEP_MS) + 1)
+    : 0;
+  const revealFinished = current.revealQueue.length > 0 && revealTick >= current.revealQueue.length;
+  const shouldAutoClearReveal =
+    revealFinished && elapsed > ((current.revealQueue.length + 1) * TOME_FLASH_STEP_MS);
+  const revealQueue = shouldClearReveal || shouldAutoClearReveal ? [] : current.revealQueue;
+  const revealTickValue = revealQueue.length ? revealTick : 0;
+  const revealStartedAt = revealQueue.length ? current.revealStartedAt : 0;
   if (current.shopHourKey === hourKey && current.shopOffers.length) {
-    return shouldClearReveal
-      ? {
-          ...current,
-          revealQueue: [],
-          revealTick: 0,
-        }
-      : current;
+    if (revealTickValue !== current.revealTick || revealQueue !== current.revealQueue) {
+      return {
+        ...current,
+        revealQueue,
+        revealTick: revealTickValue,
+        revealStartedAt,
+      };
+    }
+    return current;
   }
   return {
     ...current,
     shopHourKey: hourKey,
     shopOffers: generateShopOffers(arcane, hourKey),
-    revealQueue: shouldClearReveal ? [] : current.revealQueue,
-    revealTick: shouldClearReveal ? 0 : current.revealTick,
+    revealQueue,
+    revealTick: revealTickValue,
+    revealStartedAt,
   };
 }
 
@@ -226,6 +240,7 @@ export function reduceAa02Runtime(runtime, action) {
       activeTab: nextTab,
       revealQueue: keepReveal ? current.revealQueue : [],
       revealTick: keepReveal ? current.revealTick : 0,
+      revealStartedAt: keepReveal ? current.revealStartedAt : 0,
     };
   }
 
@@ -255,7 +270,8 @@ export function reduceAa02Runtime(runtime, action) {
       ...current,
       solved: current.solved || Boolean(action.applied),
       revealQueue: grants,
-      revealTick: grants.length,
+      revealTick: grants.length ? 1 : 0,
+      revealStartedAt: Date.now(),
       lastRevealRouteNonce: Math.max(0, safeInt(action.routeVisitNonce, current.lastRevealRouteNonce)),
       activeTab: "tome",
       lastMessage: safeText(action.message) || "The Tome remains quiet.",
@@ -362,15 +378,21 @@ function auctionMarkup(runtime, state, arcane) {
 }
 
 function tomeRevealMarkup(runtime) {
-  const glyphId = runtime.revealQueue[runtime.revealQueue.length - 1];
+  if (!runtime.revealQueue.length || runtime.revealTick <= 0) {
+    return "";
+  }
+  const index = Math.min(runtime.revealQueue.length - 1, runtime.revealTick - 1);
+  const glyphId = runtime.revealQueue[index];
   if (!glyphId) {
     return "";
   }
+  const niceName = readableGlyphName(glyphId);
   return `
     <div class="aa02-tome-flash ${runtime.revealQueue.length ? "is-revealing" : ""}" aria-live="polite">
       <div class="aa02-tome-flash-name">
         ${renderGlyphSymbol(glyphId)}
       </div>
+      <p class="aa02-tome-flash-label">${escapeHtml(niceName)}</p>
     </div>
   `;
 }

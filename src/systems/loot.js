@@ -1576,9 +1576,13 @@ export function isLootItemEquipped(state, itemId) {
   const dccRuntime = state && state.nodeRuntime && state.nodeRuntime.DCC01 && typeof state.nodeRuntime.DCC01 === "object"
     ? state.nodeRuntime.DCC01
     : {};
-  const equipment = dccRuntime.run && dccRuntime.run.equipment && typeof dccRuntime.run.equipment === "object"
+  const runtimeEquipment = dccRuntime.run && dccRuntime.run.equipment && typeof dccRuntime.run.equipment === "object"
     ? dccRuntime.run.equipment
     : {};
+  const preparedEquipment = dccRuntime.meta && dccRuntime.meta.preparedEquipment && typeof dccRuntime.meta.preparedEquipment === "object"
+    ? dccRuntime.meta.preparedEquipment
+    : {};
+  const equipment = { ...preparedEquipment, ...runtimeEquipment };
   if (Object.values(equipment).some((entry) => {
     if (!entry || typeof entry !== "object") {
       return safeText(entry) === targetId;

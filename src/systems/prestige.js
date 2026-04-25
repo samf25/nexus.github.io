@@ -49,6 +49,18 @@ const PRESTIGE_UPGRADES = Object.freeze({
       cost: 1,
       effect: "x2 strength of attacks",
     }),
+    Object.freeze({
+      id: "soulfire-surge",
+      label: "Soulfire Surge",
+      cost: 1,
+      effect: "x3 soulfire gain",
+    }),
+    Object.freeze({
+      id: "soulfire-forge",
+      label: "Soulfire Forge",
+      cost: 1,
+      effect: "Soulfire upgrades cost less in CRD02",
+    }),
   ]),
   worm: Object.freeze([
     Object.freeze({
@@ -310,6 +322,13 @@ function applyCradleReset(state, cost, now) {
     },
     lastTickAt: now,
     lastMessage: "The loop snaps shut. Your core returns to Foundation.",
+    soulfire: {
+      unlocked: false,
+      amount: 0,
+      totalGenerated: 0,
+      madraCyclerLevel: 0,
+      soulfireCyclerLevel: 0,
+    },
   };
 
   return {
@@ -561,6 +580,8 @@ export function prestigeModifiersFromState(state) {
       madraGainMultiplier: hasCradle("madra-surge") ? 10 : 1,
       cyclingCostDivider: hasCradle("cycle-economy") ? 10 : 1,
       combatAttackMultiplier: hasCradle("combat-edge") ? 2 : 1,
+      soulfireGainMultiplier: hasCradle("soulfire-surge") ? 3 : 1,
+      soulfireCostDivider: hasCradle("soulfire-forge") ? 2 : 1,
     },
     worm: {
       cloutGainMultiplier: hasWorm("clout-surge") ? 2 : 1,

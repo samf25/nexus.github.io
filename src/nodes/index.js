@@ -12,6 +12,8 @@ import { CRD03_NODE_EXPERIENCE } from "./cradle/crd03AuraAlignment.js";
 import { CRD04_NODE_EXPERIENCE } from "./cradle/crd04SevenYearFestival.js";
 import { CRD05_NODE_EXPERIENCE } from "./cradle/crd05HeavensGlorySchool.js";
 import { CRD06_NODE_EXPERIENCE } from "./cradle/crd06DuelWithJaiLong.js";
+import { CRD07_NODE_EXPERIENCE } from "./cradle/crd07NightwheelValley.js";
+import { CRD08_NODE_EXPERIENCE } from "./cradle/crd08UncrownedTournament.js";
 import { LOG01_NODE_EXPERIENCE } from "./math/log01TruthGates.js";
 import { LOG02_NODE_EXPERIENCE } from "./math/log02WitnessGrid.js";
 import {
@@ -77,6 +79,8 @@ const NODE_EXPERIENCE_REGISTRY = Object.freeze({
   CRD04: CRD04_NODE_EXPERIENCE,
   CRD05: CRD05_NODE_EXPERIENCE,
   CRD06: CRD06_NODE_EXPERIENCE,
+  CRD07: CRD07_NODE_EXPERIENCE,
+  CRD08: CRD08_NODE_EXPERIENCE,
   LOG01: LOG01_NODE_EXPERIENCE,
   LOG02: LOG02_NODE_EXPERIENCE,
   LOG03: LOG03_NODE_EXPERIENCE,

@@ -1,6 +1,7 @@
 import { escapeHtml } from "../../templates/shared.js";
 import { renderArtifactSymbol } from "../../core/artifacts.js";
 import {
+  madraPoolMultiplierForStage,
   normalizeCombatStage,
   randomUnit,
   rollDamage,
@@ -71,7 +72,7 @@ function combatProfileFromState(state) {
     meleeBonus: (soulCloak + consume + hollowDomain) * attackMultiplier,
     dodgeBonus: soulCloak + hollowDomain,
     maxHp: 110 + ironBody * 22 + (stage === "copper" ? 18 : stage === "iron" ? 34 : 0),
-    maxMadra: 100 + (crd02.cultivationStage === "iron" ? 30 : stage === "copper" ? 15 : 0),
+    maxMadra: Math.round((95 + soulCloak * 4 + consume * 5 + hollowDomain * 6) * madraPoolMultiplierForStage(stage)),
   };
 }
 

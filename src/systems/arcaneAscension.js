@@ -34,6 +34,25 @@ const GLYPH_TEMPLATES = Object.freeze({
   }),
 });
 
+const REGION_GLYPH_LABELS = Object.freeze({
+  crd: "Cradle Region Glyph",
+  worm: "Worm Region Glyph",
+  dcc: "Dungeon Crawler Carl Region Glyph",
+  aa: "Arcane Ascension Region Glyph",
+});
+
+const REGION_GLYPH_ALIASES = Object.freeze({
+  cradle: "crd",
+  crd: "crd",
+  worm: "worm",
+  dcc: "dcc",
+  "dungeoncrawlercarl": "dcc",
+  "dungeon crawler carl": "dcc",
+  aa: "aa",
+  "arcane ascension": "aa",
+  "arcaneascension": "aa",
+});
+
 function safeFinite(value, fallback = 0) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
@@ -41,6 +60,14 @@ function safeFinite(value, fallback = 0) {
 
 function safeText(value) {
   return String(value || "").trim();
+}
+
+function readableGlyphName(glyphId) {
+  return safeText(glyphId)
+    .split("-")
+    .map((part) => (part ? `${part[0].toUpperCase()}${part.slice(1)}` : ""))
+    .join(" ")
+    .trim();
 }
 
 function clamp(value, min, max) {
@@ -60,6 +87,30 @@ function uniqueLowerTextList(values, fallback = []) {
     result.push(key);
   }
   return result;
+}
+
+function canonicalGlyphId(glyphType, glyphId) {
+  const normalizedType = safeText(glyphType).toLowerCase() === "enhancement" ? "enhancement" : "region";
+  const raw = safeText(glyphId).toLowerCase();
+  if (!raw) {
+    return "";
+  }
+
+  if (normalizedType === "region") {
+    const aliasHit = REGION_GLYPH_ALIASES[raw];
+    if (aliasHit && REGION_GLYPHS.includes(aliasHit)) {
+      return aliasHit;
+    }
+    const compact = raw.replace(/[^a-z0-9]/g, "");
+    const compactHit = REGION_GLYPH_ALIASES[compact];
+    if (compactHit && REGION_GLYPHS.includes(compactHit)) {
+      return compactHit;
+    }
+    return REGION_GLYPHS.includes(raw) ? raw : "";
+  }
+
+  const normalized = raw.replace(/\s+/g, "-");
+  return ENHANCEMENT_GLYPHS.includes(normalized) ? normalized : "";
 }
 
 function hashText(value) {
@@ -187,8 +238,12 @@ export function normalizeArcaneSystemState(candidate, now = Date.now()) {
       enchanter: Boolean(attunements.enchanter),
     },
     grimoire: {
-      regionGlyphs: uniqueLowerTextList(grimoire.regionGlyphs).filter((glyph) => REGION_GLYPHS.includes(glyph)),
-      enhancementGlyphs: uniqueLowerTextList(grimoire.enhancementGlyphs).filter((glyph) => ENHANCEMENT_GLYPHS.includes(glyph)),
+      regionGlyphs: uniqueLowerTextList(grimoire.regionGlyphs)
+        .map((glyph) => canonicalGlyphId("region", glyph))
+        .filter((glyph) => REGION_GLYPHS.includes(glyph)),
+      enhancementGlyphs: uniqueLowerTextList(grimoire.enhancementGlyphs)
+        .map((glyph) => canonicalGlyphId("enhancement", glyph))
+        .filter((glyph) => ENHANCEMENT_GLYPHS.includes(glyph)),
       starterGranted: Boolean(grimoire.starterGranted),
       pullCount: Math.max(0, Math.floor(safeFinite(grimoire.pullCount, 0))),
     },
@@ -322,14 +377,33 @@ function normalizePointCloud(points) {
   }
   const width = Math.max(0.001, maxX - minX);
   const height = Math.max(0.001, maxY - minY);
+  const scale = Math.max(width, height);
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
   return cloud.map((point) => ({
-    x: ((point.x - minX) / width) - 0.5,
-    y: ((point.y - minY) / height) - 0.5,
+    x: (point.x - centerX) / scale,
+    y: (point.y - centerY) / scale,
   }));
 }
 
-function preprocessRunePointCloud(points, sampleCount = 48) {
-  return normalizePointCloud(resamplePath(points, sampleCount));
+function weightedSignature(points, sampleCount = 72) {
+  const sampled = resamplePath(points, sampleCount);
+  if (!sampled.length) {
+    return [];
+  }
+  const anchors = [
+    sampled[0],
+    sampled[Math.floor(sampled.length * 0.25)],
+    sampled[Math.floor(sampled.length * 0.5)],
+    sampled[Math.floor(sampled.length * 0.75)],
+    sampled[sampled.length - 1],
+  ].filter(Boolean);
+  const weightedAnchors = anchors.flatMap((point) => [point, point, point, point]);
+  return normalizePointCloud([...sampled, ...weightedAnchors]);
+}
+
+function preprocessRunePointCloud(points, sampleCount = 72) {
+  return weightedSignature(points, sampleCount);
 }
 
 function makeCostMatrix(left, right) {
@@ -459,19 +533,23 @@ function confidenceFromDistances(bestDistance, secondDistance) {
 }
 
 export function normalizeRuneStroke(strokePoints) {
-  return preprocessRunePointCloud(strokePoints, 48);
+  return preprocessRunePointCloud(strokePoints, 72);
 }
 
 export function scoreRuneMatch({ strokePoints, glyphTemplatePoints } = {}) {
-  const left = preprocessRunePointCloud(strokePoints, 48);
-  const right = preprocessRunePointCloud(glyphTemplatePoints, 48);
+  const left = preprocessRunePointCloud(strokePoints, 72);
+  const right = preprocessRunePointCloud(glyphTemplatePoints, 72);
   return scoreFromDistance(earthMoversDistance(left, right));
 }
 
 export function matchRuneAgainstGrimoire({ strokePoints, glyphType, ownedGlyphs } = {}) {
   const normalizedType = safeText(glyphType).toLowerCase() === "enhancement" ? "enhancement" : "region";
   const templates = GLYPH_TEMPLATES[normalizedType] || {};
-  const ownedSet = new Set(uniqueLowerTextList(ownedGlyphs));
+  const ownedSet = new Set(
+    uniqueLowerTextList(ownedGlyphs)
+      .map((glyph) => canonicalGlyphId(normalizedType, glyph))
+      .filter(Boolean),
+  );
   const candidates = Object.keys(templates).filter((key) => ownedSet.has(key));
   if (!candidates.length) {
     return {
@@ -484,7 +562,7 @@ export function matchRuneAgainstGrimoire({ strokePoints, glyphType, ownedGlyphs 
     };
   }
 
-  const normalizedStroke = preprocessRunePointCloud(strokePoints, 48);
+  const normalizedStroke = preprocessRunePointCloud(strokePoints, 72);
   if (normalizedStroke.length < 4) {
     return {
       bestMatch: "",
@@ -501,7 +579,7 @@ export function matchRuneAgainstGrimoire({ strokePoints, glyphType, ownedGlyphs 
       glyphId,
       distance: earthMoversDistance(
         normalizedStroke,
-        preprocessRunePointCloud(templates[glyphId] || [], 48),
+        preprocessRunePointCloud(templates[glyphId] || [], 72),
       ),
     }))
     .filter((entry) => Number.isFinite(entry.distance))
@@ -867,4 +945,30 @@ export function pickDeterministicGlyph(seed, type) {
   const pool = normalizedType === "region" ? REGION_GLYPHS : ENHANCEMENT_GLYPHS;
   const rng = createRng(hashText(`${normalizedType}:${seed}`));
   return randomPick(rng, pool);
+}
+
+export function glyphDisplayName(glyphId, glyphType = "") {
+  const normalizedType = safeText(glyphType).toLowerCase();
+  const canonical = canonicalGlyphId(normalizedType || "enhancement", glyphId)
+    || canonicalGlyphId("region", glyphId)
+    || safeText(glyphId).toLowerCase();
+  if (REGION_GLYPH_LABELS[canonical]) {
+    return REGION_GLYPHS.includes(canonical)
+      ? REGION_GLYPH_LABELS[canonical]
+      : readableGlyphName(canonical);
+  }
+  return readableGlyphName(canonical);
+}
+
+export function glyphTemplatePoints(glyphType, glyphId) {
+  const normalizedType = safeText(glyphType).toLowerCase() === "enhancement" ? "enhancement" : "region";
+  const canonical = canonicalGlyphId(normalizedType, glyphId);
+  if (!canonical) {
+    return [];
+  }
+  const templateSet = GLYPH_TEMPLATES[normalizedType] || {};
+  const points = templateSet[canonical] || [];
+  return Array.isArray(points)
+    ? points.map((point) => (Array.isArray(point) ? [point[0], point[1]] : point))
+    : [];
 }

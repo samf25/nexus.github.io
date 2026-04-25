@@ -64,6 +64,7 @@ import {
   awardManaCrystals,
   consumeWorkshopMana,
   estimateAppraisal,
+  glyphDisplayName,
   grantStarterGlyphs,
   matchRuneAgainstGrimoire,
   pullGlyphFromTome,
@@ -99,6 +100,8 @@ let activeNodeContext = null;
 let routeVisitNonce = 0;
 let lastRouteForVisit = "";
 const AUTO_RENDER_INTERVAL_MS = 2000;
+const AA_TOME_RENDER_INTERVAL_MS = 350;
+const AA_TOME_STEP_MS = 1050;
 const HUB08_ORB_HOLD_MS = 2000;
 const NEXUS_MATH_SECTION_ORDER = Object.freeze([
   "Hall of Proofs",
@@ -220,6 +223,14 @@ const NODE_REWARD_OVERRIDES = Object.freeze({
   CRD06: Object.freeze({
     suppressBlueprintReward: true,
     supplementalRewards: Object.freeze(["Checkpoint Pyramid", "Simurgh Summoning Bracelet"]),
+  }),
+  CRD07: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze([]),
+  }),
+  CRD08: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze(["Uncrowded Sigil", "Behemoth Summoning Anklet"]),
   }),
   WORM03: Object.freeze({
     suppressBlueprintReward: true,
@@ -401,6 +412,13 @@ function isRegionNodeSoftLocked(node, state) {
   if (nodeId === "CRD07") {
     return !solved.has("CRD06");
   }
+  if (nodeId === "CRD08") {
+    const crd02 =
+      state && state.nodeRuntime && state.nodeRuntime.CRD02 && typeof state.nodeRuntime.CRD02 === "object"
+        ? state.nodeRuntime.CRD02
+        : {};
+    return String(crd02.cultivationStage || "").trim().toLowerCase() !== "underlord";
+  }
   if (nodeId === "WORM04") {
     return !solved.has("WORM03");
   }
@@ -538,6 +556,9 @@ function parseArtifactList(value) {
 
 function normalizeLootEvent(entry) {
   const source = entry && typeof entry === "object" ? entry : {};
+  const customDrop = source.customDrop && typeof source.customDrop === "object"
+    ? { ...source.customDrop }
+    : null;
   return {
     sourceRegion: String(source.sourceRegion || "").trim().toLowerCase(),
     triggerType: String(source.triggerType || "").trim(),
@@ -545,6 +566,7 @@ function normalizeLootEvent(entry) {
     outRegionChance: Number(source.outRegionChance) || 0,
     rarityBias: Number(source.rarityBias) || 0,
     forceOutRegion: Boolean(source.forceOutRegion),
+    customDrop,
   };
 }
 
@@ -561,6 +583,11 @@ function applyRuntimeLootEvents(state, nodeId, runtime) {
   let next = state;
   const dropped = [];
   for (const event of events) {
+    if (event.customDrop && typeof event.customDrop === "object") {
+      next = applyLootDrop(next, event.customDrop);
+      dropped.push(String(event.customDrop.label || "Custom drop"));
+      continue;
+    }
     const roll = rollRegionalLoot({
       sourceRegion: event.sourceRegion || nodeId,
       triggerType: event.triggerType || nodeId,
@@ -691,6 +718,12 @@ function backLinkForRoute(route) {
 
   const node = blueprintIndex && blueprintIndex.nodesByRoute ? blueprintIndex.nodesByRoute.get(route) : null;
   if (node) {
+    if (node.node_id === "DCC01") {
+      return {
+        route: "/",
+        label: "Back to Nexus",
+      };
+    }
     return {
       route: `/section/${sectionRouteSlug(node.section)}`,
       label: "Back to Region",
@@ -904,6 +937,15 @@ function openSelectedNexusSection() {
     return;
   }
 
+  if (String(selected.section || "").toLowerCase() === "dungeon crawler carl") {
+    const dccNodes = blueprintIndex.sectionNodes.get(selected.section) || [];
+    const dccNode = dccNodes.find((entry) => entry.node_id === "DCC01") || null;
+    if (dccNode) {
+      navigate(dccNode.route);
+      return;
+    }
+  }
+
   navigate(`/section/${sectionRouteSlug(selected.section)}`);
 }
 
@@ -1069,6 +1111,20 @@ function dispatchActiveNodeAction(action) {
       const result = equipLootItem(next, {
         region: "crd",
         itemInstanceId: runtimeAction.itemId,
+      });
+      if (result.changed) {
+        next = result.nextState;
+      }
+      runtimeAction = {
+        type: "crd02-loot-message",
+        message: result.message,
+        at: Date.now(),
+      };
+    }
+
+    if (node.node_id === "CRD02" && runtimeAction.type === "crd02-unequip-combat-item") {
+      const result = unequipLootItem(next, {
+        region: "crd",
       });
       if (result.changed) {
         next = result.nextState;
@@ -1381,16 +1437,17 @@ function dispatchActiveNodeAction(action) {
           glyphType: "region",
           ownedGlyphs: arcane.grimoire.regionGlyphs,
         });
+        const regionName = match.bestMatch ? glyphDisplayName(match.bestMatch, "region") : "";
         runtimeAction = {
           ...runtimeAction,
           applied: Boolean(match.bestMatch),
           strokePoints,
           regionMatch: match.bestMatch ? match : null,
           message: match.bestMatch
-            ? `Region rune resolved as ${match.bestMatch}.`
+            ? `Region rune resolved as ${regionName}.`
             : match.insufficientStroke
               ? "Rune trace too sparse. Draw a fuller region rune."
-              : "No learned region glyphs are available to match.",
+              : "No learned region glyphs are currently available in your grimoire.",
         };
       }
       setBanner(runtimeAction.message);
@@ -1439,9 +1496,10 @@ function dispatchActiveNodeAction(action) {
               applied: false,
               message: match.insufficientStroke
                 ? "Rune trace too sparse. Draw a fuller enhancement rune."
-                : "No learned enhancement glyphs are available to match.",
+                : "No learned enhancement glyphs are currently available in your grimoire.",
             };
           } else {
+            const enhancementName = glyphDisplayName(match.bestMatch, "enhancement");
             const trueAccuracy = Math.min(1, Math.max(0, ((regionAccuracy + match.accuracyScore) / 2) + (aaModifiers.accuracyFlat * 0.01)));
             const estimate = estimateAppraisal({
               trueAccuracy,
@@ -1455,7 +1513,7 @@ function dispatchActiveNodeAction(action) {
               enhancementMatch: match,
               trueAccuracy,
               estimatedAccuracy: estimate.estimatedAccuracy,
-              message: `Enhancement rune resolved as ${match.bestMatch}.`,
+              message: `Enhancement rune resolved as ${enhancementName}.`,
             };
           }
         }
@@ -1719,6 +1777,125 @@ function dispatchActiveNodeAction(action) {
     );
 
     let runtime = readNodeRuntime(next, node, experience);
+
+    if ((node.node_id === "CRD07" || node.node_id === "CRD08") && Number(runtime && runtime.pendingMadraAward) > 0) {
+      const award = Math.max(0, Number(runtime.pendingMadraAward) || 0);
+      next = updateNodeRuntime(
+        next,
+        "CRD02",
+        (currentRuntime) => {
+          const source = currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {};
+          const currentMadra = Math.max(0, Number(source.madra || 0));
+          return {
+            ...source,
+            madra: Number((currentMadra + award).toFixed(2)),
+          };
+        },
+        () => ({ madra: award }),
+      );
+      next = updateNodeRuntime(
+        next,
+        node.node_id,
+        (currentRuntime) => ({
+          ...(currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {}),
+          pendingMadraAward: 0,
+        }),
+        () => experience.initialState({ node, state: next }),
+      );
+      runtime = readNodeRuntime(next, node, experience);
+      setBanner(`Madra gained: +${award}.`);
+    }
+
+    if (node.node_id === "CRD08" && Number(runtime && runtime.pendingSoulfireAward) > 0) {
+      const award = Math.max(0, Number(runtime.pendingSoulfireAward) || 0);
+      next = updateNodeRuntime(
+        next,
+        "CRD02",
+        (currentRuntime) => {
+          const source = currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {};
+          const soulfire = source.soulfire && typeof source.soulfire === "object" ? source.soulfire : {};
+          return {
+            ...source,
+            soulfire: {
+              ...soulfire,
+              unlocked: true,
+              amount: Number((Math.max(0, Number(soulfire.amount || 0)) + award).toFixed(2)),
+              totalGenerated: Number((Math.max(0, Number(soulfire.totalGenerated || 0)) + award).toFixed(2)),
+              madraCyclerLevel: Math.max(0, Number(soulfire.madraCyclerLevel || 0)),
+              soulfireCyclerLevel: Math.max(0, Number(soulfire.soulfireCyclerLevel || 0)),
+            },
+          };
+        },
+        () => ({ soulfire: { unlocked: true, amount: award, totalGenerated: award, madraCyclerLevel: 0, soulfireCyclerLevel: 0 } }),
+      );
+      next = updateNodeRuntime(
+        next,
+        "CRD08",
+        (currentRuntime) => ({
+          ...(currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {}),
+          pendingSoulfireAward: 0,
+        }),
+        () => experience.initialState({ node, state: next }),
+      );
+      runtime = readNodeRuntime(next, node, experience);
+      setBanner(`Soulfire gained: +${award}.`);
+    }
+
+    if (node.node_id === "CRD07" && runtime && runtime.pendingUnderlordAdvance) {
+      next = updateNodeRuntime(
+        next,
+        "CRD02",
+        (currentRuntime) => {
+          const source = currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {};
+          const soulfire = source.soulfire && typeof source.soulfire === "object" ? source.soulfire : {};
+          return {
+            ...source,
+            cultivationStage: "underlord",
+            soulfire: {
+              ...soulfire,
+              unlocked: true,
+              amount: Math.max(0, Number(soulfire.amount || 0)),
+              totalGenerated: Math.max(0, Number(soulfire.totalGenerated || 0)),
+              madraCyclerLevel: Math.max(0, Number(soulfire.madraCyclerLevel || 0)),
+              soulfireCyclerLevel: Math.max(0, Number(soulfire.soulfireCyclerLevel || 0)),
+            },
+          };
+        },
+        () => ({ cultivationStage: "underlord", soulfire: { unlocked: true, amount: 0, totalGenerated: 0, madraCyclerLevel: 0, soulfireCyclerLevel: 0 } }),
+      );
+      next = consumeReward(next, "Underlord Revelation I", "CRD07");
+      next = consumeReward(next, "Underlord Revelation II", "CRD07");
+      next = consumeReward(next, "Underlord Revelation Cipher", "CRD07");
+      next = updateNodeRuntime(
+        next,
+        "CRD07",
+        (currentRuntime) => ({
+          ...(currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {}),
+          pendingUnderlordAdvance: false,
+        }),
+        () => experience.initialState({ node, state: next }),
+      );
+      runtime = readNodeRuntime(next, node, experience);
+      setBanner("Underlord achieved.");
+    }
+
+    if (node.node_id === "CRD07" && runtime && String(runtime.consumeLootItemId || "")) {
+      const itemId = String(runtime.consumeLootItemId || "");
+      const consumed = removeLootItemInstance(next, itemId, 1);
+      if (consumed.changed) {
+        next = consumed.nextState;
+      }
+      next = updateNodeRuntime(
+        next,
+        "CRD07",
+        (currentRuntime) => ({
+          ...(currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {}),
+          consumeLootItemId: "",
+        }),
+        () => experience.initialState({ node, state: next }),
+      );
+      runtime = readNodeRuntime(next, node, experience);
+    }
 
     if ((node.node_id === "WORM03" || node.node_id === "WORM04") && Number(runtime && runtime.pendingCloutAward) > 0) {
       const award = Math.max(0, Number(runtime.pendingCloutAward) || 0);
@@ -2211,6 +2388,16 @@ function contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress) {
 
   const section = sectionFromRoute(route);
   if (section) {
+    if (String(section).toLowerCase() === "dungeon crawler carl") {
+      const dccNodes = blueprintIndex.sectionNodes.get(section) || [];
+      const dccNode = dccNodes.find((entry) => entry.node_id === "DCC01") || null;
+      if (dccNode) {
+        navigate(dccNode.route);
+        return {
+          html: `<article class="animated-fade"><p class="muted">Routing to The Crawl...</p></article>`,
+        };
+      }
+    }
     const nodes = blueprintIndex.sectionNodes.get(section) || [];
     lastSectionNodes = nodes;
     normalizeSectionNodeSelection();
@@ -2497,44 +2684,49 @@ function handleClick(event) {
       withState((current) => {
         const runtime = getNodeRuntime(current, "DCC01", () => ({}));
         const run = runtime && runtime.run && typeof runtime.run === "object" ? runtime.run : null;
-        if (!run) {
-          setBanner("Start a DCC run before equipping DCC loot.");
+        if (run) {
+          setBanner("Run gear is locked while a crawl is active.");
           return current;
         }
-        const equipment = run.equipment && typeof run.equipment === "object" ? { ...run.equipment } : {};
+
+        const currentMeta = runtime && runtime.meta && typeof runtime.meta === "object" ? runtime.meta : {};
+        const prepared = currentMeta.preparedEquipment && typeof currentMeta.preparedEquipment === "object"
+          ? { ...currentMeta.preparedEquipment }
+          : { head: null, chest: null, legs: null, trinket: null };
+
         const slot = rawSlot || "trinket";
         if (item.kind === "dcc_armor") {
           if (!["head", "chest", "legs", "trinket"].includes(slot)) {
             setBanner("Choose a valid DCC armor slot.");
             return current;
           }
-          equipment[slot] = {
-            ...(equipment[slot] && typeof equipment[slot] === "object" ? equipment[slot] : {}),
+          prepared[slot] = {
+            ...(prepared[slot] && typeof prepared[slot] === "object" ? prepared[slot] : {}),
             itemId,
             label: item.label,
             rarity: item.rarity,
-            enchantItemId: equipment[slot] && equipment[slot].enchantItemId ? equipment[slot].enchantItemId : "",
+            enchantItemId: prepared[slot] && prepared[slot].enchantItemId ? prepared[slot].enchantItemId : "",
             hpBonus: Number((Array.isArray(item.effects) ? item.effects.find((effect) => effect.key === "dcc_run_hp_bonus") : null)?.value || 0),
             baseAttackBonus: Number((Array.isArray(item.effects) ? item.effects.find((effect) => effect.key === "dcc_run_attack_bonus") : null)?.value || 0),
             baseStaminaBonus: Number((Array.isArray(item.effects) ? item.effects.find((effect) => effect.key === "dcc_run_stamina_bonus") : null)?.value || 0),
             attackBonus: Number((Array.isArray(item.effects) ? item.effects.find((effect) => effect.key === "dcc_run_attack_bonus") : null)?.value || 0),
             staminaBonus: Number((Array.isArray(item.effects) ? item.effects.find((effect) => effect.key === "dcc_run_stamina_bonus") : null)?.value || 0),
           };
-          setBanner(`Equipped ${item.label} to ${slot}.`);
+          setBanner(`Prepared ${item.label} in ${slot} slot.`);
         } else if (item.kind === "dcc_enchant") {
           const armorSlot = targetId || "chest";
           if (!["head", "chest", "legs", "trinket"].includes(armorSlot)) {
             setBanner("Choose an armor piece for this enchant.");
             return current;
           }
-          const base = equipment[armorSlot] && typeof equipment[armorSlot] === "object" ? equipment[armorSlot] : null;
+          const base = prepared[armorSlot] && typeof prepared[armorSlot] === "object" ? prepared[armorSlot] : null;
           if (!base || !base.itemId) {
             setBanner("Equip an armor piece first, then attach an enchant.");
             return current;
           }
           const addAttack = Number((Array.isArray(item.effects) ? item.effects.find((effect) => effect.key === "dcc_run_attack_bonus") : null)?.value || 0);
           const addStamina = Number((Array.isArray(item.effects) ? item.effects.find((effect) => effect.key === "dcc_run_stamina_bonus") : null)?.value || 0);
-          equipment[armorSlot] = {
+          prepared[armorSlot] = {
             ...base,
             enchantItemId: itemId,
             enchantLabel: item.label,
@@ -2542,42 +2734,27 @@ function handleClick(event) {
             attackBonus: Number(base.baseAttackBonus || base.attackBonus || 0) + addAttack,
             staminaBonus: Number(base.baseStaminaBonus || base.staminaBonus || 0) + addStamina,
           };
-          setBanner(`Attached ${item.label} to ${armorSlot} armor.`);
+          setBanner(`Prepared ${item.label} on ${armorSlot} slot.`);
         } else {
           setBanner("That item cannot be slotted in DCC.");
           return current;
         }
 
-        const nextRun = {
-          ...run,
-          equipment,
-        };
-        const equipmentBonuses = Object.values(equipment).reduce((acc, entry) => {
-          if (!entry || typeof entry !== "object") {
-            return acc;
-          }
-          return {
-            hp: acc.hp + Math.max(0, Number(entry.hpBonus || 0)),
-            attack: acc.attack + Math.max(0, Number(entry.attackBonus || 0)),
-            stamina: acc.stamina + Math.max(0, Number(entry.staminaBonus || 0)),
-          };
-        }, { hp: 0, attack: 0, stamina: 0 });
-        const baseMaxHp = Math.max(1, Number(nextRun.baseMaxHp || nextRun.maxHp || 1));
-        const baseAttack = Math.max(1, Number(nextRun.baseAttack || nextRun.attack || 1));
-        const baseMaxStamina = Math.max(1, Number(nextRun.baseMaxStamina || nextRun.maxStamina || 1));
-        nextRun.maxHp = baseMaxHp + equipmentBonuses.hp;
-        nextRun.attack = baseAttack + equipmentBonuses.attack;
-        nextRun.maxStamina = baseMaxStamina + equipmentBonuses.stamina;
-        nextRun.hp = Math.min(nextRun.maxHp, Math.max(0, Number(nextRun.hp || 0)));
-        nextRun.stamina = Math.min(nextRun.maxStamina, Math.max(0, Number(nextRun.stamina || 0)));
         return updateNodeRuntime(
           current,
           "DCC01",
           (rt) => ({
             ...(rt && typeof rt === "object" ? rt : {}),
-            run: nextRun,
+            meta: {
+              ...(rt && rt.meta && typeof rt.meta === "object" ? rt.meta : {}),
+              preparedEquipment: prepared,
+            },
           }),
-          () => ({ run: nextRun }),
+          () => ({
+            meta: {
+              preparedEquipment: prepared,
+            },
+          }),
         );
       });
       renderApp();
@@ -2663,6 +2840,15 @@ function handleClick(event) {
   if (action === "nexus-open") {
     const slug = button.getAttribute("data-section-slug");
     if (slug) {
+      const section = blueprintIndex.sections.find((entry) => sectionRouteSlug(entry) === slug);
+      if (String(section || "").toLowerCase() === "dungeon crawler carl") {
+        const dccNodes = blueprintIndex.sectionNodes.get(section) || [];
+        const dccNode = dccNodes.find((entry) => entry.node_id === "DCC01") || null;
+        if (dccNode) {
+          navigate(dccNode.route);
+          return;
+        }
+      }
       navigate(`/section/${slug}`);
     }
     return;
@@ -2826,6 +3012,32 @@ function handleChange(event) {
       const infoWrap = row.querySelector("[data-worm02-info-wrap]");
       if (infoWrap) {
         const type = String("value" in wormOrderType ? wormOrderType.value : "").trim().toLowerCase();
+        infoWrap.hidden = type !== "info";
+      }
+    }
+    return;
+  }
+
+  const worm03OrderType = event.target.closest("[data-worm03-order-type]");
+  if (worm03OrderType) {
+    const row = worm03OrderType.closest("[data-worm03-order-row]");
+    if (row) {
+      const infoWrap = row.querySelector("[data-worm03-info-wrap]");
+      if (infoWrap) {
+        const type = String("value" in worm03OrderType ? worm03OrderType.value : "").trim().toLowerCase();
+        infoWrap.hidden = type !== "info";
+      }
+    }
+    return;
+  }
+
+  const worm04OrderType = event.target.closest("[data-worm04-order-type]");
+  if (worm04OrderType) {
+    const row = worm04OrderType.closest("[data-worm04-order-row]");
+    if (row) {
+      const infoWrap = row.querySelector("[data-worm04-info-wrap]");
+      if (infoWrap) {
+        const type = String("value" in worm04OrderType ? worm04OrderType.value : "").trim().toLowerCase();
         infoWrap.hidden = type !== "info";
       }
     }
@@ -3052,6 +3264,28 @@ async function bootstrap() {
       lastSlowAutoRenderAt = now;
       renderApp(route);
     }, AUTO_RENDER_INTERVAL_MS);
+    window.setInterval(() => {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+      if (widgetState.artifacts || widgetState.loot || widgetState.save) {
+        return;
+      }
+      const route = getCurrentRoute();
+      if (route !== "/arcane-ascension/attunement-wheel") {
+        return;
+      }
+      const aa02Runtime = getNodeRuntime(appState, "AA02", () => ({}));
+      if (!aa02Runtime || !Array.isArray(aa02Runtime.revealQueue) || !aa02Runtime.revealQueue.length) {
+        return;
+      }
+      const startedAt = Number(aa02Runtime.revealStartedAt || 0);
+      const maxDuration = (aa02Runtime.revealQueue.length + 2) * AA_TOME_STEP_MS;
+      if (startedAt > 0 && Date.now() - startedAt > maxDuration) {
+        return;
+      }
+      renderApp(route);
+    }, AA_TOME_RENDER_INTERVAL_MS);
   } catch (error) {
     root.innerHTML = `
       <div class="focus-surface">

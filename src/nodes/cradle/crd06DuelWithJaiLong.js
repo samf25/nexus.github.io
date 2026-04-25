@@ -1,5 +1,6 @@
 import { escapeHtml } from "../../templates/shared.js";
 import {
+  madraPoolMultiplierForStage,
   normalizeCombatStage,
   randomUnit,
   rollDamage,
@@ -66,7 +67,7 @@ function combatProfileFromState(state) {
     meleeBonus: soulCloak + consume + hollowDomain,
     dodgeBonus: soulCloak + hollowDomain,
     maxHp: 128 + ironBody * 26 + (stage === "jade" ? 26 : stage === "gold" ? 44 : 0),
-    maxMadra: 120 + (stage === "jade" ? 22 : stage === "gold" ? 34 : 0),
+    maxMadra: Math.round((112 + soulCloak * 4 + consume * 6 + hollowDomain * 7) * madraPoolMultiplierForStage(stage)),
   };
 }
 
@@ -75,6 +76,19 @@ function appendLog(runtime, line) {
     ...runtime,
     log: [...runtime.log.slice(-9), line],
   };
+}
+
+function barMarkup(label, current, max, className = "") {
+  const safeMax = Math.max(1, Number(max) || 1);
+  const value = Math.max(0, Number(current) || 0);
+  const percent = Math.min(100, Math.max(0, (value / safeMax) * 100));
+  return `
+    <div class="crd04-bar ${className}">
+      <div class="crd04-bar-label">${escapeHtml(label)}</div>
+      <div class="crd04-bar-track"><span style="width:${percent.toFixed(2)}%"></span></div>
+      <div class="crd04-bar-value">${escapeHtml(String(Math.round(value)))}/${escapeHtml(String(Math.round(safeMax)))}</div>
+    </div>
+  `;
 }
 
 function startBattle(runtime, action) {
@@ -358,11 +372,11 @@ export function renderCrd06Experience(context) {
 
   if (runtime.phase === "intro") {
     return `
-      <article class="crd06-node" data-node-id="${NODE_ID}">
-        <section class="card">
+      <article class="crd04-node" data-node-id="${NODE_ID}">
+        <section class="crd04-dialog">
           <h3>CRD06: Duel with Jai Long</h3>
           <p>Jai Long arrives with spear and serpents. Defeat him to force your way into the wider world.</p>
-          <div class="toolbar">
+          <div class="crd04-actions">
             <button
               type="button"
               data-node-id="${NODE_ID}"
@@ -377,7 +391,7 @@ export function renderCrd06Experience(context) {
               Begin Duel
             </button>
           </div>
-          ${runtime.lastMessage ? `<p class="muted">${escapeHtml(runtime.lastMessage)}</p>` : ""}
+          ${runtime.lastMessage ? `<p>${escapeHtml(runtime.lastMessage)}</p>` : ""}
         </section>
       </article>
     `;
@@ -385,30 +399,39 @@ export function renderCrd06Experience(context) {
 
   if (runtime.phase === "victory") {
     return `
-      <article class="crd06-node" data-node-id="${NODE_ID}">
-        <section class="card">
+      <article class="crd04-node" data-node-id="${NODE_ID}">
+        <section class="crd04-dialog">
           <h3>CRD06: Duel with Jai Long</h3>
           <p>Eithan Arelius strolls in, claps once, and declares he is your mentor now. He teaches the Heaven and Earth Purification Wheel, then tosses you two cryptic artifacts.</p>
-          <p class="muted">Node complete.</p>
         </section>
       </article>
     `;
   }
 
   return `
-    <article class="crd06-node" data-node-id="${NODE_ID}">
-      <section class="card">
-        <h3>CRD06: Duel with Jai Long</h3>
-        <p><strong>You:</strong> ${escapeHtml(String(Math.round(runtime.playerHp)))}/${escapeHtml(String(Math.round(runtime.playerMaxHp)))} HP | ${escapeHtml(String(Math.round(runtime.playerMadra)))}/${escapeHtml(String(Math.round(runtime.playerMaxMadra)))} Madra</p>
-        <p><strong>Jai Long:</strong> ${escapeHtml(String(Math.round(runtime.enemy.hp)))}/${escapeHtml(String(Math.round(runtime.enemy.maxHp)))} HP</p>
-        <div class="toolbar">
+    <article class="crd04-node" data-node-id="${NODE_ID}">
+      <section class="crd04-combat-head">
+        <h3>Duel with Jai Long</h3>
+        <p class="muted">Your stage: ${escapeHtml(runtime.playerStage)} | Opponent: Jai Long (Gold)</p>
+      </section>
+
+      <section class="crd04-bars">
+        ${barMarkup("Health", runtime.playerHp, runtime.playerMaxHp, "is-health")}
+        ${barMarkup("Madra", runtime.playerMadra, runtime.playerMaxMadra, "is-madra")}
+      </section>
+
+      <section class="crd04-bars enemy">
+        ${barMarkup("Jai Long HP", runtime.enemy.hp, runtime.enemy.maxHp, "is-enemy")}
+      </section>
+
+      <section class="crd04-actions">
           <button type="button" data-node-id="${NODE_ID}" data-node-action="crd06-combat" data-move="melee">Melee</button>
           <button type="button" data-node-id="${NODE_ID}" data-node-action="crd06-combat" data-move="dodge">Dodge</button>
           <button type="button" data-node-id="${NODE_ID}" data-node-action="crd06-combat" data-move="empty-palm">Empty Palm</button>
-        </div>
       </section>
-      <section class="card">
-        <h4>Battle Log</h4>
+
+      <section class="crd04-log">
+        <h4>Combat Log</h4>
         <ul>
           ${logLines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
         </ul>
@@ -426,4 +449,3 @@ export const CRD06_NODE_EXPERIENCE = {
   validateRuntime: validateCrd06Runtime,
   buildActionFromElement: buildCrd06ActionFromElement,
 };
-

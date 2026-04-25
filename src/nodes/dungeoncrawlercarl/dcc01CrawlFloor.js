@@ -11,6 +11,10 @@ const ROOM_WIDTH = 13;
 const ROOM_HEIGHT = 9;
 const ENEMY_ACTION_INTERVAL_MS = 1000;
 
+function safeText(value) {
+  return String(value || "").trim();
+}
+
 const DIRECTIONS = Object.freeze({
   up: Object.freeze({ dx: 0, dy: -1, label: "North (W)", key: "w" }),
   down: Object.freeze({ dx: 0, dy: 1, label: "South (S)", key: "s" }),
@@ -243,6 +247,7 @@ function randomPick(rand, values) {
 function withDefaultMeta(meta) {
   const source = meta && typeof meta === "object" ? meta : {};
   const upgrades = source.upgrades && typeof source.upgrades === "object" ? source.upgrades : {};
+  const preparedEquipment = normalizeEquipment(source.preparedEquipment);
   return {
     gold: Math.max(0, Math.floor(Number(source.gold) || 0)),
     upgrades: {
@@ -255,6 +260,7 @@ function withDefaultMeta(meta) {
     totalRuns: Math.max(0, Math.floor(Number(source.totalRuns) || 0)),
     totalDeaths: Math.max(0, Math.floor(Number(source.totalDeaths) || 0)),
     bestFloor: Math.max(1, Math.floor(Number(source.bestFloor) || 1)),
+    preparedEquipment,
   };
 }
 
@@ -810,7 +816,7 @@ function startFloor(runtime, state, floor = 1) {
     abilitySlots: slots,
     combat: null,
     event: null,
-    equipment: equipmentDefaults(),
+    equipment: normalizeEquipment(runtime && runtime.meta ? runtime.meta.preparedEquipment : null),
     roomState: null,
     nextEnemyActAt: 0,
     bossDefeated: false,
@@ -1941,7 +1947,6 @@ function roomViewMarkup(run) {
   return `
     <section class="card dcc-room">
       <h4>Active Room ${escapeHtml(room.id)}</h4>
-      <p class="muted">WASD to move in-room. Walk onto doors, chests, stairs, and encounter markers.</p>
       <div class="dcc-room-grid">${cells.join("")}</div>
     </section>
   `;
@@ -2088,7 +2093,9 @@ function abilitySlotMarkup(run) {
 }
 
 function dccLootPanelMarkup(runtime, state) {
-  const equipment = runtime && runtime.run ? normalizeEquipment(runtime.run.equipment) : equipmentDefaults();
+  const equipment = runtime && runtime.run
+    ? normalizeEquipment(runtime.run.equipment)
+    : normalizeEquipment(runtime && runtime.meta ? runtime.meta.preparedEquipment : null);
   const rows = [
     { slot: "head", label: "Head" },
     { slot: "chest", label: "Chest" },
@@ -2096,7 +2103,7 @@ function dccLootPanelMarkup(runtime, state) {
     { slot: "trinket", label: "Trinket" },
   ];
   const selectedLootItemId = String(runtime && runtime.selectedLootItemId ? runtime.selectedLootItemId : "");
-  const canEquip = Boolean(runtime && runtime.run && selectedLootItemId);
+  const canEquip = Boolean(runtime && !runtime.run && selectedLootItemId);
   const ringSlots = rows.map((row) => {
     const item = equipment[row.slot];
     const details = item
@@ -2140,11 +2147,34 @@ function dccLootPanelMarkup(runtime, state) {
         }),
         ariaLabel: "DCC gear slots",
       })}
-      <p class="muted">${canEquip ? "Click a slot to equip selected loot." : "Select DCC loot, then click a gear slot during a run."}</p>
+      <p class="muted">${canEquip ? "Click a slot to set run gear." : "Select DCC loot, then click a gear slot before entering a run."}</p>
       <div class="toolbar">
         <button type="button" data-action="toggle-widget" data-widget="loot">Open Loot Panel</button>
       </div>
     </section>
+  `;
+}
+
+function compactGearSummaryMarkup(run) {
+  const equipment = normalizeEquipment(run && run.equipment);
+  const entries = [
+    { slot: "head", label: "H" },
+    { slot: "chest", label: "C" },
+    { slot: "legs", label: "L" },
+    { slot: "trinket", label: "T" },
+  ];
+  return `
+    <div class="dcc-gear-mini" aria-label="Run gear summary">
+      ${entries.map((entry) => {
+    const item = equipment[entry.slot];
+    const title = item
+      ? `${entry.slot}: ${item.label || "gear"}${item.enchantLabel ? ` | ${item.enchantLabel}` : ""}`
+      : `${entry.slot}: empty`;
+    return `
+          <span class="dcc-gear-mini-slot ${item ? "is-filled" : ""}" title="${escapeHtml(title)}">${escapeHtml(entry.label)}</span>
+        `;
+  }).join("")}
+    </div>
   `;
 }
 
@@ -2244,6 +2274,7 @@ function runMarkup(runtime, state, selectedArtifact = "") {
         <section class="card dcc-status">
           <h3>Floor ${escapeHtml(String(run.floor))}</h3>
           <p><strong>HP:</strong> ${escapeHtml(String(run.hp))}/${escapeHtml(String(run.maxHp))} | <strong>Stamina:</strong> ${escapeHtml(String(run.stamina))}/${escapeHtml(String(run.maxStamina))}</p>
+          ${compactGearSummaryMarkup(run)}
           <p><strong>Gold:</strong> ${escapeHtml(String(runtime.meta.gold))} | <strong>Current Room:</strong> ${escapeHtml(room ? room.id : "Unknown")}</p>
           ${
             enemy
@@ -2278,9 +2309,7 @@ function runMarkup(runtime, state, selectedArtifact = "") {
           <h4>Combat Loadout</h4>
           <p><strong>Attack:</strong> ${escapeHtml(String(run.attack))} | <strong>Rare Drop Bias:</strong> ${escapeHtml((run.rareBonus * 100).toFixed(0))}%</p>
           ${abilitySlotMarkup(run)}
-          <p class="muted">WASD movement, numbers for abilities, walk onto stairs to descend.</p>
         </section>
-        ${dccLootPanelMarkup(runtime, state)}
       </div>
 
       <aside class="card dcc-feed">

@@ -1,7 +1,7 @@
 import { escapeHtml } from "../../templates/shared.js";
 import { renderArtifactSymbol } from "../../core/artifacts.js";
 import { renderRegionSymbol } from "../../core/symbology.js";
-import { arcaneSystemFromState } from "../../systems/arcaneAscension.js";
+import { arcaneSystemFromState, glyphDisplayName } from "../../systems/arcaneAscension.js";
 import { lootInventoryFromState } from "../../systems/loot.js";
 import { renderSlotRing } from "../../ui/slotRing.js";
 
@@ -41,11 +41,8 @@ function parseSerializedStroke(value) {
 }
 
 function readableGlyphName(glyphId) {
-  return safeText(glyphId)
-    .split("-")
-    .map((part) => (part ? `${part[0].toUpperCase()}${part.slice(1)}` : ""))
-    .join(" ")
-    .trim();
+  const normalized = safeText(glyphId).toLowerCase();
+  return glyphDisplayName(normalized, regionSectionFromGlyph(normalized) ? "region" : "enhancement");
 }
 
 function regionSectionFromGlyph(glyphId) {
@@ -353,8 +350,8 @@ function appraisalMarkup(runtime, arcane) {
   return `
     <section class="card">
       <h3>Appraisal</h3>
-      <p><strong>Region Rune:</strong> ${escapeHtml(safeText(runtime.regionMatch && runtime.regionMatch.bestMatch) || "unknown")}</p>
-      <p><strong>Enhancement Rune:</strong> ${escapeHtml(safeText(runtime.enhancementMatch && runtime.enhancementMatch.bestMatch) || "unknown")}</p>
+      <p><strong>Region Rune:</strong> ${escapeHtml(readableGlyphName(safeText(runtime.regionMatch && runtime.regionMatch.bestMatch)) || "Unknown")}</p>
+      <p><strong>Enhancement Rune:</strong> ${escapeHtml(readableGlyphName(safeText(runtime.enhancementMatch && runtime.enhancementMatch.bestMatch)) || "Unknown")}</p>
       <p><strong>Estimated Accuracy:</strong> ${escapeHtml(String(Math.round(runtime.estimatedAccuracy * 100)))}%</p>
       <label>
         <span class="muted">Mana Investment</span>
@@ -383,7 +380,7 @@ function resultMarkup(runtime) {
     <section class="card">
       <h3>Craft Result</h3>
       <p><strong>Outcome:</strong> ${escapeHtml(outcome.label || "Unknown")}</p>
-      <p><strong>Region:</strong> ${escapeHtml(safeText(outcome.region).toUpperCase() || "N/A")}</p>
+      <p><strong>Region:</strong> ${escapeHtml(readableGlyphName(safeText(outcome.region)) || "N/A")}</p>
       <p><strong>Rarity:</strong> ${escapeHtml(outcome.rarity || "N/A")}</p>
       <p class="muted">${outcome.junk ? "Junk output. You can auction it for a small return." : "Successful enchantment stabilized."}</p>
       <button type="button" data-node-id="${NODE_ID}" data-node-action="aa03-new-craft">Start New Craft</button>
@@ -447,7 +444,6 @@ function grimoireTabMarkup(arcane) {
   return `
     <section class="card aa03-grimoire-book">
       <h3>Grimoire</h3>
-      <p class="muted">Known runes and signatures.</p>
       <h4>Region Glyphs</h4>
       <div class="worm01-card-grid">
         ${arcane.grimoire.regionGlyphs.map((glyph, index) => glyphCardMarkup(glyph, index)).join("") || "<p class=\"muted\">No region glyphs learned yet.</p>"}
