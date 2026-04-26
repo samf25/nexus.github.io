@@ -8,6 +8,8 @@ const COMBAT_STAGES = Object.freeze([
   "highgold",
   "truegold",
   "underlord",
+  "overlord",
+  "archlord",
 ]);
 
 const DEFENSE_MULTIPLIER = Object.freeze({
@@ -20,6 +22,8 @@ const DEFENSE_MULTIPLIER = Object.freeze({
   highgold: 0.3,
   truegold: 0.24,
   underlord: 0.19,
+  overlord: 0.14,
+  archlord: 0.1,
 });
 
 const ATTACK_MULTIPLIER = Object.freeze({
@@ -32,6 +36,8 @@ const ATTACK_MULTIPLIER = Object.freeze({
   highgold: 2.55,
   truegold: 2.95,
   underlord: 3.55,
+  overlord: 4.25,
+  archlord: 5.1,
 });
 
 const MADRA_POOL_MULTIPLIER = Object.freeze({
@@ -44,6 +50,8 @@ const MADRA_POOL_MULTIPLIER = Object.freeze({
   highgold: 3.8,
   truegold: 4.6,
   underlord: 5.7,
+  overlord: 7.1,
+  archlord: 8.9,
 });
 
 export function normalizeCombatStage(stageId) {

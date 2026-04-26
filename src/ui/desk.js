@@ -1,5 +1,6 @@
 import { escapeHtml } from "../templates/shared.js";
 import { renderRegionSymbol } from "../core/symbology.js";
+import { deskHintsForNode } from "../data/deskHints.js";
 
 function bestDeskNode(unlockedNodes, preferredNodeId) {
   if (preferredNodeId) {
@@ -22,7 +23,7 @@ function nodeOptionMarkup(nodes, selectedNodeId) {
 }
 
 function hintRailForNode(node) {
-  return [node.hint_1, node.hint_2, node.hint_3].filter(Boolean);
+  return deskHintsForNode(node);
 }
 
 export function renderDesk({ unlockedNodes, selectedNodeId, hintLevels }) {
@@ -81,7 +82,7 @@ export function renderDesk({ unlockedNodes, selectedNodeId, hintLevels }) {
       </div>
 
       <div class="footer-note">
-        Desk protocol scaffold is live. Node-authored hints are pulled directly from the blueprint fields and escalated by request level.
+        Desk protocol is active. Hints escalate by request level and track current node behavior.
       </div>
     </article>
   `;

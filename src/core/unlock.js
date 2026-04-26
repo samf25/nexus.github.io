@@ -1,4 +1,4 @@
-import { hasWaveOnePasskey, hasWaveTwoPasskey } from "./artifacts.js";
+import { hasWaveOnePasskey, hasWaveTwoPasskey, hasWaveThreePasskey } from "./artifacts.js";
 import {
   countPracticalGuideWinArtifacts,
   practicalGuideWinArtifacts,
@@ -22,6 +22,7 @@ const WAVE_TWO_SECTIONS = new Set([
   "A Practical Guide to Evil",
   "Practical Guide",
 ]);
+const WAVE_THREE_NODE_IDS = new Set(["FIN01"]);
 const ALWAYS_UNLOCKED_NODE_IDS = new Set(["WORM03"]);
 
 export function computeUnlockedNodeIds(index, state) {
@@ -29,6 +30,7 @@ export function computeUnlockedNodeIds(index, state) {
   const unlocked = new Set();
   const waveOneUnlocked = hasWaveOnePasskey(state);
   const waveTwoUnlocked = hasWaveTwoPasskey(state);
+  const waveThreeUnlocked = hasWaveThreePasskey(state);
 
   for (const node of index.raw.nodes) {
     if (ALWAYS_UNLOCKED_NODE_IDS.has(node.node_id)) {
@@ -52,8 +54,16 @@ export function computeUnlockedNodeIds(index, state) {
     const waveTwoGateNode = WAVE_TWO_SECTIONS.has(node.section);
     const passesWaveTwoGate = !waveTwoGateNode || waveTwoUnlocked;
     const waveTwoBypass = waveTwoUnlocked && waveTwoGateNode;
+    const waveThreeGateNode = WAVE_THREE_NODE_IDS.has(node.node_id);
+    const passesWaveThreeGate = !waveThreeGateNode || waveThreeUnlocked;
+    const waveThreeBypass = waveThreeUnlocked && waveThreeGateNode;
 
-    if ((hasAllDeps && passesWaveOneGate && passesWaveTwoGate) || waveOneBypass || waveTwoBypass) {
+    if (
+      (hasAllDeps && passesWaveOneGate && passesWaveTwoGate && passesWaveThreeGate) ||
+      waveOneBypass ||
+      waveTwoBypass ||
+      waveThreeBypass
+    ) {
       unlocked.add(node.node_id);
     }
   }
@@ -65,6 +75,9 @@ export function computeUnlockedNodeIds(index, state) {
   );
 
   for (const node of index.raw.nodes) {
+    if (node.section === "Final Arc") {
+      continue;
+    }
     if (unlockedSections.has(node.section)) {
       if (WAVE_TWO_SECTIONS.has(node.section) && !waveTwoUnlocked) {
         continue;

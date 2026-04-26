@@ -3,18 +3,63 @@ import { renderRegionSymbol } from "../core/symbology.js";
 import { renderArtifactSymbol } from "../core/artifacts.js";
 import { formatLootItemEffectSummary, isDirectUseLootItem, isLootItemEquipped, lootItemsByRegion } from "../systems/loot.js";
 
-function renderInventory(state, selectedArtifactReward) {
-  const rewards = Object.entries(state.inventory.rewards || {});
-  if (!rewards.length) {
+function renderInventory(state, selectedArtifactReward, selectedArtifactSource = "all") {
+  const rewardEntries = Object.entries(state.inventory.rewards || {}).map(([reward, meta]) => ({
+    reward,
+    meta: meta && typeof meta === "object" ? meta : {},
+  }));
+  if (!rewardEntries.length) {
     return `<div class="widget-empty">No artifacts collected yet.</div>`;
   }
 
+  const sources = Array.from(
+    new Set(
+      rewardEntries
+        .map((entry) => String(entry.meta.section || "").trim())
+        .filter(Boolean),
+    ),
+  ).sort((left, right) => left.localeCompare(right));
+  const selectedSource = selectedArtifactSource === "all" || sources.includes(selectedArtifactSource)
+    ? selectedArtifactSource
+    : "all";
+  const filtered = selectedSource === "all"
+    ? rewardEntries.slice()
+    : rewardEntries.filter((entry) => String(entry.meta.section || "").trim() === selectedSource);
+
+  const tabs = `
+    <div class="toolbar widget-artifact-tabs">
+      <button
+        type="button"
+        data-action="artifact-select-source"
+        data-source="all"
+        ${selectedSource === "all" ? "disabled" : ""}
+      >
+        All
+      </button>
+      ${sources.map((source) => `
+        <button
+          type="button"
+          data-action="artifact-select-source"
+          data-source="${escapeHtml(source)}"
+          ${selectedSource === source ? "disabled" : ""}
+        >
+          ${escapeHtml(source)}
+        </button>
+      `).join("")}
+    </div>
+  `;
+
+  if (!filtered.length) {
+    return `${tabs}<div class="widget-empty">No artifacts in this source tab.</div>`;
+  }
+
   return `
-    <ul class="widget-list widget-artifact-list">
-      ${rewards
-        .sort((a, b) => a[0].localeCompare(b[0]))
+    ${tabs}
+    <ul class="widget-list widget-artifact-list widget-scroll-list">
+      ${filtered
+        .sort((a, b) => String(a.reward).localeCompare(String(b.reward)))
         .map(
-          ([reward]) => `
+          ({ reward, meta }) => `
             <li class="widget-item">
               <button
                 type="button"
@@ -29,6 +74,7 @@ function renderInventory(state, selectedArtifactReward) {
                 })}
                 <span class="widget-artifact-labels">
                   <strong>${escapeHtml(reward)}</strong>
+                  <small>${escapeHtml(String(meta.section || "Unknown source"))}</small>
                 </span>
               </button>
             </li>
@@ -150,6 +196,7 @@ export function renderShellLayout({
   summary,
   state,
   selectedArtifactReward,
+  selectedArtifactSource,
   selectedLootItemId,
   selectedLootRegion,
   deskUnlocked,
@@ -184,6 +231,8 @@ export function renderShellLayout({
           <button data-action="toggle-widget" data-widget="artifacts">Artifacts</button>
           <button data-action="toggle-widget" data-widget="loot">Loot</button>
           <button data-action="toggle-widget" data-widget="save">Save</button>
+          <button class="ghost" data-action="dev-unlock-final">Dev: Final Kit</button>
+          <button class="ghost" data-action="dev-open-victory">Dev: Victory</button>
           <button class="warn" data-action="reset-progress">Reset</button>
         </nav>
       </header>
@@ -216,7 +265,7 @@ export function renderShellLayout({
             <h3>Artifacts</h3>
             <button class="ghost" data-action="toggle-widget" data-widget="artifacts">Close</button>
           </header>
-          ${renderInventory(state, selectedArtifactReward)}
+          ${renderInventory(state, selectedArtifactReward, selectedArtifactSource)}
         </section>
 
         <section class="${widgetClass(widgetState.loot)}">

@@ -228,7 +228,8 @@ function hasReachedUnderlord(state) {
     state && state.nodeRuntime && state.nodeRuntime.CRD02 && typeof state.nodeRuntime.CRD02 === "object"
       ? state.nodeRuntime.CRD02
       : {};
-  return String(crd02.cultivationStage || "").trim().toLowerCase() === "underlord";
+  const stage = String(crd02.cultivationStage || "").trim().toLowerCase();
+  return ["underlord", "overlord", "archlord"].includes(stage);
 }
 
 function upgradesMarkup(regionSnapshot, state) {

@@ -14,6 +14,9 @@ import { CRD05_NODE_EXPERIENCE } from "./cradle/crd05HeavensGlorySchool.js";
 import { CRD06_NODE_EXPERIENCE } from "./cradle/crd06DuelWithJaiLong.js";
 import { CRD07_NODE_EXPERIENCE } from "./cradle/crd07NightwheelValley.js";
 import { CRD08_NODE_EXPERIENCE } from "./cradle/crd08UncrownedTournament.js";
+import { CRD09_NODE_EXPERIENCE } from "./cradle/crd09LordRealmAscent.js";
+import { CRD10_NODE_EXPERIENCE } from "./cradle/crd10LordwayPilgrimage.js";
+import { CRD11_NODE_EXPERIENCE } from "./cradle/crd11DreadgodHunts.js";
 import { LOG01_NODE_EXPERIENCE } from "./math/log01TruthGates.js";
 import { LOG02_NODE_EXPERIENCE } from "./math/log02WitnessGrid.js";
 import {
@@ -54,6 +57,12 @@ import { WORM01_NODE_EXPERIENCE } from "./worm/worm01DeckDuel.js";
 import { WORM02_NODE_EXPERIENCE } from "./worm/worm02Arena.js";
 import { WORM03_NODE_EXPERIENCE } from "./worm/worm03BrocktonBay.js";
 import { WORM04_NODE_EXPERIENCE } from "./worm/worm04Cleanup.js";
+import {
+  WORM05_NODE_EXPERIENCE,
+  WORM06_NODE_EXPERIENCE,
+  WORM07_NODE_EXPERIENCE,
+  WORM08_NODE_EXPERIENCE,
+} from "./worm/worm05EndbringerChain.js";
 import { DCC01_NODE_EXPERIENCE } from "./dungeoncrawlercarl/dcc01CrawlFloor.js";
 import {
   PGE01_NODE_EXPERIENCE,
@@ -63,6 +72,7 @@ import {
   PGE05_NODE_EXPERIENCE,
   PGE06_NODE_EXPERIENCE,
 } from "./practicalguide/pgeTextAdventures.js";
+import { FIN01_NODE_EXPERIENCE } from "./final/final01ConvergenceGate.js";
 
 const NODE_EXPERIENCE_REGISTRY = Object.freeze({
   HUB01: HUB01_NODE_EXPERIENCE,
@@ -81,6 +91,9 @@ const NODE_EXPERIENCE_REGISTRY = Object.freeze({
   CRD06: CRD06_NODE_EXPERIENCE,
   CRD07: CRD07_NODE_EXPERIENCE,
   CRD08: CRD08_NODE_EXPERIENCE,
+  CRD09: CRD09_NODE_EXPERIENCE,
+  CRD10: CRD10_NODE_EXPERIENCE,
+  CRD11: CRD11_NODE_EXPERIENCE,
   LOG01: LOG01_NODE_EXPERIENCE,
   LOG02: LOG02_NODE_EXPERIENCE,
   LOG03: LOG03_NODE_EXPERIENCE,
@@ -119,6 +132,10 @@ const NODE_EXPERIENCE_REGISTRY = Object.freeze({
   WORM02: WORM02_NODE_EXPERIENCE,
   WORM03: WORM03_NODE_EXPERIENCE,
   WORM04: WORM04_NODE_EXPERIENCE,
+  WORM05: WORM05_NODE_EXPERIENCE,
+  WORM06: WORM06_NODE_EXPERIENCE,
+  WORM07: WORM07_NODE_EXPERIENCE,
+  WORM08: WORM08_NODE_EXPERIENCE,
   DCC01: DCC01_NODE_EXPERIENCE,
   PGE01: PGE01_NODE_EXPERIENCE,
   PGE02: PGE02_NODE_EXPERIENCE,
@@ -126,6 +143,7 @@ const NODE_EXPERIENCE_REGISTRY = Object.freeze({
   PGE04: PGE04_NODE_EXPERIENCE,
   PGE05: PGE05_NODE_EXPERIENCE,
   PGE06: PGE06_NODE_EXPERIENCE,
+  FIN01: FIN01_NODE_EXPERIENCE,
 });
 
 export function getNodeExperience(nodeId) {

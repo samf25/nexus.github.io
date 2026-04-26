@@ -188,6 +188,11 @@ export function hasWaveTwoPasskey(state) {
   return Boolean(slots.wave2);
 }
 
+export function hasWaveThreePasskey(state) {
+  const slots = keySlotsFromState(state);
+  return Boolean(slots.wave3);
+}
+
 export function consumeReward(state, rewardName, usedBy = "") {
   const reward = String(rewardName || "");
   if (!reward) {

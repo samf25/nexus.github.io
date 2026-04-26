@@ -28,6 +28,7 @@ import { escapeHtml } from "./templates/shared.js";
 import { renderShellLayout } from "./ui/shell.js";
 import { renderDesk } from "./ui/desk.js";
 import { renderNexusView } from "./ui/nexus.js";
+import { mountVictoryScreen, unmountVictoryScreen } from "./ui/victoryScreen.js";
 import { consumeReward, hasWaveOnePasskey, keySlotsFromState, socketRewardKey } from "./core/artifacts.js";
 import { convertMadraToCharge, setMadraPreset, tickMadraWell } from "./systems/madraWell.js";
 import {
@@ -75,10 +76,32 @@ import {
   tickArcaneMana,
 } from "./systems/arcaneAscension.js";
 import { wormCardById } from "./nodes/worm/wormData.js";
+import { TWI03_SPECIAL_REWARD_SEQUENCE } from "./nodes/wanderinginn/twi03Inn.js";
+import { FIN01_ARTIFACT_PHASE_METADATA } from "./nodes/final/final01ConvergenceGate.js";
 
 const root = document.getElementById("app");
 
 let blueprintIndex = null;
+const DEPRECATED_REWARD_NAMES = new Set([
+  "Spire Badge",
+  "Mana Pair",
+  "Blueprint Thread",
+  "Madra Charges",
+  "Path Schema",
+  "Forged Component",
+  "Remnant Diagram",
+  "Resonance Thread",
+  "Advancement Thread",
+  "Revelation Thread",
+  "Advancement Seal; Technique Set",
+  "Crawler Badge",
+  "Palimpsest Letters",
+  "Cycle Count",
+  "Memory Marker",
+  "Route Thread",
+  "Common Tongue Scrap",
+  "Board Code",
+]);
 let appState = loadState();
 let deskFocusNodeId = null;
 let bannerMessage = "";
@@ -89,6 +112,7 @@ let widgetState = {
   save: false,
 };
 let selectedArtifactReward = "";
+let selectedArtifactSource = "all";
 let selectedLootItemId = "";
 let selectedLootRegion = "crd";
 let nexusRingSelectionIndex = 0;
@@ -96,13 +120,23 @@ let nexusItemSelectionByRing = [];
 let lastNexusRings = [];
 let sectionNodeSelectionIndex = 0;
 let lastSectionNodes = [];
+let lastSectionFocusBySection = {};
+let lastRenderedSectionRoute = "";
 let activeNodeContext = null;
 let routeVisitNonce = 0;
 let lastRouteForVisit = "";
+let forceVictoryPreview = false;
 const AUTO_RENDER_INTERVAL_MS = 2000;
 const AA_TOME_RENDER_INTERVAL_MS = 350;
 const AA_TOME_STEP_MS = 1050;
 const HUB08_ORB_HOLD_MS = 2000;
+const FINAL_VICTORY_ROUTE = "/victory";
+const FINAL_VICTORY_NODE_ID = "FIN01";
+const FINAL_TEST_HARD_LOCK_ARTIFACTS = Object.freeze([
+  "The Transient, Ephemeral, Fleeting Vault of the Mortal World. The Evanescent Safe of Passing Moments, the Faded Chest of Then and Them. The Box of Incontinuity",
+  "The Dungeon Anarchist's Cookbook",
+]);
+const FINAL_TEST_PHASE_ARTIFACTS = Object.freeze(Object.keys(FIN01_ARTIFACT_PHASE_METADATA || {}));
 const NEXUS_MATH_SECTION_ORDER = Object.freeze([
   "Hall of Proofs",
   "Prime Vault",
@@ -177,6 +211,20 @@ const NODE_ARTIFACT_CONSUME_RULES = Object.freeze([
     when: (action) => action.ready === true,
   }),
   Object.freeze({
+    nodeId: "WORM05",
+    actionType: "worm05-summon-simurgh",
+    artifact: "Simurgh Summoning Bracelet",
+    usedBy: "WORM05",
+    when: (action) => action.ready === true,
+  }),
+  Object.freeze({
+    nodeId: "WORM07",
+    actionType: "worm07-summon-behemoth",
+    artifact: "Behemoth Summoning Anklet",
+    usedBy: "WORM07",
+    when: (action) => action.ready === true,
+  }),
+  Object.freeze({
     nodeId: "DCC01",
     actionType: "dcc-unlock-floor3",
     artifact: "DCC Floor-3 Key",
@@ -208,6 +256,30 @@ const NODE_REWARD_OVERRIDES = Object.freeze({
     suppressBlueprintReward: true,
     supplementalRewards: Object.freeze([]),
   }),
+  DCC01: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze([]),
+  }),
+  FIN01: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze([]),
+  }),
+  MOL02: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze([]),
+  }),
+  MOL03: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze([]),
+  }),
+  TWI02: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze([]),
+  }),
+  TWI03: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze([]),
+  }),
   TWI04: Object.freeze({
     suppressBlueprintReward: true,
     supplementalRewards: Object.freeze([]),
@@ -234,11 +306,39 @@ const NODE_REWARD_OVERRIDES = Object.freeze({
   }),
   WORM03: Object.freeze({
     suppressBlueprintReward: true,
-    supplementalRewards: Object.freeze(["Nightwine Ledger"]),
+    supplementalRewards: Object.freeze(["Nightwine Ledger", "Leviathan Core Sigil"]),
   }),
   WORM04: Object.freeze({
     suppressBlueprintReward: true,
     supplementalRewards: Object.freeze(["Mercy Bell Chime"]),
+  }),
+  WORM05: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze(["Simurgh Feather Sigil"]),
+  }),
+  WORM06: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze([]),
+  }),
+  WORM07: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze(["Behemoth Ember Sigil"]),
+  }),
+  WORM08: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze([]),
+  }),
+  CRD09: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze([]),
+  }),
+  CRD10: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze([]),
+  }),
+  CRD11: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze([]),
   }),
   WORM02: Object.freeze({
     suppressBlueprintReward: false,
@@ -248,6 +348,22 @@ const NODE_REWARD_OVERRIDES = Object.freeze({
 let hub08OrbHoldSession = {
   pointerId: null,
   button: null,
+  startAt: 0,
+  rafId: 0,
+  completed: false,
+};
+let crd09HoldSession = {
+  pointerId: null,
+  button: null,
+  actionType: "",
+  startAt: 0,
+  rafId: 0,
+  completed: false,
+};
+let fin01HoldSession = {
+  pointerId: null,
+  button: null,
+  resource: "",
   startAt: 0,
   rafId: 0,
   completed: false,
@@ -417,10 +533,37 @@ function isRegionNodeSoftLocked(node, state) {
       state && state.nodeRuntime && state.nodeRuntime.CRD02 && typeof state.nodeRuntime.CRD02 === "object"
         ? state.nodeRuntime.CRD02
         : {};
-    return String(crd02.cultivationStage || "").trim().toLowerCase() !== "underlord";
+    const stage = String(crd02.cultivationStage || "").trim().toLowerCase();
+    return !["underlord", "overlord", "archlord"].includes(stage);
+  }
+  if (nodeId === "CRD09") {
+    return !solved.has("CRD08");
+  }
+  if (nodeId === "CRD10") {
+    const crd02 =
+      state && state.nodeRuntime && state.nodeRuntime.CRD02 && typeof state.nodeRuntime.CRD02 === "object"
+        ? state.nodeRuntime.CRD02
+        : {};
+    const stage = String(crd02.cultivationStage || "").trim().toLowerCase();
+    return stage !== "archlord";
+  }
+  if (nodeId === "CRD11") {
+    return !solved.has("CRD10");
   }
   if (nodeId === "WORM04") {
     return !solved.has("WORM03");
+  }
+  if (nodeId === "WORM05") {
+    return !solved.has("WORM04");
+  }
+  if (nodeId === "WORM06") {
+    return !solved.has("WORM05");
+  }
+  if (nodeId === "WORM07") {
+    return !solved.has("WORM06");
+  }
+  if (nodeId === "WORM08") {
+    return !solved.has("WORM07");
   }
   return false;
 }
@@ -473,6 +616,39 @@ function rewardsMap(state) {
     ? state.inventory.rewards
     : {};
 }
+
+function stripDeprecatedRewardsFromState(state) {
+  const source = state && typeof state === "object" ? state : {};
+  const rewards = rewardsMap(source);
+  const keys = Object.keys(rewards);
+  if (!keys.length) {
+    return source;
+  }
+
+  let changed = false;
+  const nextRewards = {};
+  for (const reward of keys) {
+    if (DEPRECATED_REWARD_NAMES.has(String(reward || ""))) {
+      changed = true;
+      continue;
+    }
+    nextRewards[reward] = rewards[reward];
+  }
+
+  if (!changed) {
+    return source;
+  }
+
+  return {
+    ...source,
+    inventory: {
+      ...(source.inventory || {}),
+      rewards: nextRewards,
+    },
+  };
+}
+
+appState = stripDeprecatedRewardsFromState(appState);
 
 function applyNodeRewardOverride(state, node) {
   const sourceState = state && typeof state === "object" ? state : {};
@@ -540,8 +716,76 @@ function applyNodeSolveSystemOverrides(state, node) {
 }
 
 function withState(updater) {
-  appState = typeof updater === "function" ? updater(appState) : updater;
+  const next = typeof updater === "function" ? updater(appState) : updater;
+  appState = stripDeprecatedRewardsFromState(next);
   saveState(appState);
+}
+
+function applyFinalTestKit(state) {
+  const source = state && typeof state === "object" ? state : {};
+  let next = source;
+  const rewardsToGrant = [
+    ...FINAL_TEST_HARD_LOCK_ARTIFACTS,
+    ...FINAL_TEST_PHASE_ARTIFACTS,
+    "Wave-III Passkey",
+  ];
+  const devNode = {
+    node_id: "DEVFINAL",
+    section: "Developer",
+  };
+  for (const reward of rewardsToGrant) {
+    next = grantSupplementalReward(next, reward, devNode);
+  }
+  next = socketRewardKey(next, "Wave-III Passkey", "wave3");
+  next = updateNodeRuntime(
+    next,
+    "CRD02",
+    (runtime) => {
+      const sourceRuntime = runtime && typeof runtime === "object" ? runtime : {};
+      const sourceSoulfire = sourceRuntime.soulfire && typeof sourceRuntime.soulfire === "object"
+        ? sourceRuntime.soulfire
+        : {};
+      return {
+        ...sourceRuntime,
+        madra: Math.max(150000, Number(sourceRuntime.madra || 0)),
+        soulfire: {
+          ...sourceSoulfire,
+          unlocked: true,
+          amount: Math.max(250, Number(sourceSoulfire.amount || 0)),
+          totalGenerated: Math.max(250, Number(sourceSoulfire.totalGenerated || 0)),
+        },
+      };
+    },
+    () => ({
+      madra: 150000,
+      soulfire: { unlocked: true, amount: 250, totalGenerated: 250 },
+    }),
+  );
+  const wormState =
+    next && next.systems && next.systems.worm && typeof next.systems.worm === "object"
+      ? next.systems.worm
+      : {};
+  next = updateSystemState(next, "worm", {
+    ...wormState,
+    clout: Math.max(15000, Number(wormState.clout || 0)),
+  });
+  next = updateNodeRuntime(
+    next,
+    "DCC01",
+    (runtime) => {
+      const sourceRuntime = runtime && typeof runtime === "object" ? runtime : {};
+      const sourceMeta = sourceRuntime.meta && typeof sourceRuntime.meta === "object" ? sourceRuntime.meta : {};
+      return {
+        ...sourceRuntime,
+        meta: {
+          ...sourceMeta,
+          gold: Math.max(15000, Number(sourceMeta.gold || 0)),
+        },
+      };
+    },
+    () => ({ meta: { gold: 15000 } }),
+  );
+  return next;
 }
 
 function isPgeStoryNode(nodeId) {
@@ -636,6 +880,13 @@ function applyNodeRewardConsumption(state, node, action) {
     }
   }
 
+  if (nodeId === "WORM08" && action.type === "worm08-socket-sigil") {
+    const artifact = String(action.artifact || "");
+    if (action.ready === true && artifact) {
+      next = consumeReward(next, artifact, "WORM08");
+    }
+  }
+
   return next;
 }
 
@@ -690,11 +941,21 @@ function ensureDerivedRewards(state) {
 }
 
 function ensureSelectedArtifactStillAvailable() {
+  const rewards = rewardsMap(appState);
+
+  if (selectedArtifactSource !== "all") {
+    const hasSource = Object.values(rewards).some((entry) => {
+      const source = entry && typeof entry === "object" ? String(entry.section || "").trim() : "";
+      return source === selectedArtifactSource;
+    });
+    if (!hasSource) {
+      selectedArtifactSource = "all";
+    }
+  }
+
   if (!selectedArtifactReward) {
     return;
   }
-
-  const rewards = rewardsMap(appState);
 
   if (!rewards[selectedArtifactReward]) {
     selectedArtifactReward = "";
@@ -718,7 +979,7 @@ function backLinkForRoute(route) {
 
   const node = blueprintIndex && blueprintIndex.nodesByRoute ? blueprintIndex.nodesByRoute.get(route) : null;
   if (node) {
-    if (node.node_id === "DCC01") {
+    if (node.node_id === "DCC01" || node.node_id === "FIN01") {
       return {
         route: "/",
         label: "Back to Nexus",
@@ -945,6 +1206,14 @@ function openSelectedNexusSection() {
       return;
     }
   }
+  if (String(selected.section || "").toLowerCase() === "final arc") {
+    const finalNodes = blueprintIndex.sectionNodes.get(selected.section) || [];
+    const finalNode = finalNodes.find((entry) => entry.node_id === "FIN01") || null;
+    if (finalNode) {
+      navigate(finalNode.route);
+      return;
+    }
+  }
 
   navigate(`/section/${sectionRouteSlug(selected.section)}`);
 }
@@ -1012,6 +1281,7 @@ function dispatchActiveNodeAction(action) {
   }
 
   const { node, experience } = context;
+  let navigateToVictory = false;
 
   withState((current) => {
     let next = current;
@@ -1032,7 +1302,15 @@ function dispatchActiveNodeAction(action) {
       };
     }
     const wormSystemAction =
-      (node.node_id === "WORM03" || node.node_id === "WORM04") && (action.type === "worm03-claim-outcome" || action.type === "worm04-claim-outcome")
+      (["WORM03", "WORM04", "WORM05", "WORM06", "WORM07", "WORM08"].includes(node.node_id)) &&
+        (
+          action.type === "worm03-claim-outcome" ||
+          action.type === "worm04-claim-outcome" ||
+          action.type === "worm05-claim-outcome" ||
+          action.type === "worm06-claim-outcome" ||
+          action.type === "worm07-claim-outcome" ||
+          action.type === "worm08-claim-outcome"
+        )
         ? {
           type: "worm-apply-battle-results",
           playerResults: Array.isArray(action.playerResults) ? action.playerResults : [],
@@ -1065,7 +1343,12 @@ function dispatchActiveNodeAction(action) {
       });
     }
 
-    if (node.node_id === "DCC01" && action.type === "dcc-apply-checkpoint-pyramid" && action.ready === true) {
+    if (
+      node.node_id === "DCC01" &&
+      action.type === "dcc-apply-checkpoint-pyramid" &&
+      action.ready === true &&
+      action.floor3Unlocked === true
+    ) {
       const currentDccSystem =
         next && next.systems && next.systems.dungeonCrawl && typeof next.systems.dungeonCrawl === "object"
           ? next.systems.dungeonCrawl
@@ -1247,13 +1530,26 @@ function dispatchActiveNodeAction(action) {
         const baseRepReward = Math.max(1, Number(runtimeAction.repReward) || 0);
         const finalRepReward = requirementType === "sacrifice_int" ? Math.max(baseRepReward * 3, baseRepReward + 10) : baseRepReward;
         working = addTwiReputation(working, finalRepReward);
+        const twiRuntime = getNodeRuntime(working, "TWI03", () => ({}));
+        const currentRewardIndex = Math.max(0, Math.floor(Number(twiRuntime && twiRuntime.specialRewardIndex ? twiRuntime.specialRewardIndex : 0)));
+        let specialReward = "";
+        let nextRewardIndex = currentRewardIndex;
+        if (currentRewardIndex < TWI03_SPECIAL_REWARD_SEQUENCE.length) {
+          specialReward = TWI03_SPECIAL_REWARD_SEQUENCE[currentRewardIndex];
+          working = grantSupplementalReward(working, specialReward, node);
+          nextRewardIndex = currentRewardIndex + 1;
+        }
         const lootState = lootInventoryFromState(working, Date.now());
         message = `Quest fulfilled. +${finalRepReward} Inn Reputation.`;
+        if (specialReward) {
+          message = `${message} Milestone reward recovered: ${specialReward}.`;
+        }
         runtimeAction = {
           ...runtimeAction,
           applied: true,
           innTier: Number(lootState.progression && lootState.progression.innTier ? lootState.progression.innTier : 0),
           lootEligible: true,
+          specialRewardIndex: nextRewardIndex,
           message,
         };
         next = working;
@@ -1897,7 +2193,280 @@ function dispatchActiveNodeAction(action) {
       runtime = readNodeRuntime(next, node, experience);
     }
 
-    if ((node.node_id === "WORM03" || node.node_id === "WORM04") && Number(runtime && runtime.pendingCloutAward) > 0) {
+    if (node.node_id === "CRD09" && Number(runtime && runtime.pendingMadraSpend) > 0) {
+      const spend = Math.max(0, Number(runtime.pendingMadraSpend) || 0);
+      next = updateNodeRuntime(
+        next,
+        "CRD02",
+        (currentRuntime) => {
+          const source = currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {};
+          const currentMadra = Math.max(0, Number(source.madra || 0));
+          return {
+            ...source,
+            madra: Number(Math.max(0, currentMadra - spend).toFixed(2)),
+          };
+        },
+        () => ({ madra: 0 }),
+      );
+      next = updateNodeRuntime(
+        next,
+        "CRD09",
+        (currentRuntime) => ({
+          ...(currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {}),
+          pendingMadraSpend: 0,
+        }),
+        () => experience.initialState({ node, state: next }),
+      );
+      runtime = readNodeRuntime(next, node, experience);
+    }
+
+    if (node.node_id === "CRD09" && Number(runtime && runtime.pendingSoulfireSpend) > 0) {
+      const spend = Math.max(0, Number(runtime.pendingSoulfireSpend) || 0);
+      next = updateNodeRuntime(
+        next,
+        "CRD02",
+        (currentRuntime) => {
+          const source = currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {};
+          const soulfire = source.soulfire && typeof source.soulfire === "object" ? source.soulfire : {};
+          const amount = Math.max(0, Number(soulfire.amount || 0));
+          return {
+            ...source,
+            soulfire: {
+              ...soulfire,
+              unlocked: true,
+              amount: Number(Math.max(0, amount - spend).toFixed(2)),
+            },
+          };
+        },
+        () => ({ soulfire: { unlocked: true, amount: 0 } }),
+      );
+      next = updateNodeRuntime(
+        next,
+        "CRD09",
+        (currentRuntime) => ({
+          ...(currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {}),
+          pendingSoulfireSpend: 0,
+        }),
+        () => experience.initialState({ node, state: next }),
+      );
+      runtime = readNodeRuntime(next, node, experience);
+    }
+
+    if (node.node_id === "FIN01" && Number(runtime && runtime.pendingMadraSpend) > 0) {
+      const spend = Math.max(0, Number(runtime.pendingMadraSpend) || 0);
+      next = updateNodeRuntime(
+        next,
+        "CRD02",
+        (currentRuntime) => {
+          const source = currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {};
+          const currentMadra = Math.max(0, Number(source.madra || 0));
+          return {
+            ...source,
+            madra: Number(Math.max(0, currentMadra - spend).toFixed(2)),
+          };
+        },
+        () => ({ madra: 0 }),
+      );
+      next = updateNodeRuntime(
+        next,
+        "FIN01",
+        (currentRuntime) => ({
+          ...(currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {}),
+          pendingMadraSpend: 0,
+        }),
+        () => experience.initialState({ node, state: next }),
+      );
+      runtime = readNodeRuntime(next, node, experience);
+    }
+
+    if (node.node_id === "FIN01" && Number(runtime && runtime.pendingSoulfireSpend) > 0) {
+      const spend = Math.max(0, Number(runtime.pendingSoulfireSpend) || 0);
+      next = updateNodeRuntime(
+        next,
+        "CRD02",
+        (currentRuntime) => {
+          const source = currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {};
+          const soulfire = source.soulfire && typeof source.soulfire === "object" ? source.soulfire : {};
+          const amount = Math.max(0, Number(soulfire.amount || 0));
+          return {
+            ...source,
+            soulfire: {
+              ...soulfire,
+              unlocked: true,
+              amount: Number(Math.max(0, amount - spend).toFixed(2)),
+            },
+          };
+        },
+        () => ({ soulfire: { unlocked: true, amount: 0 } }),
+      );
+      next = updateNodeRuntime(
+        next,
+        "FIN01",
+        (currentRuntime) => ({
+          ...(currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {}),
+          pendingSoulfireSpend: 0,
+        }),
+        () => experience.initialState({ node, state: next }),
+      );
+      runtime = readNodeRuntime(next, node, experience);
+    }
+
+    if (node.node_id === "FIN01" && Number(runtime && runtime.pendingCloutSpend) > 0) {
+      const spend = Math.max(0, Number(runtime.pendingCloutSpend) || 0);
+      const wormState =
+        next && next.systems && next.systems.worm && typeof next.systems.worm === "object"
+          ? next.systems.worm
+          : {};
+      next = updateSystemState(next, "worm", {
+        ...wormState,
+        clout: Number(Math.max(0, Number(wormState.clout || 0) - spend).toFixed(2)),
+      });
+      next = updateNodeRuntime(
+        next,
+        "FIN01",
+        (currentRuntime) => ({
+          ...(currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {}),
+          pendingCloutSpend: 0,
+        }),
+        () => experience.initialState({ node, state: next }),
+      );
+      runtime = readNodeRuntime(next, node, experience);
+    }
+
+    if (node.node_id === "FIN01" && Number(runtime && runtime.pendingGoldSpend) > 0) {
+      const spend = Math.max(0, Number(runtime.pendingGoldSpend) || 0);
+      next = updateNodeRuntime(
+        next,
+        "DCC01",
+        (currentRuntime) => {
+          const source = currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {};
+          const meta = source.meta && typeof source.meta === "object" ? source.meta : {};
+          const gold = Math.max(0, Number(meta.gold || 0));
+          return {
+            ...source,
+            meta: {
+              ...meta,
+              gold: Math.max(0, Math.floor(gold - spend)),
+            },
+          };
+        },
+        () => ({ meta: { gold: 0 } }),
+      );
+      next = updateNodeRuntime(
+        next,
+        "FIN01",
+        (currentRuntime) => ({
+          ...(currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {}),
+          pendingGoldSpend: 0,
+        }),
+        () => experience.initialState({ node, state: next }),
+      );
+      runtime = readNodeRuntime(next, node, experience);
+    }
+
+    if (node.node_id === "CRD09" && runtime && runtime.pendingOverlordAdvance) {
+      next = updateNodeRuntime(
+        next,
+        "CRD02",
+        (currentRuntime) => {
+          const source = currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {};
+          return {
+            ...source,
+            cultivationStage: "overlord",
+          };
+        },
+        () => ({ cultivationStage: "overlord" }),
+      );
+      next = consumeReward(next, "Overlord Revelation I", "CRD09");
+      next = consumeReward(next, "Overlord Revelation II", "CRD09");
+      next = consumeReward(next, "Overlord Revelation Cipher", "CRD09");
+      next = updateNodeRuntime(
+        next,
+        "CRD09",
+        (currentRuntime) => ({
+          ...(currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {}),
+          pendingOverlordAdvance: false,
+        }),
+        () => experience.initialState({ node, state: next }),
+      );
+      runtime = readNodeRuntime(next, node, experience);
+      setBanner("Overlord achieved.");
+    }
+
+    if (node.node_id === "CRD09" && runtime && runtime.pendingArchlordAdvance) {
+      next = updateNodeRuntime(
+        next,
+        "CRD02",
+        (currentRuntime) => {
+          const source = currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {};
+          return {
+            ...source,
+            cultivationStage: "archlord",
+          };
+        },
+        () => ({ cultivationStage: "archlord" }),
+      );
+      next = consumeReward(next, "Archlord Revelation I", "CRD09");
+      next = consumeReward(next, "Archlord Revelation II", "CRD09");
+      next = consumeReward(next, "Archlord Revelation Cipher", "CRD09");
+      next = updateNodeRuntime(
+        next,
+        "CRD09",
+        (currentRuntime) => ({
+          ...(currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {}),
+          pendingArchlordAdvance: false,
+        }),
+        () => experience.initialState({ node, state: next }),
+      );
+      runtime = readNodeRuntime(next, node, experience);
+      setBanner("Archlord achieved.");
+    }
+
+    if (node.node_id === "CRD10" && runtime && String(runtime.pendingLordPath || "")) {
+      const lordPath = String(runtime.pendingLordPath || "").trim().toLowerCase();
+      if (lordPath === "sage" || lordPath === "herald") {
+        next = updateNodeRuntime(
+          next,
+          "CRD02",
+          (currentRuntime) => {
+            const source = currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {};
+            const upgrades = source.lordPathUpgrades && typeof source.lordPathUpgrades === "object"
+              ? source.lordPathUpgrades
+              : {};
+            return {
+              ...source,
+              lordPath,
+              lordPathUpgrades: {
+                sageScript: Math.max(0, Number(upgrades.sageScript) || 0),
+                heraldMight: Math.max(0, Number(upgrades.heraldMight) || 0),
+              },
+            };
+          },
+          () => ({ lordPath, lordPathUpgrades: { sageScript: 0, heraldMight: 0 } }),
+        );
+        next = updateNodeRuntime(
+          next,
+          "CRD10",
+          (currentRuntime) => ({
+            ...(currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {}),
+            pendingLordPath: "",
+          }),
+          () => experience.initialState({ node, state: next }),
+        );
+        runtime = readNodeRuntime(next, node, experience);
+        setBanner(`Lord path sealed: ${lordPath === "sage" ? "Sage" : "Herald"}.`);
+      }
+    }
+
+    if (
+      (node.node_id === "WORM03" ||
+        node.node_id === "WORM04" ||
+        node.node_id === "WORM05" ||
+        node.node_id === "WORM06" ||
+        node.node_id === "WORM07" ||
+        node.node_id === "WORM08") &&
+      Number(runtime && runtime.pendingCloutAward) > 0
+    ) {
       const award = Math.max(0, Number(runtime.pendingCloutAward) || 0);
       const wormState =
         next && next.systems && next.systems.worm && typeof next.systems.worm === "object"
@@ -1917,7 +2486,7 @@ function dispatchActiveNodeAction(action) {
         () => experience.initialState({ node, state: next }),
       );
       runtime = readNodeRuntime(next, node, experience);
-      setBanner(`Cleanup payout: +${award} Clout.`);
+      setBanner(`Worm payout: +${award} Clout.`);
     }
 
     const lootResolution = applyRuntimeLootEvents(next, node.node_id, runtime);
@@ -1937,7 +2506,7 @@ function dispatchActiveNodeAction(action) {
       }
     }
 
-    if (isPgeStoryNode(node.node_id) && runtime && Array.isArray(runtime.pendingRewards) && runtime.pendingRewards.length) {
+    if (runtime && Array.isArray(runtime.pendingRewards) && runtime.pendingRewards.length) {
       const rewardsToGrant = parseArtifactList(runtime.pendingRewards);
       for (const reward of rewardsToGrant) {
         next = grantSupplementalReward(next, reward, node);
@@ -1954,6 +2523,7 @@ function dispatchActiveNodeAction(action) {
       if (rewardsToGrant.length) {
         setBanner(`Recovered ${rewardsToGrant.join(", ")}.`);
       }
+      runtime = readNodeRuntime(next, node, experience);
     }
 
     const runtimeAfterRewards = readNodeRuntime(next, node, experience);
@@ -1978,11 +2548,21 @@ function dispatchActiveNodeAction(action) {
       }
 
       setBanner(`${node.node_id} solved. Reward added: ${solveRewardLabel(node)}${bonusReward}.`);
+      if (node.node_id === FINAL_VICTORY_NODE_ID) {
+        navigateToVictory = true;
+      }
     }
 
     return next;
   });
 
+  if (navigateToVictory) {
+    window.setTimeout(() => {
+      navigate(FINAL_VICTORY_ROUTE);
+    }, 1200);
+    renderApp();
+    return true;
+  }
   renderApp();
   return true;
 }
@@ -2104,6 +2684,199 @@ function startHub08OrbHold(button, pointerId) {
   hub08OrbHoldSession.rafId = window.requestAnimationFrame(tick);
 }
 
+function clearCrd09HoldSession({ resetVisual = true } = {}) {
+  const session = crd09HoldSession;
+  if (session.rafId) {
+    window.cancelAnimationFrame(session.rafId);
+  }
+
+  const button = session.button;
+  if (button && button.isConnected) {
+    if (resetVisual) {
+      button.classList.remove("is-charging");
+      button.style.setProperty("--hub08-orb-charge", "0");
+    }
+
+    if (
+      session.pointerId !== null &&
+      typeof button.hasPointerCapture === "function" &&
+      typeof button.releasePointerCapture === "function"
+    ) {
+      try {
+        if (button.hasPointerCapture(session.pointerId)) {
+          button.releasePointerCapture(session.pointerId);
+        }
+      } catch (_error) {
+        // Ignore pointer capture release failures.
+      }
+    }
+  }
+
+  crd09HoldSession = {
+    pointerId: null,
+    button: null,
+    actionType: "",
+    startAt: 0,
+    rafId: 0,
+    completed: false,
+  };
+}
+
+function clearFin01HoldSession({ resetVisual = true } = {}) {
+  const session = fin01HoldSession;
+  if (session.rafId) {
+    window.cancelAnimationFrame(session.rafId);
+  }
+
+  const button = session.button;
+  if (button && button.isConnected) {
+    if (resetVisual) {
+      button.classList.remove("is-charging");
+      button.style.setProperty("--hub08-orb-charge", "0");
+    }
+
+    if (
+      session.pointerId !== null &&
+      typeof button.hasPointerCapture === "function" &&
+      typeof button.releasePointerCapture === "function"
+    ) {
+      try {
+        if (button.hasPointerCapture(session.pointerId)) {
+          button.releasePointerCapture(session.pointerId);
+        }
+      } catch (_error) {
+        // Ignore pointer capture release failures.
+      }
+    }
+  }
+
+  fin01HoldSession = {
+    pointerId: null,
+    button: null,
+    resource: "",
+    startAt: 0,
+    rafId: 0,
+    completed: false,
+  };
+}
+
+function startCrd09Hold(button, pointerId, actionType) {
+  clearCrd09HoldSession();
+  const startAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+
+  crd09HoldSession = {
+    pointerId,
+    button,
+    actionType,
+    startAt,
+    rafId: 0,
+    completed: false,
+  };
+
+  button.classList.add("is-charging");
+  button.style.setProperty("--hub08-orb-charge", "0");
+
+  if (typeof button.setPointerCapture === "function") {
+    try {
+      button.setPointerCapture(pointerId);
+    } catch (_error) {
+      // Ignore pointer capture acquisition failures.
+    }
+  }
+
+  const tick = (timestamp) => {
+    const session = crd09HoldSession;
+    if (session.button !== button || session.completed) {
+      return;
+    }
+
+    const now = Number.isFinite(timestamp)
+      ? timestamp
+      : typeof performance !== "undefined"
+        ? performance.now()
+        : Date.now();
+    const progress = Math.min(1, Math.max(0, (now - session.startAt) / HUB08_ORB_HOLD_MS));
+    button.style.setProperty("--hub08-orb-charge", progress.toFixed(3));
+
+    if (progress >= 1) {
+      session.completed = true;
+      button.classList.remove("is-charging");
+      button.style.setProperty("--hub08-orb-charge", "1");
+      const action = {
+        type: session.actionType,
+        ready: button.getAttribute("data-ready") === "true",
+        at: Date.now(),
+      };
+      dispatchActiveNodeAction(action);
+      clearCrd09HoldSession({ resetVisual: false });
+      return;
+    }
+
+    session.rafId = window.requestAnimationFrame(tick);
+  };
+
+  crd09HoldSession.rafId = window.requestAnimationFrame(tick);
+}
+
+function startFin01Hold(button, pointerId, resource) {
+  clearFin01HoldSession();
+  const startAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+
+  fin01HoldSession = {
+    pointerId,
+    button,
+    resource,
+    startAt,
+    rafId: 0,
+    completed: false,
+  };
+
+  button.classList.add("is-charging");
+  button.style.setProperty("--hub08-orb-charge", "0");
+
+  if (typeof button.setPointerCapture === "function") {
+    try {
+      button.setPointerCapture(pointerId);
+    } catch (_error) {
+      // Ignore pointer capture acquisition failures.
+    }
+  }
+
+  const tick = (timestamp) => {
+    const session = fin01HoldSession;
+    if (session.button !== button || session.completed) {
+      return;
+    }
+
+    const now = Number.isFinite(timestamp)
+      ? timestamp
+      : typeof performance !== "undefined"
+        ? performance.now()
+        : Date.now();
+    const progress = Math.min(1, Math.max(0, (now - session.startAt) / HUB08_ORB_HOLD_MS));
+    button.style.setProperty("--hub08-orb-charge", progress.toFixed(3));
+
+    if (progress >= 1) {
+      session.completed = true;
+      button.classList.remove("is-charging");
+      button.style.setProperty("--hub08-orb-charge", "1");
+      const action = {
+        type: "fin01-invest-resource",
+        resource: session.resource,
+        ready: button.getAttribute("data-ready") === "true",
+        at: Date.now(),
+      };
+      dispatchActiveNodeAction(action);
+      clearFin01HoldSession({ resetVisual: false });
+      return;
+    }
+
+    session.rafId = window.requestAnimationFrame(tick);
+  };
+
+  fin01HoldSession.rafId = window.requestAnimationFrame(tick);
+}
+
 function handlePointerDown(event) {
   const context = currentActiveNodeContext();
   if (!context) {
@@ -2122,6 +2895,40 @@ function handlePointerDown(event) {
 
     event.preventDefault();
     startHub08OrbHold(target, event.pointerId);
+    return;
+  }
+
+  if (context.node.node_id === "CRD09") {
+    const target = event.target instanceof Element ? event.target.closest("[data-crd09-sphere]") : null;
+    if (!target) {
+      return;
+    }
+    if (target instanceof HTMLButtonElement && target.disabled) {
+      return;
+    }
+    const actionType = String(target.getAttribute("data-crd09-action") || "");
+    if (!actionType) {
+      return;
+    }
+    event.preventDefault();
+    startCrd09Hold(target, event.pointerId, actionType);
+    return;
+  }
+
+  if (context.node.node_id === "FIN01") {
+    const target = event.target instanceof Element ? event.target.closest("[data-fin01-sphere]") : null;
+    if (!target) {
+      return;
+    }
+    if (target instanceof HTMLButtonElement && target.disabled) {
+      return;
+    }
+    const resource = String(target.getAttribute("data-fin01-resource") || "").toLowerCase();
+    if (!resource) {
+      return;
+    }
+    event.preventDefault();
+    startFin01Hold(target, event.pointerId, resource);
     return;
   }
 
@@ -2181,16 +2988,28 @@ function handlePointerEnd(event) {
     clearAa03PointerSession();
   }
 
-  if (hub08OrbHoldSession.pointerId === null) {
-    return;
+  if (hub08OrbHoldSession.pointerId !== null) {
+    if (typeof event.pointerId !== "number" || event.pointerId === hub08OrbHoldSession.pointerId) {
+      if (!hub08OrbHoldSession.completed) {
+        clearHub08OrbHoldSession();
+      }
+    }
   }
 
-  if (typeof event.pointerId === "number" && event.pointerId !== hub08OrbHoldSession.pointerId) {
-    return;
+  if (crd09HoldSession.pointerId !== null) {
+    if (typeof event.pointerId !== "number" || event.pointerId === crd09HoldSession.pointerId) {
+      if (!crd09HoldSession.completed) {
+        clearCrd09HoldSession();
+      }
+    }
   }
 
-  if (!hub08OrbHoldSession.completed) {
-    clearHub08OrbHoldSession();
+  if (fin01HoldSession.pointerId !== null) {
+    if (typeof event.pointerId !== "number" || event.pointerId === fin01HoldSession.pointerId) {
+      if (!fin01HoldSession.completed) {
+        clearFin01HoldSession();
+      }
+    }
   }
 }
 
@@ -2200,7 +3019,10 @@ function handleNodeKeyDown(event) {
     return false;
   }
 
-  const isRhythmNode = context.node.node_id === "CRD01" || context.node.node_id === "CRD02";
+  const isRhythmNode =
+    context.node.node_id === "CRD01" ||
+    context.node.node_id === "CRD02" ||
+    context.node.node_id === "FIN01";
   const isSpace = event.code === "Space" || event.key === " ";
   if (isRhythmNode && isSpace) {
     event.preventDefault();
@@ -2347,6 +3169,7 @@ function contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress) {
   const deskUnlocked = isDeskUnlocked(appState);
 
   if (route === "/") {
+    lastRenderedSectionRoute = "";
     lastSectionNodes = [];
     sectionNodeSelectionIndex = 0;
     return {
@@ -2361,6 +3184,7 @@ function contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress) {
   }
 
   if (route === "/desk") {
+    lastRenderedSectionRoute = "";
     if (!deskUnlocked) {
       return {
         html: `
@@ -2400,6 +3224,16 @@ function contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress) {
     }
     const nodes = blueprintIndex.sectionNodes.get(section) || [];
     lastSectionNodes = nodes;
+    if (lastRenderedSectionRoute !== route) {
+      const rememberedNodeId = lastSectionFocusBySection[section];
+      if (rememberedNodeId) {
+        const rememberedIndex = nodes.findIndex((entry) => entry.node_id === rememberedNodeId);
+        if (rememberedIndex >= 0) {
+          sectionNodeSelectionIndex = rememberedIndex;
+        }
+      }
+      lastRenderedSectionRoute = route;
+    }
     normalizeSectionNodeSelection();
 
     return {
@@ -2416,9 +3250,16 @@ function contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress) {
 
   lastSectionNodes = [];
   sectionNodeSelectionIndex = 0;
+  lastRenderedSectionRoute = "";
 
   const node = blueprintIndex.nodesByRoute.get(route);
   if (node) {
+    if (node.section) {
+      lastSectionFocusBySection = {
+        ...lastSectionFocusBySection,
+        [node.section]: node.node_id,
+      };
+    }
     if (isRegionNodeSoftLocked(node, appState)) {
       return {
         html: `
@@ -2497,6 +3338,9 @@ function renderApp(route = getCurrentRoute()) {
   if (hub08OrbHoldSession.pointerId !== null) {
     clearHub08OrbHoldSession();
   }
+  if (crd09HoldSession.pointerId !== null) {
+    clearCrd09HoldSession();
+  }
   if (aa03PointerSession.pointerId !== null) {
     clearAa03PointerSession();
   }
@@ -2509,6 +3353,25 @@ function renderApp(route = getCurrentRoute()) {
 
   const unlockedNodeIds = computeUnlockedNodeIds(blueprintIndex, appState);
   const solvedSet = new Set(appState.solvedNodeIds || []);
+  const finalSolved = solvedSet.has(FINAL_VICTORY_NODE_ID);
+  if (route !== FINAL_VICTORY_ROUTE) {
+    forceVictoryPreview = false;
+  }
+  if (finalSolved && route !== FINAL_VICTORY_ROUTE) {
+    navigate(FINAL_VICTORY_ROUTE);
+    return;
+  }
+  if (route === FINAL_VICTORY_ROUTE) {
+    if (!finalSolved && !forceVictoryPreview) {
+      navigate("/");
+      return;
+    }
+    mountVictoryScreen(root);
+    bannerMessage = "";
+    saveState(appState);
+    return;
+  }
+  unmountVictoryScreen();
   const sectionProgress = computeSectionProgress(blueprintIndex, appState, unlockedNodeIds);
   const visibleNexusSections = sectionProgress.filter((section) => section.unlocked > 0);
   const nexusRings = buildNexusRings(visibleNexusSections);
@@ -2527,6 +3390,7 @@ function renderApp(route = getCurrentRoute()) {
     summary: blueprintIndex.summary,
     state: appState,
     selectedArtifactReward,
+    selectedArtifactSource,
     selectedLootItemId,
     selectedLootRegion,
     deskUnlocked: isDeskUnlocked(appState),
@@ -2605,6 +3469,19 @@ function handleClick(event) {
     return;
   }
 
+  if (action === "dev-unlock-final") {
+    withState((current) => applyFinalTestKit(current));
+    setBanner("Final test kit granted. Wave-III slot primed and finale resources loaded.");
+    renderApp();
+    return;
+  }
+
+  if (action === "dev-open-victory") {
+    forceVictoryPreview = true;
+    navigate(FINAL_VICTORY_ROUTE);
+    return;
+  }
+
   if (action === "toggle-widget") {
     const widget = button.getAttribute("data-widget");
     if (widget && Object.prototype.hasOwnProperty.call(widgetState, widget)) {
@@ -2615,6 +3492,7 @@ function handleClick(event) {
       };
       if (closingArtifacts) {
         selectedArtifactReward = "";
+        selectedArtifactSource = "all";
       }
       renderApp();
     }
@@ -2624,6 +3502,14 @@ function handleClick(event) {
   if (action === "artifact-select") {
     const reward = button.getAttribute("data-reward") || "";
     selectedArtifactReward = selectedArtifactReward === reward ? "" : reward;
+    renderApp();
+    return;
+  }
+
+  if (action === "artifact-select-source") {
+    const source = String(button.getAttribute("data-source") || "all");
+    selectedArtifactSource = source || "all";
+    selectedArtifactReward = "";
     renderApp();
     return;
   }
@@ -2849,6 +3735,14 @@ function handleClick(event) {
           return;
         }
       }
+      if (String(section || "").toLowerCase() === "final arc") {
+        const finalNodes = blueprintIndex.sectionNodes.get(section) || [];
+        const finalNode = finalNodes.find((entry) => entry.node_id === "FIN01") || null;
+        if (finalNode) {
+          navigate(finalNode.route);
+          return;
+        }
+      }
       navigate(`/section/${slug}`);
     }
     return;
@@ -2877,6 +3771,7 @@ function handleClick(event) {
     appState = resetState();
     deskFocusNodeId = null;
     selectedArtifactReward = "";
+    selectedArtifactSource = "all";
     selectedLootItemId = "";
     selectedLootRegion = "crd";
     setBanner("Progress reset.");
@@ -2909,6 +3804,10 @@ function handleClick(event) {
       ),
     );
     setBanner(`${node.node_id} solved. Reward added: ${solveRewardLabel(node)}.`);
+    if (node.node_id === FINAL_VICTORY_NODE_ID) {
+      navigate(FINAL_VICTORY_ROUTE);
+      return;
+    }
     renderApp();
     return;
   }
@@ -2935,6 +3834,10 @@ function handleClick(event) {
     });
     const bonus = node.node_id === "CRD04" ? " + Suriel's Marble" : "";
     setBanner(`${node.node_id} autocompleted. Reward added: ${solveRewardLabel(node)}${bonus}.`);
+    if (node.node_id === FINAL_VICTORY_NODE_ID) {
+      navigate(FINAL_VICTORY_ROUTE);
+      return;
+    }
     renderApp();
     return;
   }
@@ -3075,10 +3978,11 @@ function handleChange(event) {
     file
       .text()
       .then((text) => {
-        appState = parseStateFromSaveText(text);
+        appState = stripDeprecatedRewardsFromState(parseStateFromSaveText(text));
         saveState(appState);
         deskFocusNodeId = null;
         selectedArtifactReward = "";
+        selectedArtifactSource = "all";
         setBanner(`Save imported from ${file.name}.`);
         renderApp();
       })
@@ -3228,6 +4132,9 @@ async function bootstrap() {
       if (hub08OrbHoldSession.pointerId !== null) {
         clearHub08OrbHoldSession();
       }
+      if (crd09HoldSession.pointerId !== null) {
+        clearCrd09HoldSession();
+      }
       if (aa03PointerSession.pointerId !== null) {
         clearAa03PointerSession();
       }
@@ -3268,7 +4175,7 @@ async function bootstrap() {
       if (document.visibilityState === "hidden") {
         return;
       }
-      if (widgetState.artifacts || widgetState.loot || widgetState.save) {
+      if (widgetState.artifacts || widgetState.loot || widgetState.signals || widgetState.save) {
         return;
       }
       const route = getCurrentRoute();
@@ -3286,6 +4193,50 @@ async function bootstrap() {
       }
       renderApp(route);
     }, AA_TOME_RENDER_INTERVAL_MS);
+    window.setInterval(() => {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+      if (widgetState.artifacts || widgetState.loot || widgetState.signals || widgetState.save) {
+        return;
+      }
+      const route = getCurrentRoute();
+      const activeNode = blueprintIndex && blueprintIndex.nodesByRoute
+        ? blueprintIndex.nodesByRoute.get(route)
+        : null;
+      if (!activeNode) {
+        return;
+      }
+
+      const nodeId = String(activeNode.node_id || "");
+      if (nodeId === "MOL01") {
+        const runtime = getNodeRuntime(appState, nodeId, () => ({}));
+        const game = runtime && runtime.game && typeof runtime.game === "object" ? runtime.game : null;
+        if (game && String(game.phase || "") === "show") {
+          renderApp(route);
+        }
+        return;
+      }
+
+      if (nodeId === "MOL02") {
+        const runtime = getNodeRuntime(appState, nodeId, () => ({}));
+        const challenge = runtime && runtime.challenge && typeof runtime.challenge === "object" ? runtime.challenge : null;
+        if (challenge && String(challenge.phase || "") === "show") {
+          renderApp(route);
+        }
+        return;
+      }
+
+      if (nodeId === "FIN01") {
+        const runtime = getNodeRuntime(appState, nodeId, () => ({}));
+        const memoryGame = runtime && runtime.memoryGame && typeof runtime.memoryGame === "object"
+          ? runtime.memoryGame
+          : null;
+        if (memoryGame && String(memoryGame.phase || "") === "show") {
+          renderApp(route);
+        }
+      }
+    }, 120);
   } catch (error) {
     root.innerHTML = `
       <div class="focus-surface">

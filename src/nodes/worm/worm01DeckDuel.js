@@ -7,7 +7,9 @@ import {
   SICKBAY_HEAL_FRACTION_PER_MINUTE,
   normalizeWormSystemState,
   wormDrawBasicWindowCard,
+  wormDrawWindowCard,
   wormOwnedCards,
+  wormSpecialHiringWindows,
   wormStarterDraftCards,
 } from "../../systems/wormDeck.js";
 import { prestigeModifiersFromState } from "../../systems/prestige.js";
@@ -398,9 +400,11 @@ function renderSickbayPanel(ownedCards, wormState, maxSickbaySlots) {
   `;
 }
 
-function renderJobsPanel(runtime, wormState, weightBase, maxRarity) {
+function renderJobsPanel(runtime, wormState, weightBase, maxRarity, specialWindows = [], hasTenPullAccess = false) {
   const pulledCard = runtime.lastPulledCardId ? wormCardById(runtime.lastPulledCardId) : null;
   const canHire = Number(wormState.clout || 0) >= BASIC_HIRE_COST;
+  const tenPullCost = BASIC_HIRE_COST * 10;
+  const canTenPull = Number(wormState.clout || 0) >= tenPullCost;
   return `
     <section class="card worm01-job-board">
       <h3>Job Board</h3>
@@ -410,7 +414,41 @@ function renderJobsPanel(runtime, wormState, weightBase, maxRarity) {
         <button type="button" data-node-id="${NODE_ID}" data-node-action="worm01-hire-basic" data-weight-base="${escapeHtml(String(weightBase))}" data-max-rarity="${escapeHtml(String(maxRarity))}" ${canHire ? "" : "disabled"}>
           Hire Underling
         </button>
+        ${
+          hasTenPullAccess
+            ? `
+              <button type="button" data-node-id="${NODE_ID}" data-node-action="worm01-hire-basic-ten" data-weight-base="${escapeHtml(String(weightBase))}" data-max-rarity="${escapeHtml(String(maxRarity))}" ${canTenPull ? "" : "disabled"}>
+                Hire x10 (${tenPullCost} Clout)
+              </button>
+            `
+            : ""
+        }
       </div>
+      ${
+  specialWindows.length
+    ? `
+          <h4>Special Hiring Windows</h4>
+          <div class="toolbar">
+            ${specialWindows.map((window) => `
+              <button
+                type="button"
+                data-node-id="${NODE_ID}"
+                data-node-action="worm01-hire-window"
+                data-window-id="${escapeHtml(window.id)}"
+                data-window-label="${escapeHtml(window.label)}"
+                data-window-cost="${escapeHtml(String(window.cost))}"
+                data-weight-base="${escapeHtml(String(window.weightBase))}"
+                data-min-rarity="${escapeHtml(String(window.minRarity))}"
+                data-max-rarity="${escapeHtml(String(window.maxRarity))}"
+                ${Number(wormState.clout || 0) >= Number(window.cost) ? "" : "disabled"}
+              >
+                ${escapeHtml(window.label)} (${escapeHtml(String(window.cost))} Clout)
+              </button>
+            `).join("")}
+          </div>
+        `
+    : ""
+}
       ${pulledCard ? `<h4>Latest Pull</h4>${renderWormCard(pulledCard, { role: "player" })}` : ""}
     </section>
   `;
@@ -510,6 +548,26 @@ export function reduceWorm01Runtime(runtime, action) {
     };
   }
 
+  if (action.type === "worm01-hire-window") {
+    return {
+      ...current,
+      panel: PANELS.jobs,
+      popup: POPUPS.none,
+      lastPulledCardId: safeText(action.pulledCardId),
+    };
+  }
+
+  if (action.type === "worm01-hire-basic-ten") {
+    const pulls = Array.isArray(action.pulledCardIds) ? action.pulledCardIds : [];
+    const latest = pulls.length ? safeText(pulls[pulls.length - 1]) : "";
+    return {
+      ...current,
+      panel: PANELS.jobs,
+      popup: POPUPS.none,
+      lastPulledCardId: latest,
+    };
+  }
+
   if (action.type === "worm01-sickbay-assign" || action.type === "worm01-sickbay-remove") {
     return {
       ...current,
@@ -585,6 +643,46 @@ export function buildWorm01ActionFromElement(element, runtime) {
     };
   }
 
+  if (actionName === "worm01-hire-basic-ten") {
+    const weightBase = Number(element.getAttribute("data-weight-base"));
+    const maxRarity = Number(element.getAttribute("data-max-rarity"));
+    const pulledCardIds = Array.from({ length: 10 }, () => {
+      const pull = wormDrawBasicWindowCard({
+        weightBase,
+        maxRarity,
+      });
+      return pull ? pull.id : "";
+    }).filter((cardId) => cardId);
+    return {
+      type: "worm01-hire-basic-ten",
+      pulledCardIds,
+      weightBase,
+      maxRarity,
+      cost: BASIC_HIRE_COST * 10,
+    };
+  }
+
+  if (actionName === "worm01-hire-window") {
+    const weightBase = Number(element.getAttribute("data-weight-base"));
+    const minRarity = Number(element.getAttribute("data-min-rarity"));
+    const maxRarity = Number(element.getAttribute("data-max-rarity"));
+    const pull = wormDrawWindowCard({
+      weightBase,
+      minRarity,
+      maxRarity,
+    });
+    return {
+      type: "worm01-hire-window",
+      windowId: element.getAttribute("data-window-id") || "",
+      windowLabel: element.getAttribute("data-window-label") || "",
+      cost: Number(element.getAttribute("data-window-cost") || 0),
+      weightBase,
+      minRarity,
+      maxRarity,
+      pulledCardId: pull ? pull.id : "",
+    };
+  }
+
   if (actionName === "worm01-sickbay-assign") {
     return {
       type: "worm01-sickbay-assign",
@@ -644,6 +742,12 @@ export function renderWorm01Experience(context) {
   const maxRarity = Math.min(10, 5 + hiringBonus);
   const lootState = lootInventoryFromState(context.state, Date.now());
   const ownedCards = wormOwnedCards(wormState, Date.now());
+  const rewards =
+    context && context.state && context.state.inventory && context.state.inventory.rewards && typeof context.state.inventory.rewards === "object"
+      ? context.state.inventory.rewards
+      : {};
+  const specialWindows = wormSpecialHiringWindows().filter((window) => Boolean(rewards[window.rewardArtifact]));
+  const hasTenPullAccess = Boolean(rewards["x10 Hiring Access"]);
 
   if (!wormState.startersConfirmed) {
     return `<article class="worm01-node" data-node-id="${NODE_ID}">${renderStarterDraft(runtime, wormState)}</article>`;
@@ -653,7 +757,7 @@ export function renderWorm01Experience(context) {
   const panelMarkup = panel === PANELS.sickbay
     ? renderSickbayPanel(ownedCards, wormState, maxSickbaySlots)
     : panel === PANELS.jobs
-      ? renderJobsPanel(runtime, wormState, jobWeightBase, maxRarity)
+      ? renderJobsPanel(runtime, wormState, jobWeightBase, maxRarity, specialWindows, hasTenPullAccess)
       : renderDeckPanel(ownedCards, wormState, maxSickbaySlots, shardSlotsPerCape, lootState);
 
   const popupMarkup = runtime.popup === POPUPS.cape

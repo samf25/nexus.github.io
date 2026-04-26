@@ -170,6 +170,12 @@ const BOSS_ENEMIES = Object.freeze([
   Object.freeze({ name: "Mongoliensis", hp: 108, attack: 11, range: 1, trait: "door_lockdown", goldMin: 78, goldMax: 102 }),
 ]);
 
+const FLOOR_BOSS_REWARD_ARTIFACTS = Object.freeze({
+  3: "Dockside Broker Contract",
+  4: "National Broker Mandate",
+  5: "The Dungeon Anarchist's Cookbook",
+});
+
 const ENCOUNTERS = Object.freeze([
   Object.freeze({
     id: "mimic_crate",
@@ -248,6 +254,10 @@ function withDefaultMeta(meta) {
   const source = meta && typeof meta === "object" ? meta : {};
   const upgrades = source.upgrades && typeof source.upgrades === "object" ? source.upgrades : {};
   const preparedEquipment = normalizeEquipment(source.preparedEquipment);
+  const bossRewardsClaimed =
+    source.bossRewardsClaimed && typeof source.bossRewardsClaimed === "object"
+      ? source.bossRewardsClaimed
+      : {};
   return {
     gold: Math.max(0, Math.floor(Number(source.gold) || 0)),
     upgrades: {
@@ -261,6 +271,11 @@ function withDefaultMeta(meta) {
     totalDeaths: Math.max(0, Math.floor(Number(source.totalDeaths) || 0)),
     bestFloor: Math.max(1, Math.floor(Number(source.bestFloor) || 1)),
     preparedEquipment,
+    bossRewardsClaimed: {
+      3: Boolean(bossRewardsClaimed[3] || bossRewardsClaimed["3"]),
+      4: Boolean(bossRewardsClaimed[4] || bossRewardsClaimed["4"]),
+      5: Boolean(bossRewardsClaimed[5] || bossRewardsClaimed["5"]),
+    },
   };
 }
 
@@ -565,6 +580,7 @@ function normalizeRuntime(candidate) {
     solved: Boolean(source.solved),
     inventoryOpen: Boolean(source.inventoryOpen),
     lootEvents: Array.isArray(source.lootEvents) ? source.lootEvents.filter((entry) => entry && typeof entry === "object") : [],
+    pendingRewards: Array.isArray(source.pendingRewards) ? source.pendingRewards.map((entry) => String(entry || "")).filter((entry) => entry) : [],
     meta: withDefaultMeta(source.meta),
     run: source.run && typeof source.run === "object" ? source.run : null,
     lastMessage: String(source.lastMessage || ""),
@@ -577,6 +593,7 @@ function createInitialRuntime() {
     solved: false,
     inventoryOpen: false,
     lootEvents: [],
+    pendingRewards: [],
     meta: withDefaultMeta({}),
     run: null,
     lastMessage: "Welcome to Floor 1. Build a run and survive the crawl.",
@@ -607,12 +624,16 @@ function withLootEventsFromBagGrowth(previousRuntime, nextRuntime, actionType) {
   }
 
   const run = nextRuntime && nextRuntime.run && typeof nextRuntime.run === "object" ? nextRuntime.run : {};
-  const rarityBias = Math.max(0, Number(run.rareBonus || 0));
+  const floor = Math.max(1, Math.floor(Number(run.floor) || 1));
+  const floorDepth = Math.max(0, floor - 1);
+  const rarityBias = Math.max(0, Number(run.rareBonus || 0) + floorDepth * 0.015);
+  const dropChance = Math.min(0.6, 0.35 + floorDepth * 0.03);
+  const outRegionChance = Math.min(0.38, 0.2 + floorDepth * 0.02);
   const events = Array.from({ length: growth }, () => ({
     sourceRegion: "dcc",
     triggerType: "crawl-drop",
-    dropChance: 0.35,
-    outRegionChance: 0.2,
+    dropChance,
+    outRegionChance,
     rarityBias,
   }));
 
@@ -999,24 +1020,49 @@ function resolveRoomVictory(runtime, run) {
   room.cleared = true;
   if (room.type === "boss") {
     run.bossDefeated = true;
+    const floorNumber = Math.max(1, Math.floor(Number(run.floor) || 1));
+    const reward = FLOOR_BOSS_REWARD_ARTIFACTS[floorNumber];
+    if (reward) {
+      const claimed = runtime.meta && runtime.meta.bossRewardsClaimed && typeof runtime.meta.bossRewardsClaimed === "object"
+        ? runtime.meta.bossRewardsClaimed
+        : {};
+      if (!claimed[floorNumber] && !claimed[String(floorNumber)]) {
+        runtime.meta = {
+          ...runtime.meta,
+          bossRewardsClaimed: {
+            ...claimed,
+            [floorNumber]: true,
+          },
+        };
+        const pending = Array.isArray(runtime.pendingRewards) ? runtime.pendingRewards.slice() : [];
+        if (!pending.includes(reward)) {
+          pending.push(reward);
+        }
+        runtime.pendingRewards = pending;
+        addLog(run, `Milestone reward recovered: ${reward}.`);
+      }
+    }
   }
   run.combat = null;
   run.nextEnemyActAt = 0;
   const rand = createRng(Date.now() + run.floor * 313);
+  const floorDepth = Math.max(0, Math.floor(Number(run.floor) || 1) - 1);
   const goldLow = Math.max(8, Number(enemy && enemy.goldMin ? enemy.goldMin : 10));
   const goldHigh = Math.max(goldLow, Number(enemy && enemy.goldMax ? enemy.goldMax : 18));
-  const bossBoost = room.type === "boss" ? 1.35 : 1;
+  const floorGoldBoost = 1 + floorDepth * 0.12;
+  const bossBoost = room.type === "boss" ? 1.35 + floorDepth * 0.05 : 1 + floorDepth * 0.04;
   const goldGain = Math.max(
     1,
-    Math.round(randomInt(rand, goldLow, goldHigh) * bossBoost * run.goldMultiplier),
+    Math.round(randomInt(rand, goldLow, goldHigh) * bossBoost * floorGoldBoost * run.goldMultiplier),
   );
   runtime.meta.gold += goldGain;
   addLog(run, `Victory. +${goldGain} gold.`);
 
-  const dropCount = room.type === "boss" ? 3 : 1;
-  const bossRareBonus = room.type === "boss" ? 0.25 : 0;
+  const dropCount = room.type === "boss" ? 3 + Math.floor(floorDepth / 2) : 1 + (floorDepth >= 4 ? 1 : 0);
+  const bossRareBonus = room.type === "boss" ? 0.25 + floorDepth * 0.03 : floorDepth * 0.02;
+  const dropChance = room.type === "boss" ? 1 : Math.min(0.82, 0.62 + floorDepth * 0.04);
   for (let index = 0; index < dropCount; index += 1) {
-    if (rand() < (room.type === "boss" ? 1 : 0.62)) {
+    if (rand() < dropChance) {
       const item = chooseLootDrop(rand, run.rareBonus + bossRareBonus);
       run.bag.push(item);
       addLog(run, `Loot drop: ${item.label}.`);
@@ -1683,6 +1729,12 @@ function reduceDccRuntime(runtime, action, context = {}) {
         lastMessage: "You need the Checkpoint Pyramid selected to anchor this checkpoint.",
       };
     }
+    if (action.floor3Unlocked !== true) {
+      return {
+        ...current,
+        lastMessage: "You must unlock Floor 3 before setting this checkpoint.",
+      };
+    }
     return {
       ...current,
       lastMessage: "Checkpoint stabilized at Floor 3.",
@@ -2158,22 +2210,42 @@ function dccLootPanelMarkup(runtime, state) {
 function compactGearSummaryMarkup(run) {
   const equipment = normalizeEquipment(run && run.equipment);
   const entries = [
-    { slot: "head", label: "H" },
-    { slot: "chest", label: "C" },
-    { slot: "legs", label: "L" },
-    { slot: "trinket", label: "T" },
+    { slot: "head", label: "Head" },
+    { slot: "chest", label: "Chest" },
+    { slot: "legs", label: "Legs" },
+    { slot: "trinket", label: "Trinket" },
   ];
-  return `
-    <div class="dcc-gear-mini" aria-label="Run gear summary">
-      ${entries.map((entry) => {
+  const slots = entries.map((entry) => {
     const item = equipment[entry.slot];
     const title = item
-      ? `${entry.slot}: ${item.label || "gear"}${item.enchantLabel ? ` | ${item.enchantLabel}` : ""}`
-      : `${entry.slot}: empty`;
-    return `
-          <span class="dcc-gear-mini-slot ${item ? "is-filled" : ""}" title="${escapeHtml(title)}">${escapeHtml(entry.label)}</span>
-        `;
-  }).join("")}
+      ? `${entry.label}: ${item.label || "Armor"} (${item.rarity || "common"})${item.enchantLabel ? ` | Enchant: ${item.enchantLabel}` : ""}`
+      : `${entry.label}: empty`;
+    return {
+      filled: Boolean(item),
+      clickable: false,
+      title,
+      ariaLabel: `${entry.label} gear slot`,
+      symbolHtml: item
+        ? renderArtifactSymbol({
+            artifactName: item.label || entry.label,
+            className: "slot-ring-symbol artifact-symbol",
+          })
+        : "",
+      attrs: {},
+    };
+  });
+  return `
+    <div class="dcc-gear-mini" aria-label="Run gear summary">
+      ${renderSlotRing({
+        slots,
+        className: "dcc-gear-mini-ring",
+        radiusPct: 41,
+        centerHtml: renderRegionSymbol({
+          section: "Dungeon Crawler Carl",
+          className: "slot-ring-center-symbol",
+        }),
+        ariaLabel: "Run gear slots",
+      })}
     </div>
   `;
 }
@@ -2185,6 +2257,7 @@ function outsideMarkup(runtime, state, selectedArtifact = "") {
   const progress = dccProgressFromState(state);
   const artifact = safeText(selectedArtifact);
   const pyramidSelected = artifact === "Checkpoint Pyramid";
+  const canSetCheckpoint = pyramidSelected && progress.floor3Unlocked;
 
   const upgradeRows = [
     { id: "hp", label: "Max Health", value: meta.upgrades.hp },
@@ -2206,7 +2279,9 @@ function outsideMarkup(runtime, state, selectedArtifact = "") {
           data-node-id="${NODE_ID}"
           data-node-action="dcc-apply-checkpoint-pyramid"
           data-artifact="${escapeHtml(artifact)}"
-          data-ready="${pyramidSelected ? "true" : "false"}"
+          data-ready="${canSetCheckpoint ? "true" : "false"}"
+          data-floor3-unlocked="${progress.floor3Unlocked ? "true" : "false"}"
+          ${progress.floor3Unlocked ? "" : "disabled"}
         >
           Set Checkpoint: Floor 3
         </button>
@@ -2273,14 +2348,18 @@ function runMarkup(runtime, state, selectedArtifact = "") {
       <div class="dcc-run-main">
         <section class="card dcc-status">
           <h3>Floor ${escapeHtml(String(run.floor))}</h3>
-          <p><strong>HP:</strong> ${escapeHtml(String(run.hp))}/${escapeHtml(String(run.maxHp))} | <strong>Stamina:</strong> ${escapeHtml(String(run.stamina))}/${escapeHtml(String(run.maxStamina))}</p>
-          ${compactGearSummaryMarkup(run)}
-          <p><strong>Gold:</strong> ${escapeHtml(String(runtime.meta.gold))} | <strong>Current Room:</strong> ${escapeHtml(room ? room.id : "Unknown")}</p>
-          ${
-            enemy
-              ? `<p><strong>Enemy Range:</strong> ${escapeHtml(String(distance))} tiles | <strong>Block:</strong> ${escapeHtml(String(Math.max(0, Number(run.combat.block) || 0)))}</p>`
-              : ""
-          }
+          <div class="dcc-status-grid">
+            <div class="dcc-status-left">
+              <p><strong>HP:</strong> ${escapeHtml(String(run.hp))}/${escapeHtml(String(run.maxHp))} | <strong>Stamina:</strong> ${escapeHtml(String(run.stamina))}/${escapeHtml(String(run.maxStamina))}</p>
+              <p><strong>Gold:</strong> ${escapeHtml(String(runtime.meta.gold))} | <strong>Current Room:</strong> ${escapeHtml(room ? room.id : "Unknown")}</p>
+              ${
+                enemy
+                  ? `<p><strong>Enemy Range:</strong> ${escapeHtml(String(distance))} tiles | <strong>Block:</strong> ${escapeHtml(String(Math.max(0, Number(run.combat.block) || 0)))}</p>`
+                  : ""
+              }
+            </div>
+            ${compactGearSummaryMarkup(run)}
+          </div>
           <div class="toolbar">
             <button type="button" data-node-id="${NODE_ID}" data-node-action="dcc-rest" ${run.combat || run.event ? "disabled" : ""}>Rest (R)</button>
             <button type="button" data-node-id="${NODE_ID}" data-node-action="dcc-toggle-inventory">Toggle Inventory (I)</button>
@@ -2387,6 +2466,7 @@ function actionFromElement(element) {
       type: "dcc-apply-checkpoint-pyramid",
       artifact: element.getAttribute("data-artifact") || "",
       ready: element.getAttribute("data-ready") === "true",
+      floor3Unlocked: element.getAttribute("data-floor3-unlocked") === "true",
       ...common,
     };
   }

@@ -27,13 +27,17 @@ function ringAngleForNode(ring, nodeIndex, total) {
 
   if (ringKey === "outer" && total > 0) {
     const hubIndex = (ring.sections || []).findIndex((entry) => String(entry.section) === "Nexus Hub");
+    const finalIndex = (ring.sections || []).findIndex((entry) => String(entry.section) === "Final Arc");
     if (hubIndex >= 0 && nodeIndex === hubIndex) {
       return polarPositionFromTopDegrees(0, layout.radiusPercent);
+    }
+    if (finalIndex >= 0 && nodeIndex === finalIndex) {
+      return polarPositionFromTopDegrees(180, layout.radiusPercent);
     }
 
     const otherIndices = [];
     for (let index = 0; index < total; index += 1) {
-      if (index !== hubIndex) {
+      if (index !== hubIndex && index !== finalIndex) {
         otherIndices.push(index);
       }
     }
@@ -44,11 +48,16 @@ function ringAngleForNode(ring, nodeIndex, total) {
     }
 
     const localIndex = Math.max(0, otherIndices.indexOf(nodeIndex));
-    const start = 125;
-    const end = 235;
-    const span = end - start;
-    const step = otherCount <= 1 ? 0 : span / (otherCount - 1);
-    return polarPositionFromTopDegrees(start + localIndex * step, layout.radiusPercent);
+    const spreadStart = 100;
+    const spreadEnd = 260;
+    const spread = spreadEnd - spreadStart;
+    const step = otherCount <= 1 ? 0 : spread / (otherCount - 1);
+    let angle = spreadStart + localIndex * step;
+    // Reserve space around 180 so Final Arc stays visually opposite Nexus Hub.
+    if (angle >= 170) {
+      angle += 40;
+    }
+    return polarPositionFromTopDegrees(angle, layout.radiusPercent);
   }
 
   const angle = ((360 / Math.max(total, 1)) * nodeIndex);

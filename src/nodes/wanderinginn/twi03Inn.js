@@ -6,6 +6,13 @@ import { getNodeRuntime } from "../../core/state.js";
 
 const NODE_ID = "TWI03";
 const QUEST_SLOTS = 3;
+export const TWI03_SPECIAL_REWARD_SEQUENCE = Object.freeze([
+  "DCC Floor-2 Key",
+  "Cape Compactifier",
+  "Wave-III Passkey",
+  "x10 Hiring Access",
+  "The Transient, Ephemeral, Fleeting Vault of the Mortal World. The Evanescent Safe of Passing Moments, the Faded Chest of Then and Them. The Box of Incontinuity",
+]);
 
 const COMMON_CHARACTERS = Object.freeze(["Erin", "Lyonette", "Pisces", "Ceria"]);
 const UNCOMMON_CHARACTERS = Object.freeze(["Numbtongue", "Olesm", "Bird", "Rags"]);
@@ -74,6 +81,7 @@ function normalizeRuntime(runtime) {
   return {
     quests: quests.slice(0, QUEST_SLOTS),
     selectedQuestId: safeText(source.selectedQuestId),
+    specialRewardIndex: Math.max(0, safeInt(source.specialRewardIndex, 0)),
     totalCompleted: Math.max(0, safeInt(source.totalCompleted, 0)),
     totalCanceled: Math.max(0, safeInt(source.totalCanceled, 0)),
     generationNonce: Math.max(0, safeInt(source.generationNonce, 0)),
@@ -144,6 +152,10 @@ export function reduceTwi03Runtime(runtime, action, context = {}) {
       ...current,
       selectedQuestId: "",
       quests: nextQuests,
+      specialRewardIndex: Math.max(
+        current.specialRewardIndex,
+        Math.max(0, safeInt(action.specialRewardIndex, current.specialRewardIndex)),
+      ),
       totalCompleted: current.totalCompleted + 1,
       solved: true,
       lastMessage: safeText(action.message) || "Quest completed.",
@@ -327,6 +339,7 @@ export function renderTwi03Experience(context) {
   const innTier = clamp(safeInt(loot.progression && loot.progression.innTier, 0), 0, 99);
   const rep = Math.max(0, safeInt(loot.progression && loot.progression.twiReputation, 0));
   const selectedQuest = runtime.quests.find((quest) => quest.id === runtime.selectedQuestId) || null;
+  const rewardProgress = Math.min(runtime.specialRewardIndex, TWI03_SPECIAL_REWARD_SEQUENCE.length);
 
   return `
     <article class="twi03-node" data-node-id="${NODE_ID}">
@@ -334,6 +347,7 @@ export function renderTwi03Experience(context) {
         <h3>The Inn</h3>
         <p><strong>Inn Reputation:</strong> ${rep}</p>
         <p><strong>Inn Tier:</strong> ${innTier}</p>
+        <p class="muted"><strong>Milestones:</strong> ${rewardProgress}/${TWI03_SPECIAL_REWARD_SEQUENCE.length}</p>
         <div class="twi03-inn-visual ${innVisualTierClass(innTier)}" aria-hidden="true">
           <span class="twi03-beam twi03-beam-a"></span>
           <span class="twi03-beam twi03-beam-b"></span>

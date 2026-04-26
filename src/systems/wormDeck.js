@@ -5,6 +5,26 @@ const BASIC_HIRE_COST = 10;
 const BASIC_WINDOW_MAX_RARITY = 5;
 const BASIC_WINDOW_WEIGHT_BASE = 0.125;
 const SICKBAY_HEAL_FRACTION_PER_MINUTE = 0.25;
+const SPECIAL_HIRING_WINDOWS = Object.freeze([
+  Object.freeze({
+    id: "dcc-floor3-window",
+    rewardArtifact: "Dockside Broker Contract",
+    label: "Dockside Contract Window",
+    cost: 40,
+    minRarity: 3.5,
+    maxRarity: 6.5,
+    weightBase: 1,
+  }),
+  Object.freeze({
+    id: "dcc-floor4-window",
+    rewardArtifact: "National Broker Mandate",
+    label: "National Mandate Window",
+    cost: 120,
+    minRarity: 5,
+    maxRarity: 10,
+    weightBase: 1.35,
+  }),
+]);
 
 function nowMs() {
   return Date.now();
@@ -389,6 +409,10 @@ export function wormDrawWindowPack(
   return picks;
 }
 
+export function wormSpecialHiringWindows() {
+  return SPECIAL_HIRING_WINDOWS.slice();
+}
+
 function applyOutcomeToDeck(state, playerResults, now) {
   const nextDeck = { ...state.deck };
   for (const result of playerResults || []) {
@@ -511,6 +535,143 @@ export function reduceWormSystemState(systemState, action, now = nowMs()) {
       message: addResult.duplicate
         ? `${pulledCard.heroName} duplicate acquired (x${addResult.copies}).`
         : `${pulledCard.heroName} joined your roster.`,
+      meta: {
+        pulledCardId: pulledCard.id,
+        duplicate: addResult.duplicate,
+        copies: addResult.copies,
+      },
+    };
+  }
+
+  if (action.type === "worm01-hire-basic-ten") {
+    const pullCost = Math.max(1, Math.floor(Number(action.cost) || BASIC_HIRE_COST * 10));
+    if (current.clout < pullCost) {
+      return {
+        nextState: current,
+        changed: false,
+        message: `Not enough Clout. x10 hiring requires ${pullCost}.`,
+        meta: {},
+      };
+    }
+
+    const maxRarity = Number.isFinite(Number(action.maxRarity))
+      ? Number(action.maxRarity)
+      : BASIC_WINDOW_MAX_RARITY;
+    const requestedIds = Array.isArray(action.pulledCardIds)
+      ? action.pulledCardIds.map((value) => String(value || "").trim()).filter((value) => value)
+      : [];
+
+    const pulledCards = [];
+    for (let index = 0; index < 10; index += 1) {
+      const requestedCard = requestedIds[index] ? wormCardById(requestedIds[index]) : null;
+      const pulled =
+        requestedCard && safeNumber(requestedCard.rarity, 0) <= maxRarity
+          ? requestedCard
+          : wormDrawBasicWindowCard({
+            weightBase: Number(action.weightBase),
+            maxRarity,
+          });
+      if (pulled) {
+        pulledCards.push(pulled);
+      }
+    }
+    if (!pulledCards.length) {
+      return {
+        nextState: current,
+        changed: false,
+        message: "No capes are available in the Basic Window pool.",
+        meta: {},
+      };
+    }
+
+    let next = {
+      ...current,
+      clout: Number((current.clout - pullCost).toFixed(2)),
+    };
+    let duplicateCount = 0;
+    for (const card of pulledCards) {
+      const addResult = addCardToDeck(next, card.id);
+      next = addResult.nextState;
+      if (addResult.duplicate) {
+        duplicateCount += 1;
+      }
+    }
+
+    return {
+      nextState: next,
+      changed: true,
+      message: `x10 hiring complete. ${duplicateCount} duplicate${duplicateCount === 1 ? "" : "s"} merged.`,
+      meta: {
+        pulledCardIds: pulledCards.map((card) => card.id),
+        duplicateCount,
+      },
+    };
+  }
+
+  if (action.type === "worm01-hire-window") {
+    const windowId = String(action.windowId || "").trim();
+    const windowConfig = SPECIAL_HIRING_WINDOWS.find((entry) => entry.id === windowId);
+    if (!windowConfig) {
+      return {
+        nextState: current,
+        changed: false,
+        message: "Unknown hiring window.",
+        meta: {},
+      };
+    }
+
+    const cost = Math.max(1, Number(action.cost || windowConfig.cost) || windowConfig.cost);
+    if (current.clout < cost) {
+      return {
+        nextState: current,
+        changed: false,
+        message: `Not enough Clout. ${windowConfig.label} requires ${cost}.`,
+        meta: {},
+      };
+    }
+
+    const minRarity = Number.isFinite(Number(action.minRarity))
+      ? Number(action.minRarity)
+      : Number(windowConfig.minRarity);
+    const maxRarity = Number.isFinite(Number(action.maxRarity))
+      ? Number(action.maxRarity)
+      : Number(windowConfig.maxRarity);
+    const weightBase = Number.isFinite(Number(action.weightBase))
+      ? Number(action.weightBase)
+      : Number(windowConfig.weightBase);
+    const requestedCardId = String(action.pulledCardId || "").trim();
+    const requestedCard = requestedCardId ? wormCardById(requestedCardId) : null;
+    const requestedRarity = requestedCard ? Number(safeNumber(requestedCard.rarity, 0)) : -1;
+    const pulledCard =
+      requestedCard && requestedRarity >= minRarity && requestedRarity <= maxRarity
+        ? requestedCard
+        : wormDrawWindowCard({
+          weightBase,
+          minRarity,
+          maxRarity,
+        });
+    if (!pulledCard) {
+      return {
+        nextState: current,
+        changed: false,
+        message: `${windowConfig.label} has no available capes in range.`,
+        meta: {},
+      };
+    }
+
+    let next = {
+      ...current,
+      clout: Number((current.clout - cost).toFixed(2)),
+    };
+    const addResult = addCardToDeck(next, pulledCard.id);
+    next = addResult.nextState;
+
+    return {
+      nextState: next,
+      changed: true,
+      message: addResult.duplicate
+        ? `${windowConfig.label}: ${pulledCard.heroName} duplicate acquired (x${addResult.copies}).`
+        : `${windowConfig.label}: ${pulledCard.heroName} joined your roster.`,
       meta: {
         pulledCardId: pulledCard.id,
         duplicate: addResult.duplicate,

@@ -2,6 +2,39 @@ import { CANONICAL_TEMPLATE_SPECS, TEMPLATE_ALIASES } from "./templateCatalog.js
 
 const DEFAULT_BLUEPRINT_PATH = "./arg_node_specs_loreauth.json";
 const RETIRED_SECTION_NAMES = new Set(["The Cosmere", "Cosmere"]);
+const RETIRED_NODE_IDS = new Set([
+  "AA04",
+  "AA05",
+  "AA06",
+  "AA07",
+  "AA08",
+  "AA09",
+  "AA10",
+  "AA11",
+  "MOL04",
+  "MOL05",
+  "MOL06",
+  "MOL07",
+  "MOL08",
+  "MOL09",
+  "MOL10",
+  "MOL11",
+  "TWI05",
+  "TWI06",
+  "TWI07",
+  "TWI08",
+  "TWI09",
+  "TWI10",
+  "TWI11",
+  "PGE07",
+  "PGE08",
+  "PGE09",
+  "PGE10",
+  "PGE11",
+  "WORM09",
+  "WORM10",
+  "WORM11",
+]);
 
 function numericNodeSuffix(nodeId) {
   const match = String(nodeId || "").match(/(\d+)$/);
@@ -11,17 +44,33 @@ function numericNodeSuffix(nodeId) {
   return Number.parseInt(match[1], 10);
 }
 
+function nodeOrderIndex(node) {
+  const explicit = Number(node && node.orderIndex);
+  if (Number.isFinite(explicit)) {
+    return explicit;
+  }
+  const suffix = numericNodeSuffix(node && node.node_id);
+  if (suffix != null) {
+    return suffix;
+  }
+  const source = Number(node && node._sourceIndex);
+  if (Number.isFinite(source)) {
+    return source;
+  }
+  return Number.MAX_SAFE_INTEGER;
+}
+
 function compareSectionNodes(section, a, b) {
-  if (section === "Cradle") {
-    const cradleA = numericNodeSuffix(a.node_id);
-    const cradleB = numericNodeSuffix(b.node_id);
-    if (cradleA != null && cradleB != null && cradleA !== cradleB) {
-      return cradleA - cradleB;
-    }
+  const orderA = nodeOrderIndex(a);
+  const orderB = nodeOrderIndex(b);
+  if (orderA !== orderB) {
+    return orderA - orderB;
   }
 
-  if (a.layer !== b.layer) {
-    return a.layer - b.layer;
+  const suffixA = numericNodeSuffix(a && a.node_id);
+  const suffixB = numericNodeSuffix(b && b.node_id);
+  if (suffixA != null && suffixB != null && suffixA !== suffixB) {
+    return suffixA - suffixB;
   }
   return String(a.node_id).localeCompare(String(b.node_id));
 }
@@ -39,13 +88,19 @@ export async function loadBlueprint(path = DEFAULT_BLUEPRINT_PATH) {
 
   const removedIds = new Set(
     blueprint.nodes
-      .filter((node) => RETIRED_SECTION_NAMES.has(String(node.section || "")) || String(node.route || "").startsWith("/cosmere/"))
+      .filter(
+        (node) =>
+          RETIRED_SECTION_NAMES.has(String(node.section || "")) ||
+          String(node.route || "").startsWith("/cosmere/") ||
+          RETIRED_NODE_IDS.has(String(node.node_id || "")),
+      )
       .map((node) => node.node_id),
   );
   const cleanedNodes = blueprint.nodes
     .filter((node) => !removedIds.has(node.node_id))
-    .map((node) => ({
+    .map((node, index) => ({
       ...node,
+      _sourceIndex: index,
       dependencies: Array.isArray(node.dependencies)
         ? node.dependencies.filter((dep) => !removedIds.has(dep))
         : [],

@@ -47,7 +47,7 @@ function combatProfileFromState(state) {
     hasEmptyPalm: emptyPalm > 0,
     meleeBonus: (soulCloak + consume + hollowDomain + soulfireCycler) * attackMultiplier,
     dodgeBonus: soulCloak + hollowDomain,
-    maxHp: 190 + ironBody * 34 + (stage === "underlord" ? 120 : 0),
+    maxHp: 190 + ironBody * 34 + (["underlord", "overlord", "archlord"].includes(stage) ? 120 : 0),
     maxMadra: Math.round((180 + soulCloak * 5 + consume * 8 + hollowDomain * 10) * madraPoolMultiplierForStage(stage)),
   };
 }
@@ -404,7 +404,7 @@ export function buildCrd08ActionFromElement(element) {
 export function renderCrd08Experience(context) {
   const runtime = normalizeRuntime(context.runtime);
   const profile = combatProfileFromState(context.state || {});
-  const isUnderlord = normalizeCombatStage(profile.stage) === "underlord";
+  const isUnderlord = ["underlord", "overlord", "archlord"].includes(normalizeCombatStage(profile.stage));
 
   if (runtime.phase === "intro") {
     return `

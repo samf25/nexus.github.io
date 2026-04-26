@@ -29,10 +29,12 @@ const BREAKTHROUGH_COSTS = Object.freeze({
   lowgold: 36000,
   highgold: 90000,
   truegold: 220000,
+  underlord: 380000,
+  overlord: 900000,
 });
 const IRON_BREAKTHROUGH_ARTIFACT = "Cultivation Potion";
 const JADE_BREAKTHROUGH_ARTIFACT = "Jade Condensation Elixir";
-const CULTIVATION_STAGES = Object.freeze(["foundation", "copper", "iron", "jade", "lowgold", "highgold", "truegold", "underlord"]);
+const CULTIVATION_STAGES = Object.freeze(["foundation", "copper", "iron", "jade", "lowgold", "highgold", "truegold", "underlord", "overlord", "archlord"]);
 const STAGE_LABELS = Object.freeze({
   foundation: "Foundation",
   copper: "Copper",
@@ -42,6 +44,8 @@ const STAGE_LABELS = Object.freeze({
   highgold: "High Gold",
   truegold: "True Gold",
   underlord: "Underlord",
+  overlord: "Overlord",
+  archlord: "Archlord",
 });
 const STAGE_PASSIVE_MULTIPLIER = Object.freeze({
   foundation: 1,
@@ -52,6 +56,8 @@ const STAGE_PASSIVE_MULTIPLIER = Object.freeze({
   highgold: 13.5,
   truegold: 20,
   underlord: 30,
+  overlord: 44,
+  archlord: 62,
 });
 const STAGE_MANUAL_MULTIPLIER = Object.freeze({
   foundation: 1,
@@ -62,6 +68,8 @@ const STAGE_MANUAL_MULTIPLIER = Object.freeze({
   highgold: 8.4,
   truegold: 12,
   underlord: 16,
+  overlord: 22,
+  archlord: 30,
 });
 
 const COMBAT_UPGRADES = Object.freeze([
@@ -1711,6 +1719,10 @@ export function renderCrd02Experience(context) {
                 ? `Breakthrough: True Gold (${BREAKTHROUGH_COSTS.highgold} Madra)`
                 : currentStage === "truegold"
                   ? "Underlord advancement is forged in Nightwheel Valley."
+                  : currentStage === "underlord"
+                    ? "Overlord advancement is forged in Scaling the Lord Realm."
+                    : currentStage === "overlord"
+                      ? "Archlord advancement is forged in Scaling the Lord Realm."
                   : "Stage cap reached";
 
   const activeTab = runtime.activeTab === "soul" || runtime.activeTab === "combat" || runtime.activeTab === "soulfire"

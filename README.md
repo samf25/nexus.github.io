@@ -79,7 +79,9 @@ src/
     desk.js
 docs/
   ARCHITECTURE.md
-  PHASE2_HANDOFF.md
+  ARTIFACT_TRACKER.md
+  LOOT_REGION_TYPES.md
+  archive/legacy-planning/PHASE2_HANDOFF.md
 arg_node_specs_loreauth.json
 ```
 
@@ -87,4 +89,4 @@ arg_node_specs_loreauth.json
 
 Phase 1 intentionally focuses on architecture and launchability. Phase 2 should begin implementing template-specific mechanics and validation logic per node family while preserving this data-driven runtime.
 
-See `docs/PHASE2_HANDOFF.md` for a concrete implementation handoff list.
+Legacy planning notes are archived in `docs/archive/legacy-planning/`.

@@ -934,11 +934,15 @@ function normalizeBattleState(state) {
 export function createWormBattleState({
   playerCards = [],
   enemyCards = [],
+  maxPlayerCards = 2,
+  maxEnemyCards = 2,
   seed = Date.now() >>> 0,
   enemyAiMode = ENEMY_AI_MODES.weighted,
 } = {}) {
-  const playerTeam = playerCards.slice(0, 2).map((card, index) => buildCombatant(card, "player", index));
-  const enemyTeam = enemyCards.slice(0, 2).map((card, index) => buildCombatant(card, "enemy", index));
+  const playerLimit = Math.max(1, Math.floor(Number(maxPlayerCards) || 2));
+  const enemyLimit = Math.max(1, Math.floor(Number(maxEnemyCards) || 2));
+  const playerTeam = playerCards.slice(0, playerLimit).map((card, index) => buildCombatant(card, "player", index));
+  const enemyTeam = enemyCards.slice(0, enemyLimit).map((card, index) => buildCombatant(card, "enemy", index));
 
   const state = normalizeBattleState({
     round: 1,
