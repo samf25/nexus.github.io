@@ -121,16 +121,6 @@ const LOOT_TABLES = Object.freeze({
         Object.freeze({ key: "dcc_run_hp_bonus", type: "flat", base: 8, perTier: 6 }),
       ]),
     }),
-    Object.freeze({
-      templateId: "dcc_enchant",
-      label: "Crawler Enchant",
-      kind: "dcc_enchant",
-      stackable: false,
-      effects: Object.freeze([
-        Object.freeze({ key: "dcc_run_attack_bonus", type: "flat", base: 2, perTier: 1 }),
-        Object.freeze({ key: "dcc_run_stamina_bonus", type: "flat", base: 1, perTier: 1 }),
-      ]),
-    }),
   ]),
   aa: Object.freeze([
     Object.freeze({
@@ -246,6 +236,9 @@ function effectSummaryLabelAndValue(effect) {
     dcc_run_hp_bonus: { label: "Max HP", value: signedNumber(value, 0) },
     dcc_run_attack_bonus: { label: "Attack", value: signedNumber(value, 2) },
     dcc_run_stamina_bonus: { label: "Stamina", value: signedNumber(value, 2) },
+    dcc_ability_slot_plus: { label: "Ability slots", value: `${Math.round(value) >= 0 ? "+" : ""}${Math.round(value)}` },
+    dcc_run_lifespan_plus: { label: "Run lifespan", value: `${Math.round(value) >= 0 ? "+" : ""}${Math.round(value)}` },
+    dcc_ability_unlock: { label: "Ability unlock", value: `${Math.round(value) >= 0 ? "+" : ""}${Math.round(value)}` },
     aa_mana_max_flat: { label: "Mana", value: signedNumber(value, 0) },
     aa_accuracy_flat: { label: "Rune accuracy", value: signedNumber(value, 2) },
     aa_mana_regen_pct: { label: "Mana regen", value: percent },
@@ -373,6 +366,138 @@ function wormShardDescriptor(statKey) {
   return table[key] || "Runed";
 }
 
+const DCC_ENCHANT_CHANCE_BY_RARITY = Object.freeze({
+  common: 0.08,
+  uncommon: 0.16,
+  rare: 0.28,
+  epic: 0.45,
+  legendary: 0.65,
+});
+
+const DCC_ENCHANT_TEMPLATES = Object.freeze([
+  Object.freeze({
+    id: "reinforced",
+    label: "Reinforced",
+    effectKey: "dcc_run_hp_bonus",
+    valueForRarity: (rarity) => 4 + rarityIndex(rarity) * 4,
+  }),
+  Object.freeze({
+    id: "razored",
+    label: "Razored",
+    effectKey: "dcc_run_attack_bonus",
+    valueForRarity: (rarity) => 1 + rarityIndex(rarity),
+  }),
+  Object.freeze({
+    id: "springloaded",
+    label: "Springloaded",
+    effectKey: "dcc_run_stamina_bonus",
+    valueForRarity: (rarity) => 1 + Math.floor((rarityIndex(rarity) + 1) / 2),
+  }),
+  Object.freeze({
+    id: "deep_pockets",
+    label: "Deep Pockets",
+    effectKey: "dcc_ability_slot_plus",
+    valueForRarity: () => 1,
+  }),
+  Object.freeze({
+    id: "reinforced_straps",
+    label: "Reinforced Straps",
+    effectKey: "dcc_run_lifespan_plus",
+    valueForRarity: (rarity) => (rarity === "legendary" ? 2 : 1),
+  }),
+  Object.freeze({
+    id: "manual_pocket_sand",
+    label: "Pocket Sand Lining",
+    effectKey: "dcc_ability_unlock",
+    abilityId: "pocket_sand",
+    valueForRarity: () => 1,
+  }),
+  Object.freeze({
+    id: "manual_door_kick",
+    label: "Door-Kicker Greaves",
+    effectKey: "dcc_ability_unlock",
+    abilityId: "door_kick",
+    valueForRarity: () => 1,
+  }),
+  Object.freeze({
+    id: "manual_footwork",
+    label: "Footwork Threading",
+    effectKey: "dcc_ability_unlock",
+    abilityId: "footwork",
+    valueForRarity: () => 1,
+  }),
+  Object.freeze({
+    id: "manual_threat",
+    label: "Threat-Call Stitching",
+    effectKey: "dcc_ability_unlock",
+    abilityId: "threat_call",
+    valueForRarity: () => 1,
+  }),
+]);
+
+function buildDccEnchantment(template, rarity) {
+  const value = Math.max(1, Math.floor(safeFinite(template.valueForRarity(rarity), 1)));
+  return {
+    id: template.id,
+    label: template.label,
+    abilityId: safeText(template.abilityId),
+    effects: [{
+      key: template.effectKey,
+      type: "flat",
+      value,
+    }],
+  };
+}
+
+function rollDccArmorEnchantments(rng, rarity) {
+  const enchantments = [];
+  let chance = DCC_ENCHANT_CHANCE_BY_RARITY[rarity] || DCC_ENCHANT_CHANCE_BY_RARITY.common;
+  while (enchantments.length < 4 && rng() < chance) {
+    const usedIds = new Set(enchantments.map((entry) => entry.id));
+    const pool = DCC_ENCHANT_TEMPLATES.filter((entry) => !usedIds.has(entry.id));
+    const template = randomPick(rng, pool);
+    if (!template) {
+      break;
+    }
+    enchantments.push(buildDccEnchantment(template, rarity));
+    chance /= 3;
+  }
+  return enchantments;
+}
+
+function buildDccArmorDrop({ rng, template, rarity, targetRegion, normalizedSource, triggerType, isOutRegion, now }) {
+  const rarityLabel = (RARITY_CONFIG[rarity] || RARITY_CONFIG.common).label;
+  const baseEffects = (template.effects || []).map((effect) => ({
+    key: effect.key,
+    type: effect.type || "flat",
+    value: scaledEffect(effect, rarity),
+  }));
+  const enchantments = rollDccArmorEnchantments(rng, rarity);
+  const enchantmentEffects = enchantments.flatMap((entry) => entry.effects || []);
+  const runLifespan = 1 + enchantmentEffects
+    .filter((effect) => effect.key === "dcc_run_lifespan_plus")
+    .reduce((sum, effect) => sum + Math.max(0, Math.floor(safeFinite(effect.value, 0))), 0);
+  const enchantmentLabel = enchantments.length
+    ? ` [${enchantments.map((entry) => entry.label).join(", ")}]`
+    : "";
+  return {
+    templateId: template.templateId,
+    label: `${template.label} (${rarityLabel})${enchantmentLabel}`,
+    region: targetRegion,
+    rarity,
+    kind: template.kind,
+    stackable: Boolean(template.stackable),
+    effects: [...baseEffects, ...enchantmentEffects],
+    enchantments,
+    runLifespan,
+    sourceRegion: normalizedSource,
+    triggerType: safeText(triggerType),
+    outOfRegion: isOutRegion,
+    createdAt: Math.floor(safeFinite(now, Date.now())),
+    durationMs: 0,
+  };
+}
+
 function normalizeEffect(candidate) {
   const source = candidate && typeof candidate === "object" ? candidate : {};
   return {
@@ -382,19 +507,35 @@ function normalizeEffect(candidate) {
   };
 }
 
+function normalizeDccEnchantment(candidate) {
+  const source = candidate && typeof candidate === "object" ? candidate : {};
+  return {
+    id: safeText(source.id),
+    label: safeText(source.label) || "Crawler Enchantment",
+    abilityId: safeText(source.abilityId),
+    effects: Array.isArray(source.effects) ? source.effects.map(normalizeEffect).filter((effect) => effect.key) : [],
+  };
+}
+
 function normalizeItem(candidate) {
   const source = candidate && typeof candidate === "object" ? candidate : {};
   const region = safeText(source.region).toLowerCase();
+  const kind = safeText(source.kind);
+  const enchantments = Array.isArray(source.enchantments)
+    ? source.enchantments.map(normalizeDccEnchantment).filter((entry) => entry.id || entry.effects.length || entry.abilityId)
+    : [];
   return {
     id: safeText(source.id),
     templateId: safeText(source.templateId),
     label: safeText(source.label) || "Loot",
     region: LOOT_REGIONS.includes(region) ? region : "crd",
     rarity: RARITY_ORDER.includes(safeText(source.rarity).toLowerCase()) ? safeText(source.rarity).toLowerCase() : "common",
-    kind: safeText(source.kind),
+    kind,
     stackable: Boolean(source.stackable),
     quantity: Math.max(1, Math.floor(safeFinite(source.quantity, 1))),
     effects: Array.isArray(source.effects) ? source.effects.map(normalizeEffect).filter((e) => e.key) : [],
+    enchantments,
+    runLifespan: kind === "dcc_armor" ? Math.max(1, Math.floor(safeFinite(source.runLifespan, 1))) : 0,
     sourceRegion: safeText(source.sourceRegion).toLowerCase(),
     triggerType: safeText(source.triggerType),
     outOfRegion: Boolean(source.outOfRegion),
@@ -480,6 +621,7 @@ export function defaultLootInventoryState() {
     progression: {
       crdSoulCrystalSlots: 3,
       wormShardSlotsPerCape: 1,
+      wormShardSlotCountsByCape: {},
       wormSickbaySlots: 1,
       wormHiringRarityBonus: 0,
       twiReputation: 0,
@@ -493,15 +635,43 @@ export function defaultLootInventoryState() {
 
 function normalizeProgression(candidate) {
   const source = candidate && typeof candidate === "object" ? candidate : {};
+  const rawCapeCounts = source.wormShardSlotCountsByCape && typeof source.wormShardSlotCountsByCape === "object"
+    ? source.wormShardSlotCountsByCape
+    : {};
+  const wormShardSlotCountsByCape = {};
+  for (const [cardId, count] of Object.entries(rawCapeCounts)) {
+    const cleanCardId = safeText(cardId);
+    if (!cleanCardId) {
+      continue;
+    }
+    wormShardSlotCountsByCape[cleanCardId] = clamp(
+      Math.floor(safeFinite(count, 1)),
+      1,
+      SLOT_CAPS.wormShardSlotsPerCape,
+    );
+  }
   return {
     crdSoulCrystalSlots: clamp(Math.floor(safeFinite(source.crdSoulCrystalSlots, 3)), 3, SLOT_CAPS.crdSoulCrystalSlots),
     wormShardSlotsPerCape: clamp(Math.floor(safeFinite(source.wormShardSlotsPerCape, 1)), 1, SLOT_CAPS.wormShardSlotsPerCape),
+    wormShardSlotCountsByCape,
     wormSickbaySlots: clamp(Math.floor(safeFinite(source.wormSickbaySlots, 1)), 1, SLOT_CAPS.wormSickbaySlots),
     wormHiringRarityBonus: clamp(Math.floor(safeFinite(source.wormHiringRarityBonus, 0)), 0, SLOT_CAPS.wormHiringRarityBonus),
     twiReputation: Math.max(0, Math.floor(safeFinite(source.twiReputation, 0))),
     innTier: Math.max(0, Math.floor(safeFinite(source.innTier, 0))),
     twiUpgrades: source.twiUpgrades && typeof source.twiUpgrades === "object" ? { ...source.twiUpgrades } : {},
   };
+}
+
+function wormShardSlotCountFromProgression(progression, cardId = "") {
+  const source = progression && typeof progression === "object" ? progression : {};
+  const cleanCardId = safeText(cardId);
+  const byCape = source.wormShardSlotCountsByCape && typeof source.wormShardSlotCountsByCape === "object"
+    ? source.wormShardSlotCountsByCape
+    : {};
+  if (cleanCardId && Object.prototype.hasOwnProperty.call(byCape, cleanCardId)) {
+    return clamp(Math.floor(safeFinite(byCape[cleanCardId], 1)), 1, SLOT_CAPS.wormShardSlotsPerCape);
+  }
+  return clamp(Math.floor(safeFinite(source.wormShardSlotsPerCape, 1)), 1, SLOT_CAPS.wormShardSlotsPerCape);
 }
 
 export function normalizeLootInventoryState(candidate, now = Date.now()) {
@@ -654,6 +824,19 @@ export function rollRegionalLoot({
       createdAt: Math.floor(safeFinite(now, Date.now())),
       durationMs: template.durationMinutes ? Math.round(template.durationMinutes * 60000 * scalar) : 0,
     };
+  }
+
+  if (template.templateId === "dcc_armor") {
+    return buildDccArmorDrop({
+      rng,
+      template,
+      rarity,
+      targetRegion,
+      normalizedSource,
+      triggerType,
+      isOutRegion,
+      now,
+    });
   }
 
   return {
@@ -818,13 +1001,11 @@ export function consumeLootItem(state, itemInstanceId, now = Date.now()) {
     nextLoot.items = decrementOrRemoveItem(nextLoot.items, itemId);
     message = "Cradle soul crystal slot capacity increased.";
   } else if (item.templateId === "worm_shard_slot_token") {
-    nextLoot.progression.wormShardSlotsPerCape = clamp(
-      nextLoot.progression.wormShardSlotsPerCape + 1,
-      1,
-      SLOT_CAPS.wormShardSlotsPerCape,
-    );
-    nextLoot.items = decrementOrRemoveItem(nextLoot.items, itemId);
-    message = "WORM shard enhancement slot capacity increased.";
+    return {
+      nextState: sourceState,
+      changed: false,
+      message: "Shard Lattice Sockets must be applied to a specific cape in WORM01.",
+    };
   } else if (item.templateId === "worm_sickbay_slot_token") {
     nextLoot.progression.wormSickbaySlots = clamp(
       nextLoot.progression.wormSickbaySlots + 1,
@@ -1057,23 +1238,50 @@ export function equipLootItem(state, { region, targetId = "", slotId, itemInstan
   }
 
   if (regionKey === "worm") {
-    if (item.kind !== "worm_enhancement") {
-      return {
-        nextState: sourceState,
-        changed: false,
-        message: "Only shard enhancements can be equipped to capes.",
-      };
-    }
     const cardId = safeText(targetId);
     if (!cardId) {
       return {
         nextState: sourceState,
         changed: false,
-        message: "Select a cape before equipping this enhancement.",
+        message: "Select a cape before using WORM shard loot.",
+      };
+    }
+    if (item.templateId === "worm_shard_slot_token") {
+      const unlocked = wormShardSlotCountFromProgression(lootState.progression, cardId);
+      if (unlocked >= SLOT_CAPS.wormShardSlotsPerCape) {
+        return {
+          nextState: sourceState,
+          changed: false,
+          message: "That cape already has the maximum shard lattice capacity.",
+        };
+      }
+      const nextCounts = {
+        ...(lootState.progression.wormShardSlotCountsByCape || {}),
+        [cardId]: unlocked + 1,
+      };
+      return {
+        nextState: withLootState(sourceState, {
+          ...lootState,
+          items: decrementOrRemoveItem({ ...lootState.items }, itemId),
+          loadouts: nextLoadouts,
+          progression: {
+            ...lootState.progression,
+            wormShardSlotCountsByCape: nextCounts,
+          },
+        }),
+        changed: true,
+        message: `Shard lattice socket added to ${cardId}.`,
+      };
+    }
+    if (item.kind !== "worm_enhancement") {
+      return {
+        nextState: sourceState,
+        changed: false,
+        message: "Only shard enhancements or lattice sockets can be equipped to capes.",
       };
     }
     const slotIndex = clamp(Math.floor(safeFinite(slotId, 0)), 0, SLOT_CAPS.wormShardSlotsPerCape - 1);
-    const unlocked = Math.max(1, lootState.progression.wormShardSlotsPerCape);
+    const unlocked = wormShardSlotCountFromProgression(lootState.progression, cardId);
     if (slotIndex >= unlocked) {
       return {
         nextState: sourceState,
@@ -1370,16 +1578,20 @@ export function getWormHiringRarityBonus(state, now = Date.now()) {
   return clamp(Math.floor(safeFinite(loot.progression.wormHiringRarityBonus, 0)), 0, SLOT_CAPS.wormHiringRarityBonus);
 }
 
-export function getWormShardSlotCount(state, now = Date.now()) {
-  const loot = lootInventoryFromState(state, now);
-  return clamp(Math.floor(safeFinite(loot.progression.wormShardSlotsPerCape, 1)), 1, SLOT_CAPS.wormShardSlotsPerCape);
+export function getWormShardSlotCount(state, cardIdOrNow = "", now = Date.now()) {
+  const oldStyleNow = Number.isFinite(Number(cardIdOrNow)) && safeText(cardIdOrNow) !== "";
+  const resolvedNow = oldStyleNow ? Number(cardIdOrNow) : now;
+  const cardId = oldStyleNow ? "" : safeText(cardIdOrNow);
+  const loot = lootInventoryFromState(state, resolvedNow);
+  return wormShardSlotCountFromProgression(loot.progression, cardId);
 }
 
 export function getWormCapeLootBonuses(state, cardId, now = Date.now()) {
   const loot = lootInventoryFromState(state, now);
   const cleanCardId = safeText(cardId);
+  const unlocked = wormShardSlotCountFromProgression(loot.progression, cleanCardId);
   const slots = cleanCardId && Array.isArray(loot.loadouts.worm.shardSlotsByCape[cleanCardId])
-    ? loot.loadouts.worm.shardSlotsByCape[cleanCardId]
+    ? loot.loadouts.worm.shardSlotsByCape[cleanCardId].slice(0, unlocked)
     : [];
   const effects = collectItemEffects(loot, slots.filter(Boolean));
   const bonuses = {

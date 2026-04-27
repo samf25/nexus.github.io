@@ -340,6 +340,8 @@ function equippedBonuses(run) {
     hp: 0,
     attack: 0,
     stamina: 0,
+    abilitySlots: 0,
+    abilityIds: [],
   };
   for (const item of Object.values(equipment)) {
     if (!item) {
@@ -348,8 +350,38 @@ function equippedBonuses(run) {
     result.hp += Math.max(0, Math.floor(Number(item.hpBonus || 0)));
     result.attack += Math.max(0, Math.floor(Number(item.attackBonus || 0)));
     result.stamina += Math.max(0, Math.floor(Number(item.staminaBonus || 0)));
+    result.abilitySlots += Math.max(0, Math.floor(Number(item.abilitySlotBonus || 0)));
+    const unlocks = Array.isArray(item.abilityUnlocks) ? item.abilityUnlocks : [];
+    for (const abilityId of unlocks) {
+      const cleanAbilityId = safeText(abilityId);
+      if (cleanAbilityId && ABILITIES[cleanAbilityId] && !result.abilityIds.includes(cleanAbilityId)) {
+        result.abilityIds.push(cleanAbilityId);
+      }
+    }
   }
   return result;
+}
+
+function applyGearAbilityUnlocks(run, bonuses) {
+  const slots = Array.isArray(run && run.abilitySlots) ? run.abilitySlots : [];
+  const extraSlots = Math.max(0, Math.floor(Number(bonuses && bonuses.abilitySlots) || 0));
+  for (let index = 0; index < extraSlots; index += 1) {
+    slots.push("");
+  }
+
+  const abilityIds = Array.isArray(bonuses && bonuses.abilityIds) ? bonuses.abilityIds : [];
+  for (const abilityId of abilityIds) {
+    if (!ABILITIES[abilityId] || slots.includes(abilityId)) {
+      continue;
+    }
+    const emptyIndex = slots.findIndex((entry) => !entry);
+    if (emptyIndex >= 0) {
+      slots[emptyIndex] = abilityId;
+    } else {
+      slots.push(abilityId);
+    }
+  }
+  run.abilitySlots = slots;
 }
 
 function applyEquipmentToRun(run) {
@@ -365,6 +397,47 @@ function applyEquipmentToRun(run) {
   run.maxStamina = baseMaxStamina + bonuses.stamina;
   run.hp = Math.min(run.maxHp, Math.max(0, Number(run.hp || 0)));
   run.stamina = Math.min(run.maxStamina, Math.max(0, Number(run.stamina || 0)));
+  applyGearAbilityUnlocks(run, bonuses);
+}
+
+function consumePreparedEquipmentForRun(preparedEquipment) {
+  const runEquipment = normalizeEquipment(preparedEquipment);
+  const nextPrepared = normalizeEquipment(preparedEquipment);
+  const expiredItemIds = [];
+
+  for (const slot of Object.keys(runEquipment)) {
+    const item = runEquipment[slot];
+    if (!item || typeof item !== "object") {
+      nextPrepared[slot] = null;
+      continue;
+    }
+    const remaining = Math.max(
+      1,
+      Math.floor(Number(item.remainingRunLifespan ?? item.runLifespan ?? 1) || 1),
+    );
+    runEquipment[slot] = {
+      ...item,
+      remainingRunLifespan: remaining,
+    };
+    const nextRemaining = remaining - 1;
+    if (nextRemaining <= 0) {
+      if (item.itemId) {
+        expiredItemIds.push(String(item.itemId));
+      }
+      nextPrepared[slot] = null;
+    } else {
+      nextPrepared[slot] = {
+        ...item,
+        remainingRunLifespan: nextRemaining,
+      };
+    }
+  }
+
+  return {
+    runEquipment,
+    nextPrepared,
+    expiredItemIds,
+  };
 }
 
 function collectNeighbors(openRooms, key) {
@@ -580,6 +653,9 @@ function normalizeRuntime(candidate) {
     solved: Boolean(source.solved),
     inventoryOpen: Boolean(source.inventoryOpen),
     lootEvents: Array.isArray(source.lootEvents) ? source.lootEvents.filter((entry) => entry && typeof entry === "object") : [],
+    pendingLootRemovals: Array.isArray(source.pendingLootRemovals)
+      ? source.pendingLootRemovals.map((entry) => String(entry || "")).filter((entry) => entry)
+      : [],
     pendingRewards: Array.isArray(source.pendingRewards) ? source.pendingRewards.map((entry) => String(entry || "")).filter((entry) => entry) : [],
     meta: withDefaultMeta(source.meta),
     run: source.run && typeof source.run === "object" ? source.run : null,
@@ -593,6 +669,7 @@ function createInitialRuntime() {
     solved: false,
     inventoryOpen: false,
     lootEvents: [],
+    pendingLootRemovals: [],
     pendingRewards: [],
     meta: withDefaultMeta({}),
     run: null,
@@ -815,6 +892,22 @@ function startFloor(runtime, state, floor = 1) {
   if (modifiers.startWithSponsorSkill) {
     slots[0] = "sponsor_blast";
   }
+  const gearUse = consumePreparedEquipmentForRun(runtime && runtime.meta ? runtime.meta.preparedEquipment : null);
+  if (runtime && runtime.meta) {
+    runtime.meta = withDefaultMeta({
+      ...runtime.meta,
+      preparedEquipment: gearUse.nextPrepared,
+    });
+  }
+  if (runtime) {
+    const pending = Array.isArray(runtime.pendingLootRemovals) ? runtime.pendingLootRemovals.slice() : [];
+    for (const itemId of gearUse.expiredItemIds) {
+      if (itemId && !pending.includes(itemId)) {
+        pending.push(itemId);
+      }
+    }
+    runtime.pendingLootRemovals = pending;
+  }
 
   const run = {
     active: true,
@@ -837,7 +930,7 @@ function startFloor(runtime, state, floor = 1) {
     abilitySlots: slots,
     combat: null,
     event: null,
-    equipment: normalizeEquipment(runtime && runtime.meta ? runtime.meta.preparedEquipment : null),
+    equipment: gearUse.runEquipment,
     roomState: null,
     nextEnemyActAt: 0,
     bossDefeated: false,
@@ -2158,8 +2251,9 @@ function dccLootPanelMarkup(runtime, state) {
   const canEquip = Boolean(runtime && !runtime.run && selectedLootItemId);
   const ringSlots = rows.map((row) => {
     const item = equipment[row.slot];
+    const lives = item ? Math.max(1, Math.floor(Number(item.remainingRunLifespan ?? item.runLifespan ?? 1) || 1)) : 0;
     const details = item
-      ? `${row.label}: ${item.label || "Armor"} (${item.rarity || "common"})${item.enchantLabel ? ` | Enchant: ${item.enchantLabel}` : ""}`
+      ? `${row.label}: ${item.label || "Armor"} (${item.rarity || "common"})${item.enchantLabel ? ` | Enchant: ${item.enchantLabel}` : ""} | ${lives} run${lives === 1 ? "" : "s"} left`
       : `${row.label}: empty`;
     return {
       filled: Boolean(item),
@@ -2217,8 +2311,9 @@ function compactGearSummaryMarkup(run) {
   ];
   const slots = entries.map((entry) => {
     const item = equipment[entry.slot];
+    const lives = item ? Math.max(1, Math.floor(Number(item.remainingRunLifespan ?? item.runLifespan ?? 1) || 1)) : 0;
     const title = item
-      ? `${entry.label}: ${item.label || "Armor"} (${item.rarity || "common"})${item.enchantLabel ? ` | Enchant: ${item.enchantLabel}` : ""}`
+      ? `${entry.label}: ${item.label || "Armor"} (${item.rarity || "common"})${item.enchantLabel ? ` | Enchant: ${item.enchantLabel}` : ""} | ${lives} run${lives === 1 ? "" : "s"} left`
       : `${entry.label}: empty`;
     return {
       filled: Boolean(item),

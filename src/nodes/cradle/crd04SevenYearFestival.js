@@ -1,12 +1,12 @@
 import { escapeHtml } from "../../templates/shared.js";
 import { renderArtifactSymbol } from "../../core/artifacts.js";
 import {
+  cradleCombatAttackMultiplierFromState,
   madraPoolMultiplierForStage,
   normalizeCombatStage,
   randomUnit,
   rollDamage,
 } from "./combatSystem.js";
-import { prestigeModifiersFromState } from "../../systems/prestige.js";
 
 const NODE_ID = "CRD04";
 const COOLDOWN_MS = 60 * 60 * 1000;
@@ -63,8 +63,7 @@ function combatProfileFromState(state) {
   const emptyPalm = Number(upgrades["empty-palm"] || 0);
   const consume = Number(upgrades.consume || 0);
   const hollowDomain = Number(upgrades["hollow-domain"] || 0);
-  const modifiers = prestigeModifiersFromState(state || {});
-  const attackMultiplier = Math.max(1, Number(modifiers.cradle && modifiers.cradle.combatAttackMultiplier) || 1);
+  const attackMultiplier = cradleCombatAttackMultiplierFromState(state || {});
 
   return {
     stage,

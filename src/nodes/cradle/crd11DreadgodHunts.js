@@ -1,5 +1,6 @@
 import { escapeHtml } from "../../templates/shared.js";
 import {
+  cradleCombatAttackMultiplierFromState,
   madraPoolMultiplierForStage,
   normalizeCombatStage,
   randomUnit,
@@ -111,6 +112,7 @@ function combatProfileFromState(state) {
   const emptyPalm = Number(upgrades["empty-palm"] || 0);
   const pathSpell = Math.max(0, Number(lordPathUpgrades.sageScript || 0));
   const pathMight = Math.max(0, Number(lordPathUpgrades.heraldMight || 0));
+  const attackMultiplier = cradleCombatAttackMultiplierFromState(state || {});
   return {
     stage,
     lordPath,
@@ -118,9 +120,9 @@ function combatProfileFromState(state) {
     hasEmptyPalm: emptyPalm > 0,
     maxHp: 340 + ironBody * 38 + pathMight * 42 + (lordPath === "herald" ? 120 : 0),
     maxMadra: Math.round((280 + soulCloak * 8 + consume * 10 + pathSpell * 14) * madraPoolMultiplierForStage(stage)) + (lordPath === "sage" ? 90 : 0),
-    meleeBonus: soulCloak + consume + pathMight * 3,
+    meleeBonus: (soulCloak + consume + pathMight * 3) * attackMultiplier,
     dodgeBonus: soulCloak + pathSpell,
-    spellBonus: pathSpell * 4 + (lordPath === "sage" ? 6 : 0),
+    spellBonus: (pathSpell * 4 + (lordPath === "sage" ? 6 : 0)) * attackMultiplier,
   };
 }
 
@@ -573,4 +575,3 @@ export const CRD11_NODE_EXPERIENCE = {
   validateRuntime: validateCrd11Runtime,
   buildActionFromElement: buildCrd11ActionFromElement,
 };
-

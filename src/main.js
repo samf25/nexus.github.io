@@ -2505,6 +2505,30 @@ function dispatchActiveNodeAction(action) {
         setBanner(`Loot recovered: ${lootResolution.dropped.join(", ")}.`);
       }
     }
+    runtime = readNodeRuntime(next, node, experience);
+
+    if (runtime && Array.isArray(runtime.pendingLootRemovals) && runtime.pendingLootRemovals.length) {
+      const removals = parseArtifactList(runtime.pendingLootRemovals);
+      for (const itemId of removals) {
+        const removed = removeLootItemInstance(next, itemId, 1);
+        if (removed.changed) {
+          next = removed.nextState;
+        }
+      }
+      next = updateNodeRuntime(
+        next,
+        node.node_id,
+        (currentRuntime) => ({
+          ...(currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {}),
+          pendingLootRemovals: [],
+        }),
+        () => experience.initialState({ node, state: next }),
+      );
+      if (removals.length) {
+        setBanner(`Run-limited gear expired: ${removals.length} item${removals.length === 1 ? "" : "s"}.`);
+      }
+      runtime = readNodeRuntime(next, node, experience);
+    }
 
     if (runtime && Array.isArray(runtime.pendingRewards) && runtime.pendingRewards.length) {
       const rewardsToGrant = parseArtifactList(runtime.pendingRewards);
@@ -3586,41 +3610,33 @@ function handleClick(event) {
             setBanner("Choose a valid DCC armor slot.");
             return current;
           }
+          const effects = Array.isArray(item.effects) ? item.effects : [];
+          const sumEffect = (key) => effects
+            .filter((effect) => effect && effect.key === key)
+            .reduce((sum, effect) => sum + Math.max(0, Number(effect.value) || 0), 0);
+          const enchantments = Array.isArray(item.enchantments) ? item.enchantments : [];
+          const abilityUnlocks = enchantments
+            .map((entry) => String(entry && entry.abilityId ? entry.abilityId : ""))
+            .filter((abilityId, index, list) => abilityId && list.indexOf(abilityId) === index);
+          const runLifespan = Math.max(1, Math.floor(Number(item.runLifespan || 1)));
           prepared[slot] = {
-            ...(prepared[slot] && typeof prepared[slot] === "object" ? prepared[slot] : {}),
             itemId,
             label: item.label,
             rarity: item.rarity,
-            enchantItemId: prepared[slot] && prepared[slot].enchantItemId ? prepared[slot].enchantItemId : "",
-            hpBonus: Number((Array.isArray(item.effects) ? item.effects.find((effect) => effect.key === "dcc_run_hp_bonus") : null)?.value || 0),
-            baseAttackBonus: Number((Array.isArray(item.effects) ? item.effects.find((effect) => effect.key === "dcc_run_attack_bonus") : null)?.value || 0),
-            baseStaminaBonus: Number((Array.isArray(item.effects) ? item.effects.find((effect) => effect.key === "dcc_run_stamina_bonus") : null)?.value || 0),
-            attackBonus: Number((Array.isArray(item.effects) ? item.effects.find((effect) => effect.key === "dcc_run_attack_bonus") : null)?.value || 0),
-            staminaBonus: Number((Array.isArray(item.effects) ? item.effects.find((effect) => effect.key === "dcc_run_stamina_bonus") : null)?.value || 0),
+            enchantments,
+            enchantLabel: enchantments.map((entry) => String(entry && entry.label ? entry.label : "")).filter(Boolean).join(", "),
+            hpBonus: sumEffect("dcc_run_hp_bonus"),
+            attackBonus: sumEffect("dcc_run_attack_bonus"),
+            staminaBonus: sumEffect("dcc_run_stamina_bonus"),
+            abilitySlotBonus: sumEffect("dcc_ability_slot_plus"),
+            abilityUnlocks,
+            runLifespan,
+            remainingRunLifespan: runLifespan,
           };
           setBanner(`Prepared ${item.label} in ${slot} slot.`);
         } else if (item.kind === "dcc_enchant") {
-          const armorSlot = targetId || "chest";
-          if (!["head", "chest", "legs", "trinket"].includes(armorSlot)) {
-            setBanner("Choose an armor piece for this enchant.");
-            return current;
-          }
-          const base = prepared[armorSlot] && typeof prepared[armorSlot] === "object" ? prepared[armorSlot] : null;
-          if (!base || !base.itemId) {
-            setBanner("Equip an armor piece first, then attach an enchant.");
-            return current;
-          }
-          const addAttack = Number((Array.isArray(item.effects) ? item.effects.find((effect) => effect.key === "dcc_run_attack_bonus") : null)?.value || 0);
-          const addStamina = Number((Array.isArray(item.effects) ? item.effects.find((effect) => effect.key === "dcc_run_stamina_bonus") : null)?.value || 0);
-          prepared[armorSlot] = {
-            ...base,
-            enchantItemId: itemId,
-            enchantLabel: item.label,
-            rarity: base.rarity || item.rarity,
-            attackBonus: Number(base.baseAttackBonus || base.attackBonus || 0) + addAttack,
-            staminaBonus: Number(base.baseStaminaBonus || base.staminaBonus || 0) + addStamina,
-          };
-          setBanner(`Prepared ${item.label} on ${armorSlot} slot.`);
+          setBanner("Standalone DCC enchants are legacy sell items. New enchants come embedded on armor.");
+          return current;
         } else {
           setBanner("That item cannot be slotted in DCC.");
           return current;

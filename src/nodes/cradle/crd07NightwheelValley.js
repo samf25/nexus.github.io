@@ -3,12 +3,12 @@ import { renderArtifactSymbol } from "../../core/artifacts.js";
 import { renderRegionSymbol } from "../../core/symbology.js";
 import { renderSlotRing } from "../../ui/slotRing.js";
 import {
+  cradleCombatAttackMultiplierFromState,
   madraPoolMultiplierForStage,
   normalizeCombatStage,
   randomUnit,
   rollDamage,
 } from "./combatSystem.js";
-import { prestigeModifiersFromState } from "../../systems/prestige.js";
 import { lootInventoryFromState } from "../../systems/loot.js";
 
 const NODE_ID = "CRD07";
@@ -86,8 +86,7 @@ function combatProfileFromState(state) {
   const consume = Number(upgrades.consume || 0);
   const hollowDomain = Number(upgrades["hollow-domain"] || 0);
   const soulfireCycler = Number(crd02.soulfire && crd02.soulfire.soulfireCyclerLevel ? crd02.soulfire.soulfireCyclerLevel : 0);
-  const modifiers = prestigeModifiersFromState(state || {});
-  const attackMultiplier = Math.max(1, Number(modifiers.cradle && modifiers.cradle.combatAttackMultiplier) || 1);
+  const attackMultiplier = cradleCombatAttackMultiplierFromState(state || {});
 
   return {
     stage,

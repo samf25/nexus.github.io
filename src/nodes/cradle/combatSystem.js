@@ -1,3 +1,6 @@
+import { getCradleLootModifiers } from "../../systems/loot.js";
+import { prestigeModifiersFromState } from "../../systems/prestige.js";
+
 const COMBAT_STAGES = Object.freeze([
   "foundation",
   "copper",
@@ -69,6 +72,16 @@ export function defenseMultiplierForStage(stageId) {
 
 export function madraPoolMultiplierForStage(stageId) {
   return MADRA_POOL_MULTIPLIER[normalizeCombatStage(stageId)] || 1;
+}
+
+export function cradleCombatAttackMultiplierFromState(state, now = Date.now()) {
+  const prestige = prestigeModifiersFromState(state || {});
+  const loot = getCradleLootModifiers(state || {}, now);
+  return Math.max(
+    1,
+    Number(prestige.cradle && prestige.cradle.combatAttackMultiplier ? prestige.cradle.combatAttackMultiplier : 1)
+      * Number(loot.combatAttackMultiplier || 1),
+  );
 }
 
 export function nextSeed(seed, salt = 0) {

@@ -1,5 +1,6 @@
 import { escapeHtml } from "../../templates/shared.js";
 import {
+  cradleCombatAttackMultiplierFromState,
   madraPoolMultiplierForStage,
   normalizeCombatStage,
   randomUnit,
@@ -60,11 +61,12 @@ function combatProfileFromState(state) {
   const emptyPalm = Number(upgrades["empty-palm"] || 0);
   const consume = Number(upgrades.consume || 0);
   const hollowDomain = Number(upgrades["hollow-domain"] || 0);
+  const attackMultiplier = cradleCombatAttackMultiplierFromState(state || {});
 
   return {
     stage,
     hasEmptyPalm: emptyPalm > 0,
-    meleeBonus: soulCloak + consume + hollowDomain,
+    meleeBonus: (soulCloak + consume + hollowDomain) * attackMultiplier,
     dodgeBonus: soulCloak + hollowDomain,
     maxHp: 128 + ironBody * 26 + (stage === "jade" ? 26 : stage === "gold" ? 44 : 0),
     maxMadra: Math.round((112 + soulCloak * 4 + consume * 6 + hollowDomain * 7) * madraPoolMultiplierForStage(stage)),

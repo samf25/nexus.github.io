@@ -1683,7 +1683,7 @@ export function renderCrd02Experience(context) {
       : [];
   const crdLootItems = Object.values(lootState.items || {}).filter((item) => item.region === "crd");
   const soulCrystals = crdLootItems.filter((item) => item.kind === "soul_crystal");
-  const combatRelics = crdLootItems.filter((item) => item.kind === "crd_combat_relic");
+  const combatRelics = crdLootItems.filter((item) => item.kind === "combat_item" || item.templateId === "crd_combat_relic");
   const equippedCombatId =
     lootState.loadouts && lootState.loadouts.cradle ? lootState.loadouts.cradle.combatItemId : null;
   const selectedLootItemId = String(context.selectedLootItemId || "");

@@ -23,7 +23,6 @@ const WAVE_TWO_SECTIONS = new Set([
   "Practical Guide",
 ]);
 const WAVE_THREE_NODE_IDS = new Set(["FIN01"]);
-const ALWAYS_UNLOCKED_NODE_IDS = new Set(["WORM03"]);
 
 export function computeUnlockedNodeIds(index, state) {
   const solved = new Set(state.solvedNodeIds || []);
@@ -33,11 +32,6 @@ export function computeUnlockedNodeIds(index, state) {
   const waveThreeUnlocked = hasWaveThreePasskey(state);
 
   for (const node of index.raw.nodes) {
-    if (ALWAYS_UNLOCKED_NODE_IDS.has(node.node_id)) {
-      unlocked.add(node.node_id);
-      continue;
-    }
-
     if (node.section === "Nexus Hub" && (node.node_id === "HUB04" || node.node_id === "HUB05" || node.node_id === "HUB06")) {
       unlocked.add(node.node_id);
       continue;
@@ -45,10 +39,7 @@ export function computeUnlockedNodeIds(index, state) {
 
     const deps = Array.isArray(node.dependencies) ? node.dependencies : [];
     const hasAllDeps = deps.every((dep) => solved.has(dep));
-    const waveOneGateNode =
-      WAVE_ONE_SECTIONS.has(node.section) &&
-      Number(node.layer) <= 3 &&
-      deps.includes("HUB05");
+    const waveOneGateNode = WAVE_ONE_SECTIONS.has(node.section);
     const passesWaveOneGate = !waveOneGateNode || waveOneUnlocked;
     const waveOneBypass = waveOneUnlocked && waveOneGateNode;
     const waveTwoGateNode = WAVE_TWO_SECTIONS.has(node.section);

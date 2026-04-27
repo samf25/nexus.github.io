@@ -103,6 +103,9 @@ function placementHintForItem(item, activeNodeId) {
   if (templateId === "worm_shard_enhancement") {
     return "Shard enhancement selected. Open a cape shard popup in WORM01 and click a socket.";
   }
+  if (templateId === "worm_shard_slot_token") {
+    return "Shard lattice selected. Open a cape shard popup in WORM01 and click that cape's next locked socket.";
+  }
   if (templateId === "worm_hiring_window_token") {
     return "Use this dossier to permanently improve WORM hiring quality.";
   }
@@ -112,8 +115,11 @@ function placementHintForItem(item, activeNodeId) {
   if (kind === "aa_focus") {
     return "Workshop focus selected. Open AA03 Slots and click a socket.";
   }
-  if (kind === "dcc_armor" || kind === "dcc_enchant") {
-    return "DCC gear selected. Start a run and place it from DCC slot controls.";
+  if (kind === "dcc_armor") {
+    return "DCC armor selected. Place it from DCC slot controls before entering a run.";
+  }
+  if (kind === "dcc_enchant") {
+    return "Legacy DCC enchant selected. It can be sold, but new enchants come embedded on armor.";
   }
   return "Selected item can be used or placed in its matching region slots.";
 }

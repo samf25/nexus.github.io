@@ -13,13 +13,13 @@ Snapshot date: 2026-04-26
 
 ### Worm (`worm`)
 - `Shard Enhancement` (single-stat cape shard boost)
-- `Shard Lattice Socket` (per-cape shard slot expansion)
+- `Shard Lattice Socket` (consumed on a specific cape to expand that cape's shard slots)
 - `Sickbay Expansion Permit` (more healing slots)
 - `Advanced Hiring Dossier` (improves hiring rarity window)
 
 ### Dungeon Crawler Carl (`dcc`)
-- `Crawler Armor` (run HP bonus)
-- `Crawler Enchant` (run attack/stamina bonus)
+- `Crawler Armor` (run-limited armor with possible embedded enchants)
+- Embedded armor enchants can add stats, ability access, ability slots, or extended run lifespan
 
 ### Arcane Ascension (`aa`)
 - `Aether Capacitor` (mana cap)

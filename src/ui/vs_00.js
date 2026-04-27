@@ -42,11 +42,6 @@ function keyframeValue(progress, keyframes) {
   return frames[frames.length - 1][1];
 }
 
-function wrapHue(hue) {
-  const value = Number(hue) || 0;
-  return ((value % 360) + 360) % 360;
-}
-
 function lerpPoint(a, b, t) {
   return {
     x: lerp(a.x, b.x, t),
@@ -432,27 +427,23 @@ function createSymbolTracer(controller, elapsedSec) {
   const anchorDepth = randomRange(seed + 19, -2.2, 2.8);
   const complexity = Math.max(0.9, Number(symbol.totalSteps || 0) / 135);
   const flowMode = TRACER_FLOW_MODES[symbolIndex % TRACER_FLOW_MODES.length] || "orbit";
-  const symbolScale = randomRange(seed + 47, 0.72, 1.16);
-  const decayLineCount = Math.floor(randomRange(seed + 89, 20, 34));
-  const decayTrailLength = Math.floor(randomRange(seed + 97, 24, 42));
 
   return {
-    seed,
     symbol,
     startedAtSec: elapsedSec,
     flyDurationSec: randomRange(seed + 23, 1.2, 2.1),
     traceLoops: 2,
     traceDurationSec: Math.min(11.2, randomRange(seed + 29, 2.9, 4.7) * complexity * 2),
     holdDurationSec: randomRange(seed + 31, 0.7, 1.1),
-    decayDurationSec: randomRange(seed + 37, 8.8, 12.6),
-    funnelDurationSec: randomRange(seed + 41, 3.6, 5.4),
+    flashDurationSec: randomRange(seed + 37, 0.18, 0.3),
+    fadeDurationSec: randomRange(seed + 41, 0.16, 0.26),
     holdLoopRate: randomRange(seed + 43, 0.28, 0.46),
     anchor: {
       x: Math.cos(orbitAngle) * orbitRadius,
       y: anchorHeight,
       z: Math.sin(orbitAngle) * orbitRadius * 0.68 + anchorDepth,
     },
-    scale: symbolScale,
+    scale: randomRange(seed + 47, 0.72, 1.16),
     rotationOffset: randomRange(seed + 53, 0, Math.PI * 2),
     spinRate: randomRange(seed + 59, -0.3, 0.3),
     phase: randomRange(seed + 61, 0, Math.PI * 2),
@@ -462,407 +453,11 @@ function createSymbolTracer(controller, elapsedSec) {
     flowAmplitude: randomRange(seed + 73, 0.12, 0.28),
     pathSway: randomRange(seed + 79, 0.02, 0.075),
     scalePulse: randomRange(seed + 83, 0.01, 0.035),
-    decayLineCount,
-    decayTrailLength,
-    decayChaosScale: randomRange(seed + 101, 0.045, 0.09) * symbolScale,
-    decayOrbitScale: randomRange(seed + 103, 0.16, 0.31) * symbolScale,
-    decayField: null,
     flowPath: Array.isArray(symbol.flowPath) && symbol.flowPath.length
       ? symbol.flowPath
       : (Array.isArray(symbol.segments[0]) && symbol.segments[0].length ? symbol.segments[0] : [{ x: 0, y: 0, z: 0 }]),
     trail: [],
   };
-}
-
-function createTracerDecayField(tracer, decayStartElapsedSec, funnelCenterPoint) {
-  const funnelCenter = {
-    x: Number(funnelCenterPoint && funnelCenterPoint.x) || 0,
-    y: Number(funnelCenterPoint && funnelCenterPoint.y) || 0,
-    z: Number(funnelCenterPoint && funnelCenterPoint.z) || 0,
-  };
-  const orbitCenter = { ...funnelCenter };
-  const lineCount = Math.max(6, Math.floor(Number(tracer.decayLineCount) || 12));
-  const trailLength = Math.max(10, Math.floor(Number(tracer.decayTrailLength) || 24));
-  const sourceSegments = Array.isArray(tracer.symbol && tracer.symbol.segments)
-    ? tracer.symbol.segments.filter((segment) => Array.isArray(segment) && segment.length > 1)
-    : [];
-  const flowPath = Array.isArray(tracer.flowPath) && tracer.flowPath.length > 1
-    ? tracer.flowPath
-    : [];
-  const resolvedLineCount = Math.max(lineCount, sourceSegments.length || 0);
-  const sphereRadius = randomRange(Number(tracer.seed) * 139 + 5, 5.3, 7.1) * (0.9 + Number(tracer.scale || 1) * 0.34);
-  const spherePulseAmp = randomRange(Number(tracer.seed) * 151 + 15, 0.03, 0.085);
-  const spherePulseRate = randomRange(Number(tracer.seed) * 157 + 17, 0.32, 0.74);
-  const spherePulsePhase = randomRange(Number(tracer.seed) * 163 + 19, 0, Math.PI * 2);
-  const morphDuration = randomRange(Number(tracer.seed) * 149 + 9, 0.24, 0.36);
-  const lines = [];
-
-  for (let index = 0; index < resolvedLineCount; index += 1) {
-    const seed = (Number(tracer.seed) || 1) * 127 + index * 53;
-    const localTrail = [];
-    if (index < sourceSegments.length) {
-      const segment = sourceSegments[index];
-      for (let pointIndex = 0; pointIndex < trailLength; pointIndex += 1) {
-        const t = trailLength <= 1 ? 0 : pointIndex / (trailLength - 1);
-        localTrail.push(pathPointAt(segment, t, false));
-      }
-    } else if (flowPath.length) {
-      const start = randomRange(seed + 5, 0, 1);
-      const span = randomRange(seed + 7, 0.18, 0.44);
-      for (let pointIndex = 0; pointIndex < trailLength; pointIndex += 1) {
-        const t = trailLength <= 1 ? start : start + (pointIndex / (trailLength - 1)) * span;
-        localTrail.push(pathPointAt(flowPath, t, true));
-      }
-    } else {
-      const symbolProgress = randomRange(seed + 5, 0, 1);
-      const local = symbolLocalPointAtProgress(tracer, symbolProgress, true);
-      for (let pointIndex = 0; pointIndex < trailLength; pointIndex += 1) {
-        localTrail.push(local);
-      }
-    }
-
-    const initialTrail = localTrail.map((localPoint, pointIndex) => {
-      const phase = trailLength <= 1 ? 0 : pointIndex / (trailLength - 1);
-      return symbolLocalToWorld(localPoint, tracer, decayStartElapsedSec, phase);
-    });
-    const spawn = initialTrail[0] || orbitCenter;
-
-    lines.push({
-      phase: randomRange(seed + 11, 0, Math.PI * 2),
-      width: randomRange(seed + 31, 1.12, 2.2),
-      spinDirection: randomRange(seed + 37, 0, 1) > 0.5 ? 1 : -1,
-      theta: randomRange(seed + 41, 0, Math.PI * 2),
-      thetaRate: randomRange(seed + 47, 0.62, 1.46),
-      phiRate: randomRange(seed + 49, 0.38, 0.98),
-      orbitPattern: "lat",
-      phiBase: 0,
-      phiAmp: randomRange(seed + 53, 0.22, 0.64),
-      thetaSwing: randomRange(seed + 57, 0.18, 1.02),
-      timeLag: randomRange(seed + 59, 0.34, 0.9),
-      morphOffset: randomRange(seed + 73, -0.08, 0.1),
-      funnelOffset: randomRange(seed + 79, 0, 0.52),
-      funnelSpan: randomRange(seed + 83, 0.28, 0.62),
-      funnelPhase: randomRange(seed + 89, 0, Math.PI * 2),
-      funnelTurnOffset: randomRange(seed + 97, -0.62, 0.62),
-      funnelSkewX: randomRange(seed + 101, 0.82, 1.18),
-      funnelSkewY: randomRange(seed + 103, 0.72, 1.22),
-      funnelSkewZ: randomRange(seed + 107, 0.64, 1.24),
-      trail: initialTrail,
-      startTrail: initialTrail.map((point) => ({ x: point.x, y: point.y, z: point.z })),
-      head: spawn,
-    });
-
-    const line = lines[lines.length - 1];
-    const phiBands = [-0.84, -0.56, -0.32, -0.12, -0.12, -0.04, 0.03, 0.08, 0.08, 0.15, 0.28, 0.54];
-    if (randomRange(seed + 109, 0, 1) < 0.78) {
-      const bandIndex = Math.floor(randomRange(seed + 111, 0, phiBands.length));
-      line.phiBase = (phiBands[Math.min(bandIndex, phiBands.length - 1)] || 0) + randomRange(seed + 113, -0.08, 0.08);
-    } else {
-      line.phiBase = randomRange(seed + 113, -1.12, 1.12);
-    }
-
-    const patternRoll = randomRange(seed + 117, 0, 1);
-    if (patternRoll < 0.26) {
-      line.orbitPattern = "mer";
-      line.phiAmp = randomRange(seed + 119, 0.9, 1.26);
-      line.thetaSwing = randomRange(seed + 121, 0.65, 1.35);
-      line.thetaRate = randomRange(seed + 123, 0.48, 0.94);
-      line.phiRate = randomRange(seed + 127, 0.72, 1.22);
-    } else if (patternRoll < 0.58) {
-      line.orbitPattern = "diag";
-      line.phiAmp = randomRange(seed + 129, 0.52, 0.94);
-      line.thetaSwing = randomRange(seed + 131, 0.28, 0.82);
-      line.thetaRate = randomRange(seed + 137, 0.72, 1.36);
-      line.phiRate = randomRange(seed + 139, 0.54, 1.08);
-    } else {
-      line.orbitPattern = "lat";
-      line.phiAmp = randomRange(seed + 149, 0.22, 0.46);
-      line.thetaSwing = randomRange(seed + 151, 0.14, 0.42);
-      line.thetaRate = randomRange(seed + 157, 0.78, 1.48);
-      line.phiRate = randomRange(seed + 163, 0.32, 0.86);
-    }
-  }
-
-  return {
-    orbitCenter,
-    funnelCenter,
-    sphereRadius,
-    spherePulseAmp,
-    spherePulseRate,
-    spherePulsePhase,
-    morphDuration,
-    colorState: {
-      baseHue: randomRange(Number(tracer.seed) * 59 + 7, 202, 214),
-      baseSat: randomRange(Number(tracer.seed) * 61 + 11, 10, 20),
-      baseLight: randomRange(Number(tracer.seed) * 67 + 13, 87, 93),
-      direction: randomRange(Number(tracer.seed) * 71 + 17, 0, 1) > 0.5 ? 1 : -1,
-      driftArc: randomRange(Number(tracer.seed) * 73 + 19, 44, 132),
-      hueSwingA: randomRange(Number(tracer.seed) * 79 + 23, 26, 58),
-      hueSwingB: randomRange(Number(tracer.seed) * 83 + 29, 12, 34),
-      hueRateA: randomRange(Number(tracer.seed) * 89 + 31, 0.65, 1.55),
-      hueRateB: randomRange(Number(tracer.seed) * 97 + 37, 0.35, 1.05),
-      satSwing: randomRange(Number(tracer.seed) * 101 + 41, 18, 32),
-      lightSwing: randomRange(Number(tracer.seed) * 103 + 43, 10, 22),
-      satRate: randomRange(Number(tracer.seed) * 107 + 47, 0.62, 1.44),
-      lightRate: randomRange(Number(tracer.seed) * 109 + 53, 0.74, 1.62),
-      phaseA: randomRange(Number(tracer.seed) * 113 + 59, 0, Math.PI * 2),
-      phaseB: randomRange(Number(tracer.seed) * 127 + 61, 0, Math.PI * 2),
-      phaseC: randomRange(Number(tracer.seed) * 131 + 67, 0, Math.PI * 2),
-      phaseD: randomRange(Number(tracer.seed) * 137 + 71, 0, Math.PI * 2),
-    },
-    lines,
-  };
-}
-
-function tracerDecaySetColor(field, elapsedSec, decayProgress, funnelProgress) {
-  const state = field && field.colorState ? field.colorState : {
-    baseHue: 208,
-    baseSat: 14,
-    baseLight: 90,
-    direction: 1,
-    driftArc: 80,
-    hueSwingA: 40,
-    hueSwingB: 22,
-    hueRateA: 1.0,
-    hueRateB: 0.6,
-    satSwing: 24,
-    lightSwing: 16,
-    satRate: 1.0,
-    lightRate: 1.1,
-    phaseA: 0,
-    phaseB: 0,
-    phaseC: 0,
-    phaseD: 0,
-  };
-
-  const depart = easeInOutCubic(clamp01(decayProgress / 0.3));
-  const returnToBlue = easeInOutCubic(funnelProgress);
-  const wanderMix = depart * (1 - returnToBlue);
-  const direction = Number(state.direction) >= 0 ? 1 : -1;
-  const arc = direction * Number(state.driftArc || 0) * wanderMix;
-  const waveA = Math.sin(elapsedSec * Number(state.hueRateA || 0) + Number(state.phaseA || 0)) * Number(state.hueSwingA || 0);
-  const waveB = Math.sin(elapsedSec * Number(state.hueRateB || 0) + Number(state.phaseB || 0)) * Number(state.hueSwingB || 0);
-  const hue = wrapHue(Number(state.baseHue || 208) + (arc + waveA + waveB) * wanderMix);
-  const satWave = Math.sin(elapsedSec * Number(state.satRate || 0) + Number(state.phaseC || 0)) * Number(state.satSwing || 0);
-  const lightWave = Math.sin(elapsedSec * Number(state.lightRate || 0) + Number(state.phaseD || 0)) * Number(state.lightSwing || 0);
-  const sat = Math.max(8, Math.min(100, Number(state.baseSat || 14) + (28 + satWave) * wanderMix));
-  const light = Math.max(34, Math.min(96, Number(state.baseLight || 90) - (14 + lightWave * 0.5) * wanderMix + returnToBlue * 3));
-
-  return {
-    hue,
-    sat,
-    light,
-  };
-}
-
-function tracerSphereOrbitPoint(line, orbitCenter, sphereRadius, timeSec) {
-  const center = orbitCenter || { x: 0, y: 0, z: 0 };
-  const direction = Number(line && line.spinDirection) >= 0 ? 1 : -1;
-  const thetaBase = Number(line && line.theta) + direction * timeSec * Number(line && line.thetaRate);
-  const phiBase = Number(line && line.phiBase);
-  const pattern = line && line.orbitPattern ? String(line.orbitPattern) : "lat";
-  let theta = thetaBase;
-  let phi = phiBase;
-
-  if (pattern === "mer") {
-    theta = Number(line && line.theta) + Math.sin(timeSec * Number(line && line.thetaRate) * 0.66 + Number(line && line.phase)) * Number(line && line.thetaSwing);
-    phi = phiBase + Math.sin(timeSec * Number(line && line.phiRate) + Number(line && line.phase)) * Number(line && line.phiAmp);
-  } else if (pattern === "diag") {
-    theta = thetaBase + Math.sin(timeSec * Number(line && line.phiRate) * 0.58 + Number(line && line.phase) * 0.7) * Number(line && line.thetaSwing);
-    phi = phiBase
-      + Math.sin(timeSec * Number(line && line.phiRate) + Number(line && line.phase)) * Number(line && line.phiAmp)
-      + Math.cos(timeSec * Number(line && line.thetaRate) * 0.36 + Number(line && line.phase) * 0.4) * 0.24;
-  } else {
-    theta = thetaBase;
-    phi = phiBase + Math.sin(timeSec * Number(line && line.phiRate) + Number(line && line.phase)) * Number(line && line.phiAmp);
-  }
-
-  phi = Math.max(-1.35, Math.min(1.35, phi));
-  const radius = Math.max(0.18, Number(sphereRadius || 1));
-  const cosPhi = Math.cos(phi);
-  return {
-    x: center.x + Math.cos(theta) * cosPhi * radius,
-    y: center.y + Math.sin(phi) * radius,
-    z: center.z + Math.sin(theta) * cosPhi * radius,
-  };
-}
-
-function updateTracerDecayField(tracer, dt, elapsedSec, decayProgress, funnelProgress) {
-  const field = tracer.decayField;
-  if (!field || !Array.isArray(field.lines) || !field.lines.length) {
-    return;
-  }
-
-  const orbitCenter = field.orbitCenter || { x: 0, y: 0, z: 0 };
-  const funnelCenter = field.funnelCenter || orbitCenter;
-  const sphereBaseRadius = Math.max(0.36, Number(field.sphereRadius) || 2.8);
-  const spherePulse = 1 + Math.sin(elapsedSec * Number(field.spherePulseRate || 0) + Number(field.spherePulsePhase || 0)) * Number(field.spherePulseAmp || 0);
-  const sphereRadius = sphereBaseRadius * spherePulse;
-  const morphDuration = clamp01(Number(field.morphDuration) || 0.3);
-  const stepScale = Math.min(1.65, Math.max(0.62, (Number(dt) || 0.016) / 0.016));
-  const globalMorph = easeInOutCubic(clamp01(decayProgress / Math.max(0.12, morphDuration)));
-
-  for (let index = 0; index < field.lines.length; index += 1) {
-    const line = field.lines[index];
-    const lineMorph = easeInOutCubic(clamp01(globalMorph + Number(line.morphOffset || 0)));
-    const lineFunnelStart = clamp01(Number(line.funnelOffset) || 0);
-    const lineFunnelSpan = Math.max(0.08, Math.min(1 - lineFunnelStart + 0.001, Number(line.funnelSpan) || 0.36));
-    const linePull = easeInOutCubic(clamp01((funnelProgress - lineFunnelStart) / lineFunnelSpan));
-    const startTrail = Array.isArray(line.startTrail) ? line.startTrail : [];
-    const existingTrail = Array.isArray(line.trail) ? line.trail : [];
-    const trailLength = Math.max(startTrail.length, existingTrail.length, 2);
-    const trail = Array.isArray(line.trail) && line.trail.length
-      ? [...line.trail]
-      : Array.from({ length: trailLength }, (_, pointIndex) =>
-        startTrail[Math.min(pointIndex, Math.max(0, startTrail.length - 1))] || orbitCenter,
-      );
-
-    let orbitHead = tracerSphereOrbitPoint(line, orbitCenter, sphereRadius, elapsedSec);
-    if (linePull > 0.0001) {
-      const pull = linePull;
-      const transferCenter = lerpPoint(orbitCenter, funnelCenter, pull * 0.84);
-      const spiralAngle =
-        elapsedSec * Number(line.thetaRate || 1) * 2.24
-        + Number(line.phase || 0)
-        + Number(line.funnelTurnOffset || 0)
-        + pull * Math.PI * 2.9;
-      const spiralRadius = sphereRadius * (1 - pull) * (0.54 + 0.16 * Math.sin(elapsedSec * 0.7 + Number(line.phase || 0)));
-      const funnelHead = {
-        x: transferCenter.x + Math.cos(spiralAngle + Number(line.funnelPhase || 0)) * spiralRadius * 0.42 * Number(line.funnelSkewX || 1),
-        y: transferCenter.y + Math.sin(spiralAngle * 1.08 + Number(line.funnelPhase || 0) * 0.8) * spiralRadius * 0.36 * Number(line.funnelSkewY || 1),
-        z: transferCenter.z + Math.sin(spiralAngle * 0.74 + Number(line.funnelPhase || 0) * 0.42) * spiralRadius * 0.24 * Number(line.funnelSkewZ || 1),
-      };
-      orbitHead = lerpPoint(orbitHead, funnelHead, pull);
-      orbitHead = lerpPoint(orbitHead, funnelCenter, Math.pow(pull, 1.36));
-    }
-
-    const startHead = startTrail.length ? startTrail[0] : orbitHead;
-    const targetHead = lerpPoint(startHead, orbitHead, lineMorph);
-    const previousHead = trail[0] || targetHead;
-    const followGain = Math.min(1, (0.45 + stepScale * 0.38) / (1 + Number(line.timeLag || 0.5) * 0.28));
-    const nextHead = lerpPoint(previousHead, targetHead, followGain);
-
-    trail.unshift(nextHead);
-    while (trail.length < trailLength) {
-      trail.push(trail[trail.length - 1] || nextHead);
-    }
-    if (trail.length > trailLength) {
-      trail.length = trailLength;
-    }
-
-    if (lineMorph < 0.999 && startTrail.length) {
-      for (let pointIndex = 0; pointIndex < trail.length; pointIndex += 1) {
-        const startPoint = startTrail[Math.min(pointIndex, startTrail.length - 1)] || nextHead;
-        trail[pointIndex] = lerpPoint(startPoint, trail[pointIndex], lineMorph);
-      }
-    }
-
-    line.trail = trail;
-    line.head = nextHead;
-  }
-}
-
-function drawTracerDecayField(
-  ctx,
-  tracer,
-  elapsedSec,
-  rotY,
-  rotX,
-  width,
-  height,
-  globalScale,
-  depth,
-  palette,
-  decayProgress,
-  funnelProgress,
-) {
-  const field = tracer.decayField;
-  if (!field || !Array.isArray(field.lines) || !field.lines.length) {
-    return;
-  }
-
-  const reveal = easeInOutCubic(decayProgress);
-  const funnelEase = easeInOutCubic(funnelProgress);
-  const energy = (0.4 + 0.6 * reveal) * (1 - funnelEase * 0.68);
-  if (energy <= 0.001) {
-    return;
-  }
-  const setColor = tracerDecaySetColor(field, elapsedSec, decayProgress, funnelProgress);
-  const hueValue = setColor.hue.toFixed(1);
-  const satValue = setColor.sat.toFixed(1);
-  const lightValue = setColor.light.toFixed(1);
-  const glowLightValue = Math.min(97, setColor.light + 10).toFixed(1);
-  for (let index = 0; index < field.lines.length; index += 1) {
-    const line = field.lines[index];
-    const trail = line.trail;
-    if (!Array.isArray(trail) || trail.length < 2) {
-      continue;
-    }
-
-    const coreWidth = Math.max(0.72, line.width * (1 - funnelEase * 0.24));
-    const glowWidth = coreWidth * 1.9;
-    for (let pointIndex = 1; pointIndex < trail.length; pointIndex += 1) {
-      const a = projectPoint(rotatePoint(trail[pointIndex - 1], rotY, rotX), width, height, globalScale, depth);
-      const b = projectPoint(rotatePoint(trail[pointIndex], rotY, rotX), width, height, globalScale, depth);
-      if ((!a || !a.visible) && (!b || !b.visible)) {
-        continue;
-      }
-
-      const t = (pointIndex - 0.5) / Math.max(1, trail.length - 1);
-      const headEnergy = 1 - t;
-      const carrier = 0.5 + 0.5 * Math.sin(elapsedSec * 1.2 + line.phase + t * 2.8);
-      const alpha = energy * (0.16 + headEnergy * 0.62) * (0.55 + 0.45 * carrier);
-
-      ctx.strokeStyle = `hsla(${hueValue}, ${satValue}%, ${glowLightValue}%, ${(alpha * 0.58).toFixed(3)})`;
-      ctx.lineWidth = glowWidth;
-      ctx.beginPath();
-      if (a && a.visible) {
-        ctx.moveTo(a.x, a.y);
-      } else {
-        ctx.moveTo(b.x, b.y);
-      }
-      if (b && b.visible) {
-        ctx.lineTo(b.x, b.y);
-      } else {
-        ctx.lineTo(a.x, a.y);
-      }
-      ctx.stroke();
-
-      ctx.strokeStyle = `hsla(${hueValue}, ${satValue}%, ${lightValue}%, ${alpha.toFixed(3)})`;
-      ctx.lineWidth = coreWidth;
-      ctx.beginPath();
-      if (a && a.visible) {
-        ctx.moveTo(a.x, a.y);
-      } else {
-        ctx.moveTo(b.x, b.y);
-      }
-      if (b && b.visible) {
-        ctx.lineTo(b.x, b.y);
-      } else {
-        ctx.lineTo(a.x, a.y);
-      }
-      ctx.stroke();
-    }
-  }
-
-  const centerProjected = projectPoint(rotatePoint(field.funnelCenter || field.orbitCenter, rotY, rotX), width, height, globalScale, depth);
-  if (centerProjected.visible) {
-    const centerRadius = Math.max(6, Math.min(width, height) * (0.008 + energy * 0.006));
-    const centerGlow = ctx.createRadialGradient(
-      centerProjected.x,
-      centerProjected.y,
-      0,
-      centerProjected.x,
-      centerProjected.y,
-      centerRadius,
-    );
-    centerGlow.addColorStop(0, `hsla(${hueValue}, ${satValue}%, ${glowLightValue}%, ${(0.45 * energy).toFixed(3)})`);
-    centerGlow.addColorStop(1, "rgba(120, 190, 255, 0)");
-    ctx.fillStyle = centerGlow;
-    ctx.beginPath();
-    ctx.arc(centerProjected.x, centerProjected.y, centerRadius, 0, Math.PI * 2);
-    ctx.fill();
-  }
 }
 
 function tracerAnchorOffset(tracer, elapsedSec) {
@@ -1032,7 +627,7 @@ function drawSymbolProgress(ctx, tracer, progress, elapsedSec, rotY, rotX, width
   }
 }
 
-function drawSymbolTracer(controller, tracer, elapsedSec, dt, rotY, rotX, width, height, globalScale, depth, palette) {
+function drawSymbolTracer(controller, tracer, elapsedSec, rotY, rotX, width, height, globalScale, depth, palette) {
   const { ctx, leafCore } = controller;
   const age = elapsedSec - tracer.startedAtSec;
   const traceLoops = Math.max(1, Number(tracer.traceLoops) || 1);
@@ -1040,8 +635,8 @@ function drawSymbolTracer(controller, tracer, elapsedSec, dt, rotY, rotX, width,
   const trailFadeOutSec = Math.max(0.3, Math.min(0.72, (Number(tracer.traceDurationSec) || 1) * 0.16));
   const traceEnd = flyEnd + tracer.traceDurationSec;
   const holdEnd = traceEnd + tracer.holdDurationSec;
-  const decayEnd = holdEnd + tracer.decayDurationSec;
-  const vanishEnd = decayEnd + tracer.funnelDurationSec;
+  const flashEnd = holdEnd + tracer.flashDurationSec;
+  const vanishEnd = flashEnd + tracer.fadeDurationSec;
   if (age >= vanishEnd) {
     return false;
   }
@@ -1050,21 +645,19 @@ function drawSymbolTracer(controller, tracer, elapsedSec, dt, rotY, rotX, width,
   let completedTraceLoops = 0;
   let trailAlpha = 1;
   let symbolAlpha = 0;
+  let flashBoost = 1;
   let head = null;
-  let decayProgress = 0;
-  let funnelProgress = 0;
-  const inDecayPhase = age >= holdEnd;
-
   if (age < flyEnd) {
     const flyProgress = clamp01(age / flyEnd);
     const s = easeInOutCubic(flyProgress);
     const target = symbolHeadPoint(tracer, 0, elapsedSec, false);
-    const spiralRadius = s * (1 - s) * (1.9 + 0.35 * Math.sin(elapsedSec * 6.2 + tracer.phase));
+    const spiralRadius = s * (1 - s) * (2.3 + 0.45 * Math.sin(elapsedSec * 6.2 + tracer.phase));
+    const eruptionOrbit = Math.pow(1 - s, 0.58) * (0.88 + 0.24 * Math.sin(elapsedSec * 3.9 + tracer.phase * 0.73));
     const spinAngle = elapsedSec * 7.6 + tracer.phase;
     head = {
-      x: lerp(leafCore.x, target.x, s) + Math.cos(spinAngle) * spiralRadius,
-      y: lerp(leafCore.y, target.y, s) + Math.sin(spinAngle * 1.22) * spiralRadius * 0.9,
-      z: lerp(leafCore.z, target.z, s) + Math.sin(spinAngle * 0.74) * spiralRadius * 0.33,
+      x: lerp(leafCore.x, target.x, s) + Math.cos(spinAngle) * spiralRadius + Math.cos(spinAngle * 0.71 + tracer.phase * 0.4) * eruptionOrbit,
+      y: lerp(leafCore.y, target.y, s) + Math.sin(spinAngle * 1.22) * spiralRadius * 0.9 + Math.sin(spinAngle * 0.97 + tracer.phase * 0.2) * eruptionOrbit * 0.78,
+      z: lerp(leafCore.z, target.z, s) + Math.sin(spinAngle * 0.74) * spiralRadius * 0.33 + Math.sin(spinAngle * 1.14 + tracer.phase * 0.56) * eruptionOrbit * 0.36,
     };
     trailAlpha = 0.9;
   } else if (age < traceEnd) {
@@ -1074,27 +667,21 @@ function drawSymbolTracer(controller, tracer, elapsedSec, dt, rotY, rotX, width,
     head = symbolHeadPoint(tracer, tracePhase, elapsedSec, true);
     trailAlpha = 0.78;
     symbolAlpha = 0.58 + 0.38 * Math.min(1, tracePhase / traceLoops);
-  } else if (age < holdEnd) {
+  } else {
     completedTraceLoops = traceLoops;
     drawProgress = 1;
     const holdPhase = traceLoops + (age - traceEnd) * tracer.holdLoopRate;
     head = symbolHeadPoint(tracer, holdPhase, elapsedSec, true);
-    const holdPulse = 0.5 + 0.5 * Math.sin((age - traceEnd) * 2.4 + tracer.phase);
-    trailAlpha = 0.5;
-    symbolAlpha = 0.78 + holdPulse * 0.08;
-  } else {
-    completedTraceLoops = traceLoops;
-    drawProgress = 1;
-    decayProgress = clamp01((age - holdEnd) / Math.max(0.001, tracer.decayDurationSec));
-    funnelProgress = clamp01((age - decayEnd) / Math.max(0.001, tracer.funnelDurationSec));
-    if (!tracer.decayField) {
-      tracer.decayField = createTracerDecayField(tracer, tracer.startedAtSec + holdEnd, leafCore);
+    trailAlpha = 0.58;
+    symbolAlpha = 0.86;
+    if (age >= holdEnd && age < flashEnd) {
+      flashBoost = 1 + Math.sin(clamp01((age - holdEnd) / tracer.flashDurationSec) * Math.PI) * 1.45;
     }
-    updateTracerDecayField(tracer, dt, elapsedSec, decayProgress, funnelProgress);
-    const fade = easeInOutCubic(clamp01((decayProgress - 0.01) / 0.2));
-    symbolAlpha = 0.8 * (1 - fade) * (1 - funnelProgress * 0.55);
-    trailAlpha = 0;
-    head = null;
+    if (age >= flashEnd) {
+      const fade = 1 - clamp01((age - flashEnd) / tracer.fadeDurationSec);
+      trailAlpha *= fade;
+      symbolAlpha *= fade;
+    }
   }
 
   const trailFadeProgress = age <= flyEnd ? 0 : clamp01((age - flyEnd) / trailFadeOutSec);
@@ -1104,7 +691,7 @@ function drawSymbolTracer(controller, tracer, elapsedSec, dt, rotY, rotX, width,
       tracer.trail.pop();
     }
     tracer.tailFadeStartLength = tracer.trail.length;
-  } else if (trailFadeProgress < 1 && head) {
+  } else if (trailFadeProgress < 1) {
     tracer.trail.unshift(head);
     const startLength = Math.max(2, Math.min(132, Number(tracer.tailFadeStartLength) || tracer.trail.length));
     const shrink = easeInOutCubic(trailFadeProgress);
@@ -1119,8 +706,7 @@ function drawSymbolTracer(controller, tracer, elapsedSec, dt, rotY, rotX, width,
   const showTrail = tracer.trail.length > 1;
 
   const hueJitter = Math.sin(tracer.phase * 2.3) * 6;
-  const decayHueDrift = inDecayPhase ? Math.sin(elapsedSec * 0.52 + tracer.phase) * 18 : 0;
-  const traceHue = palette.traceHue + hueJitter + decayHueDrift;
+  const traceHue = palette.traceHue + hueJitter;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   if (showTrail) {
@@ -1157,59 +743,46 @@ function drawSymbolTracer(controller, tracer, elapsedSec, dt, rotY, rotX, width,
     }
   }
 
-  if (age >= flyEnd && symbolAlpha > 0.001) {
-    const visibleAlpha = Math.min(1, symbolAlpha);
+  if (age >= flyEnd && symbolAlpha > 0) {
+    const boostedAlpha = Math.min(1, symbolAlpha * flashBoost);
     if (completedTraceLoops > 0) {
-      ctx.strokeStyle = `hsla(${traceHue.toFixed(1)}, ${palette.traceSat.toFixed(1)}%, ${(palette.traceLight + 5).toFixed(1)}%, ${(visibleAlpha * 0.56).toFixed(3)})`;
+      ctx.strokeStyle = `hsla(${traceHue.toFixed(1)}, ${palette.traceSat.toFixed(1)}%, ${(palette.traceLight + 5).toFixed(1)}%, ${(boostedAlpha * 0.56).toFixed(3)})`;
       ctx.lineWidth = 1.3;
       drawSymbolProgress(ctx, tracer, 1, elapsedSec, rotY, rotX, width, height, globalScale, depth);
     }
-    ctx.strokeStyle = `hsla(${traceHue.toFixed(1)}, ${palette.traceSat.toFixed(1)}%, ${(palette.traceLight + 9).toFixed(1)}%, ${visibleAlpha.toFixed(3)})`;
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = `hsla(${traceHue.toFixed(1)}, ${palette.traceSat.toFixed(1)}%, ${(palette.traceLight + 9).toFixed(1)}%, ${boostedAlpha.toFixed(3)})`;
+    ctx.lineWidth = 1.5 + (flashBoost - 1) * 0.35;
     drawSymbolProgress(ctx, tracer, drawProgress, elapsedSec, rotY, rotX, width, height, globalScale, depth);
-  }
 
-  if (inDecayPhase && tracer.decayField) {
-    drawTracerDecayField(
-      ctx,
-      tracer,
-      elapsedSec,
-      rotY,
-      rotX,
-      width,
-      height,
-      globalScale,
-      depth,
-      palette,
-      decayProgress,
-      funnelProgress,
-    );
-  }
-
-  if (head && !inDecayPhase) {
-    const headProjected = projectPoint(rotatePoint(head, rotY, rotX), width, height, globalScale, depth);
-    if (headProjected.visible) {
-      const glowRadius = Math.max(7, Math.min(width, height) * 0.0125);
-      const glow = ctx.createRadialGradient(
-        headProjected.x,
-        headProjected.y,
-        0,
-        headProjected.x,
-        headProjected.y,
-        glowRadius,
-      );
-      const glowAlpha = Math.min(1, showTrail ? trailAlpha * 0.92 : symbolAlpha * 0.82);
-      glow.addColorStop(0, `hsla(${traceHue.toFixed(1)}, 95%, 90%, ${glowAlpha.toFixed(3)})`);
-      glow.addColorStop(0.55, `hsla(${traceHue.toFixed(1)}, 92%, 76%, ${(glowAlpha * 0.52).toFixed(3)})`);
-      glow.addColorStop(1, "rgba(120, 190, 255, 0)");
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(headProjected.x, headProjected.y, glowRadius, 0, Math.PI * 2);
-      ctx.fill();
+    if (flashBoost > 1.05) {
+      ctx.strokeStyle = `hsla(${traceHue.toFixed(1)}, 98%, 92%, ${(Math.min(1, boostedAlpha * 0.95)).toFixed(3)})`;
+      ctx.lineWidth = 2.1;
+      drawSymbolProgress(ctx, tracer, 1, elapsedSec, rotY, rotX, width, height, globalScale, depth);
     }
   }
 
+  const headProjected = projectPoint(rotatePoint(head, rotY, rotX), width, height, globalScale, depth);
+  if (headProjected.visible) {
+    const glowRadius = Math.max(7, Math.min(width, height) * 0.0125);
+    const glow = ctx.createRadialGradient(
+      headProjected.x,
+      headProjected.y,
+      0,
+      headProjected.x,
+      headProjected.y,
+      glowRadius,
+    );
+    const glowAlpha = Math.min(1, trailAlpha * 0.92 * flashBoost);
+    glow.addColorStop(0, `hsla(${traceHue.toFixed(1)}, 95%, 90%, ${glowAlpha.toFixed(3)})`);
+    glow.addColorStop(0.55, `hsla(${traceHue.toFixed(1)}, 92%, 76%, ${(glowAlpha * 0.52).toFixed(3)})`);
+    glow.addColorStop(1, "rgba(120, 190, 255, 0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(headProjected.x, headProjected.y, glowRadius, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
+
   return true;
 }
 
@@ -1673,7 +1246,8 @@ function draw(controller, now) {
   };
   const settleEase = easeInOutCubic(settle);
   const leafReveal = settlePhases.bloomOut;
-  const leafReady = leafReveal >= 0.999;
+  const tracerReady = leafReveal >= 0.22;
+  const tracerBloomEnergy = clamp01((leafReveal - 0.22) / 0.62);
   const palette = convergencePalette(colorProgress);
   const dt = Math.min(0.035, Math.max(0.008, controller.lastNow ? (now - controller.lastNow) / 1000 : 0.016));
   controller.lastNow = now;
@@ -1760,14 +1334,16 @@ function draw(controller, now) {
     palette,
   );
 
-  if (!leafReady) {
+  if (!tracerReady) {
     controller.symbolTracers = [];
     controller.tracerGateOpened = false;
   } else {
     if (!controller.tracerGateOpened) {
       controller.tracerGateOpened = true;
       const firstDelaySeed = controller.traceSeed * 19 + elapsed * 7;
-      controller.nextTracerAtSec = elapsed + randomRange(firstDelaySeed, 0.42, 1.25);
+      const firstMin = lerp(0.08, 0.24, 1 - tracerBloomEnergy);
+      const firstMax = lerp(0.34, 0.68, 1 - tracerBloomEnergy);
+      controller.nextTracerAtSec = elapsed + randomRange(firstDelaySeed, firstMin, firstMax);
     }
 
     if (controller.symbolLibrary.length && elapsed >= controller.nextTracerAtSec) {
@@ -1778,7 +1354,9 @@ function draw(controller, now) {
         }
       }
       const delaySeed = controller.traceSeed * 29 + elapsed * 11;
-      controller.nextTracerAtSec = elapsed + randomRange(delaySeed, 2.3, 4.9);
+      const cadenceMin = lerp(1.55, 2.35, 1 - tracerBloomEnergy);
+      const cadenceMax = lerp(3.2, 4.7, 1 - tracerBloomEnergy);
+      controller.nextTracerAtSec = elapsed + randomRange(delaySeed, cadenceMin, cadenceMax);
     }
 
     const activeTracers = [];
@@ -1788,7 +1366,6 @@ function draw(controller, now) {
         controller,
         tracer,
         elapsed,
-        dt,
         rotY,
         rotX,
         width,

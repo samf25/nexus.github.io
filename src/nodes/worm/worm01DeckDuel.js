@@ -148,7 +148,7 @@ function panelButton(panelId, active) {
   `;
 }
 
-function renderDeckPanel(ownedCards, wormState, maxSickbaySlots, shardSlotsPerCape, lootState) {
+function renderDeckPanel(ownedCards, wormState, maxSickbaySlots, maxShardSlotsPerCape, lootState) {
   if (!ownedCards.length) {
     return `<section class="card"><p>No capes in deck.</p></section>`;
   }
@@ -166,7 +166,8 @@ function renderDeckPanel(ownedCards, wormState, maxSickbaySlots, shardSlotsPerCa
       const inSickbay = Array.isArray(wormState.sickbayCardIds) && wormState.sickbayCardIds.includes(entry.cardId);
       const canAssignSickbay = canSickbay && (inSickbay || occupiedSickbaySlots < maxSickbaySlots);
       const capeShardSlots = Array.isArray(shardSlotsByCape[entry.cardId]) ? shardSlotsByCape[entry.cardId] : [];
-      const filledShardCount = capeShardSlots.filter(Boolean).length;
+      const capeShardSlotCount = getWormShardSlotCount({ systems: { worm: wormState }, inventory: { loot: lootState } }, entry.cardId, Date.now());
+      const filledShardCount = capeShardSlots.slice(0, capeShardSlotCount).filter(Boolean).length;
       const statBonuses = getWormCapeLootBonuses({ systems: { worm: wormState }, inventory: { loot: lootState } }, entry.cardId, Date.now());
       const shardButton = `
         <button
@@ -175,7 +176,7 @@ function renderDeckPanel(ownedCards, wormState, maxSickbaySlots, shardSlotsPerCa
           data-node-id="${NODE_ID}"
           data-node-action="worm01-open-shard-popup"
           data-card-id="${escapeHtml(entry.cardId)}"
-          title="Shard slots ${filledShardCount}/${shardSlotsPerCape}. Click to manage."
+          title="Shard slots ${filledShardCount}/${capeShardSlotCount} unlocked, ${maxShardSlotsPerCape} max. Click to manage."
           aria-label="${escapeHtml(`${entry.card.heroName} shard slots`)}"
         >
           ${renderArtifactSymbol({
@@ -253,7 +254,7 @@ function renderDeckPanel(ownedCards, wormState, maxSickbaySlots, shardSlotsPerCa
   `;
 }
 
-function renderCapeShardPopup(runtime, ownedCards, shardSlotsPerCape, lootState) {
+function renderCapeShardPopup(runtime, ownedCards, maxShardSlotsPerCape, lootState) {
   if (!ownedCards.length) {
     return `
       <div class="worm01-shard-modal-backdrop" role="dialog" aria-label="Shard slots">
@@ -278,22 +279,37 @@ function renderCapeShardPopup(runtime, ownedCards, shardSlotsPerCape, lootState)
   const selectedLootItemId = safeText(runtime.selectedLootItemId);
   const selectedLootItem = selectedLootItemId ? allLootItems[selectedLootItemId] : null;
   const canEquipSelected = Boolean(selectedLootItem && selectedLootItem.kind === "worm_enhancement");
+  const canSocketSelected = Boolean(selectedLootItem && selectedLootItem.templateId === "worm_shard_slot_token");
+  const unlockedSlots = getWormShardSlotCount({ inventory: { loot: lootState } }, cardId, Date.now());
 
-  const ringSlots = Array.from({ length: shardSlotsPerCape }, (_, index) => {
+  const ringSlots = Array.from({ length: maxShardSlotsPerCape }, (_, index) => {
     const itemId = slots[index];
     const item = itemId ? allLootItems[itemId] : null;
     const isFilled = Boolean(item);
+    const locked = index >= unlockedSlots;
+    const nextSocket = locked && index === unlockedSlots;
     return {
       filled: isFilled,
-      clickable: isFilled || canEquipSelected,
-      title: item ? `${item.label} (${item.rarity || "common"}) | ${formatLootItemEffectSummary(item, { maxEffects: 3 })}` : "Empty shard slot",
+      clickable: isFilled || (!locked && canEquipSelected) || (nextSocket && canSocketSelected),
+      title: item
+        ? `${item.label} (${item.rarity || "common"}) | ${formatLootItemEffectSummary(item, { maxEffects: 3 })}`
+        : locked
+          ? nextSocket
+            ? "Locked shard socket. Apply a Shard Lattice Socket to open it."
+            : "Locked shard socket."
+          : "Empty shard slot",
       ariaLabel: `Shard slot ${index + 1}`,
       symbolHtml: item
         ? renderArtifactSymbol({
             artifactName: item.label,
             className: "slot-ring-symbol artifact-symbol",
           })
-        : "",
+        : locked
+          ? renderArtifactSymbol({
+              artifactName: "Locked Shard Slot",
+              className: "slot-ring-symbol artifact-symbol is-slot-ghost",
+            })
+          : "",
       attrs: isFilled
         ? {
             "data-node-id": NODE_ID,
@@ -301,13 +317,20 @@ function renderCapeShardPopup(runtime, ownedCards, shardSlotsPerCape, lootState)
             "data-card-id": cardId,
             "data-slot-id": index,
           }
-        : canEquipSelected
+        : !locked && canEquipSelected
           ? {
               "data-action": "loot-equip-target",
               "data-region": "worm",
               "data-target-id": cardId,
               "data-slot-id": index,
             }
+          : nextSocket && canSocketSelected
+            ? {
+                "data-action": "loot-equip-target",
+                "data-region": "worm",
+                "data-target-id": cardId,
+                "data-slot-id": index,
+              }
           : {},
     };
   });
@@ -326,7 +349,13 @@ function renderCapeShardPopup(runtime, ownedCards, shardSlotsPerCape, lootState)
           }),
           ariaLabel: `${entry.card.heroName} shard slot ring`,
         })}
-        <p class="muted">${canEquipSelected ? "Click an empty slot to place selected shard. Filled slots clear on click." : "Select a shard in Loot, then click an empty slot. Filled slots clear on click."}</p>
+        <p class="muted">${
+          canSocketSelected
+            ? "Click the next locked slot to apply the selected lattice socket."
+            : canEquipSelected
+              ? "Click an empty unlocked slot to place selected shard. Filled slots clear on click."
+              : "Select a shard or lattice socket in Loot, then click a matching slot. Filled slots clear on click."
+        }</p>
         <div class="toolbar">
           <button type="button" data-action="toggle-widget" data-widget="loot">Open Loot Panel</button>
           <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="worm01-close-shard-popup">Close</button>
@@ -738,7 +767,7 @@ export function renderWorm01Experience(context) {
   const jobWeightBase = Number((0.125 * Math.max(1, Number(modifiers.worm.jobWeightBaseMultiplier || 1))).toFixed(4));
   const maxSickbaySlots = getWormSickbaySlotCount(context.state, Date.now());
   const hiringBonus = getWormHiringRarityBonus(context.state, Date.now());
-  const shardSlotsPerCape = getWormShardSlotCount(context.state, Date.now());
+  const maxShardSlotsPerCape = 3;
   const maxRarity = Math.min(10, 5 + hiringBonus);
   const lootState = lootInventoryFromState(context.state, Date.now());
   const ownedCards = wormOwnedCards(wormState, Date.now());
@@ -758,10 +787,10 @@ export function renderWorm01Experience(context) {
     ? renderSickbayPanel(ownedCards, wormState, maxSickbaySlots)
     : panel === PANELS.jobs
       ? renderJobsPanel(runtime, wormState, jobWeightBase, maxRarity, specialWindows, hasTenPullAccess)
-      : renderDeckPanel(ownedCards, wormState, maxSickbaySlots, shardSlotsPerCape, lootState);
+      : renderDeckPanel(ownedCards, wormState, maxSickbaySlots, maxShardSlotsPerCape, lootState);
 
   const popupMarkup = runtime.popup === POPUPS.cape
-    ? renderCapeShardPopup(runtime, ownedCards, shardSlotsPerCape, lootState)
+    ? renderCapeShardPopup(runtime, ownedCards, maxShardSlotsPerCape, lootState)
     : "";
 
   return `
