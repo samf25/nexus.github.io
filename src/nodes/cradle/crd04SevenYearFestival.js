@@ -2,6 +2,7 @@ import { escapeHtml } from "../../templates/shared.js";
 import { renderArtifactSymbol } from "../../core/artifacts.js";
 import {
   cradleCombatAttackMultiplierFromState,
+  emptyPalmSuccessRoll,
   madraPoolMultiplierForStage,
   normalizeCombatStage,
   randomUnit,
@@ -284,7 +285,26 @@ function resolvePlayerAction(runtime, actionId, atMs) {
       attackerStage: next.playerStage,
       defenderStage: enemy.stage,
     });
-    seed = roll.seed;
+    const successRoll = emptyPalmSuccessRoll({
+      seed: roll.seed,
+      salt: 149,
+      attackerStage: next.playerStage,
+      defenderStage: enemy.stage,
+      baseChance: 0.86,
+      penaltyPerStage: 0.12,
+      minChance: 0.2,
+    });
+    seed = successRoll.seed;
+    if (!successRoll.success) {
+      return logLine(
+        {
+          ...next,
+          seed,
+          playerMadra: Math.max(0, next.playerMadra - 12),
+        },
+        `Empty Palm fails to disrupt ${enemy.name}'s channels.`,
+      );
+    }
     const enemyHp = Math.max(0, enemy.hp - roll.damage);
     next = logLine(
       {

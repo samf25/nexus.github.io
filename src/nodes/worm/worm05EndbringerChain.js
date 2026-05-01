@@ -154,6 +154,11 @@ function normalizePreferenceForActor(combatant, enemyTeam, preference) {
   };
 }
 
+function actionNeedsTarget(actionType) {
+  const type = safeText(actionType).toLowerCase();
+  return type === "attack" || type === "info" || type === "manipulation";
+}
+
 function normalizeOrderPrefs(orders, battle) {
   const next = {};
   const source = orders && typeof orders === "object" ? orders : {};
@@ -187,6 +192,7 @@ function normalizeOrderPrefs(orders, battle) {
 function playerOrderMarkup(combatant, enemyTeam, preference) {
   const aliveEnemies = enemyTeam.filter((enemy) => enemy.hp > 0);
   const normalized = normalizePreferenceForActor(combatant, aliveEnemies, preference);
+  const showTarget = actionNeedsTarget(normalized.type);
   const actionOptions = selectableWormActions()
     .map(
       (action) =>
@@ -215,7 +221,7 @@ function playerOrderMarkup(combatant, enemyTeam, preference) {
           ${actionOptions}
         </select>
       </label>
-      <label>
+      <label data-worm04-target-wrap ${showTarget ? "" : "hidden"}>
         <span>Target</span>
         <select class="worm02-select" data-worm04-order-target>
           ${targetOptions}
@@ -232,7 +238,8 @@ function playerOrderMarkup(combatant, enemyTeam, preference) {
 }
 
 function teamCardsMarkup(team, role) {
-  return team
+  const living = (Array.isArray(team) ? team : []).filter((combatant) => Number(combatant && combatant.hp) > 0);
+  return living
     .map((combatant) =>
       renderWormCard(
         {
@@ -268,6 +275,9 @@ function battleMarkup(nodeId, runtime, enemyHeading, resolveAction, resetAction,
   const playerTeam = Array.isArray(battle.playerTeam) ? battle.playerTeam : [];
   const enemyTeam = Array.isArray(battle.enemyTeam) ? battle.enemyTeam : [];
   const playerAlive = playerTeam.filter((combatant) => combatant.hp > 0);
+  const enemyAlive = enemyTeam.filter((combatant) => combatant.hp > 0);
+  const visiblePlayers = playerAlive.length ? playerAlive : playerTeam;
+  const visibleEnemies = enemyAlive.length ? enemyAlive : enemyTeam;
   const canResolve = !battle.winner && playerAlive.length > 0;
   const winnerLabel = battle.winner
     ? battle.winner === "player"
@@ -279,7 +289,7 @@ function battleMarkup(nodeId, runtime, enemyHeading, resolveAction, resetAction,
   const turnNumber = Math.max(1, Number(battle.round || 1) - 1);
   const turnEvents = Array.isArray(battle.lastRoundEvents) && battle.lastRoundEvents.length
     ? battle.lastRoundEvents
-    : ["No decisive actions."];
+    : ["Turn resolves without momentum shift."];
 
   return `
     <section class="worm02-battle">
@@ -291,7 +301,7 @@ function battleMarkup(nodeId, runtime, enemyHeading, resolveAction, resetAction,
         <section class="worm02-team-column">
           <h3>Your Team</h3>
           <div class="worm02-card-grid">
-            ${teamCardsMarkup(playerTeam, "player")}
+            ${teamCardsMarkup(visiblePlayers, "player")}
           </div>
         </section>
         <section class="worm02-center-column">
@@ -299,7 +309,7 @@ function battleMarkup(nodeId, runtime, enemyHeading, resolveAction, resetAction,
             <h3>Turn Orders</h3>
             <div class="worm02-order-grid">
               ${playerAlive
-    .map((combatant) => playerOrderMarkup(combatant, enemyTeam, runtime.orderPrefs[combatant.combatantId] || null))
+    .map((combatant) => playerOrderMarkup(combatant, enemyAlive, runtime.orderPrefs[combatant.combatantId] || null))
     .join("")}
             </div>
             <div class="toolbar">
@@ -312,7 +322,7 @@ function battleMarkup(nodeId, runtime, enemyHeading, resolveAction, resetAction,
         <section class="worm02-team-column">
           <h3>${escapeHtml(enemyHeading)}</h3>
           <div class="worm02-card-grid">
-            ${teamCardsMarkup(enemyTeam, "enemy")}
+            ${teamCardsMarkup(visibleEnemies, "enemy")}
           </div>
         </section>
       </section>
@@ -325,6 +335,29 @@ function battleMarkup(nodeId, runtime, enemyHeading, resolveAction, resetAction,
               <p>${escapeHtml(line)}</p>
             </article>
           `).join("")}
+        </div>
+      </section>
+    </section>
+  `;
+}
+
+function outcomePopupMarkup(nodeId, closeAction, popupState) {
+  const popup = popupState && typeof popupState === "object" ? popupState : null;
+  if (!popup) {
+    return "";
+  }
+  const lines = Array.isArray(popup.lines) ? popup.lines : [];
+  return `
+    <section class="worm02-picker-overlay" aria-modal="true" role="dialog">
+      <section class="card worm02-picker-panel">
+        <header class="worm02-picker-header">
+          <h4>${escapeHtml(String(popup.title || "Outcome"))}</h4>
+        </header>
+        <div class="worm02-help">
+          ${lines.map((line) => `<p>${escapeHtml(String(line || ""))}</p>`).join("")}
+        </div>
+        <div class="toolbar">
+          <button type="button" data-node-id="${escapeHtml(nodeId)}" data-node-action="${escapeHtml(closeAction)}">Close</button>
         </div>
       </section>
     </section>
@@ -403,11 +436,19 @@ function normalizeBossRuntime(runtime) {
     solved: Boolean(source.solved),
     pendingCloutAward: Math.max(0, Number(source.pendingCloutAward) || 0),
     lootEvents: Array.isArray(source.lootEvents) ? source.lootEvents.filter((entry) => entry && typeof entry === "object") : [],
+    outcomePopup: source.outcomePopup && typeof source.outcomePopup === "object" ? { ...source.outcomePopup } : null,
     lastMessage: safeText(source.lastMessage),
   };
 }
 
 function reduceBossRuntime(current, action, context, config) {
+  if (action.type === config.closeOutcomeAction) {
+    return {
+      ...current,
+      outcomePopup: null,
+    };
+  }
+
   if (action.type === config.summonAction) {
     if (current.solved) {
       return {
@@ -424,6 +465,7 @@ function reduceBossRuntime(current, action, context, config) {
     return {
       ...current,
       summoned: true,
+      outcomePopup: null,
       lastMessage: config.summonMessage,
     };
   }
@@ -453,6 +495,7 @@ function reduceBossRuntime(current, action, context, config) {
         enemyAiMode: "boss",
       }),
       orderPrefs: {},
+      outcomePopup: null,
       lastMessage: config.startMessage,
     };
   }
@@ -482,6 +525,7 @@ function reduceBossRuntime(current, action, context, config) {
       ...current,
       battle: null,
       orderPrefs: {},
+      outcomePopup: null,
       lastMessage: config.retreatMessage,
     };
   }
@@ -498,6 +542,16 @@ function reduceBossRuntime(current, action, context, config) {
       solved: won || current.solved,
       pendingCloutAward: won ? config.cloutReward : 0,
       lootEvents: won ? config.lootEvents : [],
+      outcomePopup: {
+        title: won ? `${config.bossName} Defeated` : `${config.bossName} Repelled You`,
+        lines: won
+          ? [
+            `Clout awarded: ${Math.max(0, Number(config.cloutReward || 0))}`,
+            "Artifact reward registered for this victory.",
+            "Loot queued: CRD + WORM + DCC drops",
+          ]
+          : ["No clout awarded.", "No artifact rewards.", "Regroup and attempt again."],
+      },
       lastMessage: won ? config.victoryMessage : "Defeat recorded.",
     };
   }
@@ -532,6 +586,12 @@ function buildBossActionFromElement(element, runtime, config) {
   if (actionName === config.resetAction) {
     return {
       type: config.resetAction,
+      at: Date.now(),
+    };
+  }
+  if (actionName === config.closeOutcomeAction) {
+    return {
+      type: config.closeOutcomeAction,
       at: Date.now(),
     };
   }
@@ -610,6 +670,7 @@ function renderBossExperience(context, config) {
         ${runtime.lastMessage ? `<p class="muted">${escapeHtml(runtime.lastMessage)}</p>` : ""}
       </section>
       ${battleMarkup(config.nodeId, runtime, config.bossName, config.resolveAction, config.resetAction, config.claimAction)}
+      ${outcomePopupMarkup(config.nodeId, config.closeOutcomeAction, runtime.outcomePopup)}
     </article>
   `;
 }
@@ -628,6 +689,7 @@ const WORM05_CONFIG = Object.freeze({
   resolveAction: "worm05-resolve-round",
   resetAction: "worm05-reset-battle",
   claimAction: "worm05-claim-outcome",
+  closeOutcomeAction: "worm05-close-outcome-popup",
   summonMessage: "The Simurgh descends on a screaming wind.",
   startMessage: "Simurgh sweeps into combat range.",
   retreatMessage: "You break line-of-sight and retreat.",
@@ -673,6 +735,7 @@ const WORM07_CONFIG = Object.freeze({
   resolveAction: "worm07-resolve-round",
   resetAction: "worm07-reset-battle",
   claimAction: "worm07-claim-outcome",
+  closeOutcomeAction: "worm07-close-outcome-popup",
   summonMessage: "Behemoth tears up through molten stone.",
   startMessage: "Behemoth begins the endgame clash.",
   retreatMessage: "You fall back from the lava line.",
@@ -712,6 +775,7 @@ export function initialWorm05Runtime() {
     solved: false,
     pendingCloutAward: 0,
     lootEvents: [],
+    outcomePopup: null,
     lastMessage: "",
   });
 }
@@ -763,6 +827,7 @@ function normalizeWorm06Runtime(runtime) {
     bossCleared: Boolean(source.bossCleared),
     solved: Boolean(source.solved),
     lootEvents: Array.isArray(source.lootEvents) ? source.lootEvents.filter((entry) => entry && typeof entry === "object") : [],
+    outcomePopup: source.outcomePopup && typeof source.outcomePopup === "object" ? { ...source.outcomePopup } : null,
     lastMessage: safeText(source.lastMessage),
   };
 }
@@ -905,6 +970,7 @@ export function initialWorm06Runtime() {
     bossCleared: false,
     solved: false,
     lootEvents: [],
+    outcomePopup: null,
     lastMessage: "",
   });
 }
@@ -966,6 +1032,7 @@ export function reduceWorm06Runtime(runtime, action, context = {}) {
       activeDifficulty: difficulty,
       orderPrefs: {},
       pendingCloutReward: Math.round(baseClout * mult),
+      outcomePopup: null,
       lastMessage: `${WORM06_DIFFICULTY_CONFIG[difficulty].label} initiated.`,
     };
   }
@@ -999,6 +1066,7 @@ export function reduceWorm06Runtime(runtime, action, context = {}) {
       battleMode: "boss",
       orderPrefs: {},
       pendingCloutReward: 0,
+      outcomePopup: null,
       lastMessage: "Triumvirate confrontation begins.",
     };
   }
@@ -1030,7 +1098,15 @@ export function reduceWorm06Runtime(runtime, action, context = {}) {
       battleMode: "cleanup",
       orderPrefs: {},
       pendingCloutReward: 0,
+      outcomePopup: null,
       lastMessage: "You disengage from the current operation.",
+    };
+  }
+
+  if (action.type === "worm06-close-outcome-popup") {
+    return {
+      ...current,
+      outcomePopup: null,
     };
   }
 
@@ -1085,6 +1161,16 @@ export function reduceWorm06Runtime(runtime, action, context = {}) {
             },
           ]
         : [],
+      outcomePopup: {
+        title: won ? (isBoss ? "Triumvirate Defeated" : "Cleanup Complete") : "Mission Failed",
+        lines: won
+          ? [
+            `Clout awarded: ${Math.max(0, Number(isBoss ? 950 : current.pendingCloutReward))}`,
+            isBoss ? "Artifact reward registered for this victory." : "No boss artifact on this run.",
+            isBoss ? "Loot queued: CRD + WORM + DCC drops" : "Loot queued: WORM",
+          ]
+          : ["No clout awarded.", "No artifact rewards.", "Regroup and retry."],
+      },
       lastMessage: won
         ? isBoss
           ? "Triumvirate defeated. National cleanup secured."
@@ -1125,6 +1211,12 @@ export function buildWorm06ActionFromElement(element, runtime) {
   if (actionName === "worm06-reset-battle") {
     return {
       type: "worm06-reset-battle",
+      at: Date.now(),
+    };
+  }
+  if (actionName === "worm06-close-outcome-popup") {
+    return {
+      type: "worm06-close-outcome-popup",
       at: Date.now(),
     };
   }
@@ -1174,6 +1266,7 @@ export function renderWorm06Experience(context) {
         ${runtime.lastMessage ? `<p class="muted">${escapeHtml(runtime.lastMessage)}</p>` : ""}
       </section>
       ${battleMarkup(WORM06_NODE_ID, runtime, enemyHeading, "worm06-resolve-round", "worm06-reset-battle", "worm06-claim-outcome")}
+      ${outcomePopupMarkup(WORM06_NODE_ID, "worm06-close-outcome-popup", runtime.outcomePopup)}
     </article>
   `;
 }
@@ -1196,6 +1289,7 @@ export function initialWorm07Runtime() {
     solved: false,
     pendingCloutAward: 0,
     lootEvents: [],
+    outcomePopup: null,
     lastMessage: "",
   });
 }
@@ -1248,6 +1342,7 @@ function normalizeWorm08Runtime(runtime) {
     solved: Boolean(source.solved),
     pendingCloutAward: Math.max(0, Number(source.pendingCloutAward) || 0),
     lootEvents: Array.isArray(source.lootEvents) ? source.lootEvents.filter((entry) => entry && typeof entry === "object") : [],
+    outcomePopup: source.outcomePopup && typeof source.outcomePopup === "object" ? { ...source.outcomePopup } : null,
     lastMessage: safeText(source.lastMessage),
   };
 }
@@ -1272,6 +1367,7 @@ export function initialWorm08Runtime() {
     solved: false,
     pendingCloutAward: 0,
     lootEvents: [],
+    outcomePopup: null,
     lastMessage: "",
   });
 }
@@ -1335,6 +1431,7 @@ export function reduceWorm08Runtime(runtime, action, context = {}) {
         enemyAiMode: "boss",
       }),
       orderPrefs: {},
+      outcomePopup: null,
       lastMessage: "Scion enters the field.",
     };
   }
@@ -1364,7 +1461,15 @@ export function reduceWorm08Runtime(runtime, action, context = {}) {
       ...current,
       battle: null,
       orderPrefs: {},
+      outcomePopup: null,
       lastMessage: "You retreat before total collapse.",
+    };
+  }
+
+  if (action.type === "worm08-close-outcome-popup") {
+    return {
+      ...current,
+      outcomePopup: null,
     };
   }
 
@@ -1405,6 +1510,16 @@ export function reduceWorm08Runtime(runtime, action, context = {}) {
           },
         ]
         : [],
+      outcomePopup: {
+        title: won ? "Scion Defeated" : "Scion Overwhelmed Your Team",
+        lines: won
+          ? [
+            "Clout awarded: 1600",
+            "Artifact reward registered for this victory.",
+            "Loot queued: CRD + WORM + DCC drops",
+          ]
+          : ["No clout awarded.", "No artifact rewards.", "Retreat and rebuild."],
+      },
       lastMessage: won ? "Scion is defeated. Against all expectation." : "Defeat recorded.",
     };
   }
@@ -1440,6 +1555,12 @@ export function buildWorm08ActionFromElement(element, runtime) {
   if (actionName === "worm08-reset-battle") {
     return {
       type: "worm08-reset-battle",
+      at: Date.now(),
+    };
+  }
+  if (actionName === "worm08-close-outcome-popup") {
+    return {
+      type: "worm08-close-outcome-popup",
       at: Date.now(),
     };
   }
@@ -1510,6 +1631,7 @@ export function renderWorm08Experience(context) {
         ${runtime.lastMessage ? `<p class="muted">${escapeHtml(runtime.lastMessage)}</p>` : ""}
       </section>
       ${battleMarkup(WORM08_NODE_ID, runtime, "Scion", "worm08-resolve-round", "worm08-reset-battle", "worm08-claim-outcome")}
+      ${outcomePopupMarkup(WORM08_NODE_ID, "worm08-close-outcome-popup", runtime.outcomePopup)}
     </article>
   `;
 }

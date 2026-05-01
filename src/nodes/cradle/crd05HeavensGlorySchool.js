@@ -1,6 +1,7 @@
 import { escapeHtml } from "../../templates/shared.js";
 import {
   cradleCombatAttackMultiplierFromState,
+  emptyPalmSuccessRoll,
   madraPoolMultiplierForStage,
   normalizeCombatStage,
   randomUnit,
@@ -36,11 +37,11 @@ function normalizeRuntime(runtime) {
     enemy: source.enemy && typeof source.enemy === "object"
       ? {
         hp: Math.max(0, Number(source.enemy.hp) || 0),
-        maxHp: Math.max(1, Number(source.enemy.maxHp) || 150),
+        maxHp: Math.max(1, Number(source.enemy.maxHp) || 260),
         stage: normalizeCombatStage(source.enemy.stage || "jade"),
         stunnedTurns: Math.max(0, Math.floor(Number(source.enemy.stunnedTurns) || 0)),
       }
-      : { hp: 150, maxHp: 150, stage: "jade", stunnedTurns: 0 },
+      : { hp: 260, maxHp: 260, stage: "jade", stunnedTurns: 0 },
     turn: Math.max(1, Math.floor(Number(source.turn) || 1)),
     log: Array.isArray(source.log) ? source.log.slice(-10).map((line) => String(line)) : [],
     lastMessage: String(source.lastMessage || ""),
@@ -114,8 +115,8 @@ function startBattle(runtime, action) {
     meleeBonus: Math.max(0, Number(action.meleeBonus) || 0),
     emptyPalmUnlocked: Boolean(action.emptyPalmUnlocked),
     enemy: {
-      hp: 160,
-      maxHp: 160,
+      hp: 260,
+      maxHp: 260,
       stage: "jade",
       stunnedTurns: 0,
     },
@@ -148,7 +149,7 @@ function resolveEnemyTurn(runtime) {
     const roll = rollDamage({
       seed,
       salt: 41,
-      base: 24,
+      base: 30,
       spread: 4,
       attackerStage: "jade",
       defenderStage: runtime.playerStage,
@@ -184,7 +185,7 @@ function resolveEnemyTurn(runtime) {
   const roll = rollDamage({
     seed,
     salt: 31,
-    base: 19,
+    base: 24,
     spread: 5,
     attackerStage: "jade",
     defenderStage: runtime.playerStage,
@@ -231,7 +232,26 @@ function resolvePlayerAction(runtime, actionId) {
       attackerStage: runtime.playerStage,
       defenderStage: enemy.stage,
     });
-    seed = roll.seed;
+    const successRoll = emptyPalmSuccessRoll({
+      seed: roll.seed,
+      salt: 97,
+      attackerStage: runtime.playerStage,
+      defenderStage: enemy.stage,
+      baseChance: 0.8,
+      penaltyPerStage: 0.17,
+      minChance: 0.16,
+    });
+    seed = successRoll.seed;
+    if (!successRoll.success) {
+      return appendLog(
+        {
+          ...next,
+          seed,
+          playerMadra: Math.max(0, runtime.playerMadra - 14),
+        },
+        `Empty Palm fails to root against Elder Rahm (${Math.round(successRoll.chance * 100)}% chance).`,
+      );
+    }
     return appendLog(
       {
         ...next,
@@ -240,7 +260,7 @@ function resolvePlayerAction(runtime, actionId) {
         enemy: {
           ...enemy,
           hp: Math.max(0, enemy.hp - roll.damage),
-          stunnedTurns: Math.max(enemy.stunnedTurns, 2),
+          stunnedTurns: Math.max(enemy.stunnedTurns, 1),
         },
       },
       `Empty Palm strikes for ${roll.damage}. Elder Rahm's channels sputter.`,
@@ -283,7 +303,7 @@ export function initialCrd05Runtime() {
     dodgeBonus: 0,
     meleeBonus: 0,
     emptyPalmUnlocked: false,
-    enemy: { hp: 160, maxHp: 160, stage: "jade", stunnedTurns: 0 },
+    enemy: { hp: 260, maxHp: 260, stage: "jade", stunnedTurns: 0 },
     turn: 1,
     log: [],
     lastMessage: "",

@@ -1,5 +1,3 @@
-import { getCapeActionFlavorTemplates } from "./wormPowerSummaries.js";
-
 export const WORM_ACTION_TYPES = Object.freeze({
   attack: "attack",
   defense: "defense",
@@ -9,77 +7,86 @@ export const WORM_ACTION_TYPES = Object.freeze({
   stealth: "stealth",
 });
 
+const ACTION_TYPE_LABELS = Object.freeze({
+  [WORM_ACTION_TYPES.attack]: "Attack",
+  [WORM_ACTION_TYPES.defense]: "Defense",
+  [WORM_ACTION_TYPES.info]: "Info",
+  [WORM_ACTION_TYPES.manipulation]: "Manipulation",
+  [WORM_ACTION_TYPES.speed]: "Speed",
+  [WORM_ACTION_TYPES.stealth]: "Stealth",
+});
+
 const FALLBACK_ACTION_TEMPLATES = Object.freeze({
   attack: Object.freeze({
     success: [
-      "{name} drives {power} into {target}{amountClause}.",
-      "With {power}, {name} breaks through {target}{amountClause}.",
-      "{name}'s {power} lands cleanly on {target}{amountClause}.",
+      "channels {power} to strike {target}{amountClause}.",
+      "drives {power} into {target}{amountClause}.",
+      "unleashes {power} and lands the hit on {target}{amountClause}.",
     ],
     fail: [
-      "{name} commits {power}, but the blow slips wide.",
-      "The push of {power} from {name} misses its opening.",
-      "{name}'s {power} falters before it reaches the mark.",
+      "channels {power}, but the attack misses.",
+      "lashes out with {power}, but fails to connect.",
+      "commits {power}, but the opening closes.",
     ],
   }),
   defense: Object.freeze({
     success: [
-      "{name} raises {power} and turns aside the threat from {target}{amountClause}.",
-      "With {power}, {name} holds the line against {target}{amountClause}.",
-      "{name} lets {power} settle into a steady guard, softening the strike{amountClause}.",
+      "anchors {power} to block {target}{amountClause}.",
+      "raises {power} and absorbs the pressure{amountClause}.",
+      "holds {power} steady and blunts the blow{amountClause}.",
     ],
     fail: [
-      "{name}'s {power} wavers, and the defense cracks open.",
-      "For a breath, {power} shields {name}, then slips away.",
-      "{name} cannot keep {power} locked in place, and the guard fails.",
+      "tries to brace with {power}, but the guard breaks.",
+      "sets {power} defensively, but gets breached.",
+      "leans on {power}, but cannot hold the line.",
     ],
   }),
   info: Object.freeze({
     success: [
-      "{name} reads the field with {power}, and {target} is laid bare.",
-      "Through {power}, {name} finds the shape of {target}{amountClause}.",
-      "{name} uses {power} to uncover what was hidden in the haze.",
+      "focuses {power} to read {target}{amountClause}.",
+      "uses {power} to reveal key intel{amountClause}.",
+      "scans through {power} and spots the opening.",
     ],
     fail: [
-      "{name} reaches for meaning, but {power} returns only a blur.",
-      "The signs resist, and {name}'s {power} reveals little.",
-      "{power} brushes past the truth, leaving {name} with a false lead.",
+      "probes with {power}, but the signal is muddy.",
+      "reaches with {power}, but gets incomplete intel.",
+      "attempts a read with {power}, but finds no clear thread.",
     ],
   }),
   manipulation: Object.freeze({
     success: [
-      "{name} bends the moment with {power}, pressing {target}{amountClause}.",
-      "Under {power}, {name} twists the flow around {target}{amountClause}.",
-      "{name} threads {power} through the field and shifts {target}{amountClause}.",
+      "threads {power} through the field and shifts {target}{amountClause}.",
+      "uses {power} to force {target} out of position{amountClause}.",
+      "bends momentum with {power} and controls the exchange.",
     ],
     fail: [
-      "{name} tries to shape the field, but {power} slips loose.",
-      "The weave resists {name}, and {power} goes unanswered.",
-      "{power} fails to take hold, leaving {name}'s intent scattered.",
+      "tries to shape the fight with {power}, but loses control.",
+      "pushes {power} into the field, but nothing takes hold.",
+      "attempts to redirect with {power}, but the move collapses.",
     ],
   }),
   speed: Object.freeze({
     success: [
-      "{name} rides {power} into motion and slips past {target}.",
-      "With {power}, {name} moves before {target} can answer.",
-      "{power} sharpens {name}'s stride, and the opening is seized.",
+      "bursts with {power} and beats {target} to the play.",
+      "channels {power} into movement and seizes tempo.",
+      "accelerates with {power} and slips past pressure.",
     ],
     fail: [
-      "{name} calls on {power}, but the burst comes too late.",
-      "The rush falters, and {power} leaves {name} a step behind.",
-      "{name} cannot keep {power} moving, and the pace breaks.",
+      "kicks into {power}, but the burst is late.",
+      "pushes {power} for speed, but gets checked.",
+      "tries to surge with {power}, but loses momentum.",
     ],
   }),
   stealth: Object.freeze({
     success: [
-      "{name} folds into the hush, and {power} keeps {target} from noticing.",
-      "Wrapped in {power}, {name} slips cleanly past {target}.",
-      "{power} dulls every trace as {name} vanishes into the shadows.",
+      "veils with {power} and disappears from {target}'s read.",
+      "uses {power} to erase traces and stay unseen.",
+      "folds into {power} and bypasses detection.",
     ],
     fail: [
-      "{name}'s {power} leaves a trace, and the concealment fails.",
-      "The shadows do not hold, and {power} exposes {name}.",
-      "{name} tries to vanish, but {power} flickers out before it can hide the trail.",
+      "leans on {power} to hide, but gets spotted.",
+      "attempts concealment with {power}, but leaves a tell.",
+      "fades with {power}, but the cover breaks.",
     ],
   }),
 });
@@ -97,12 +104,17 @@ function normalizeActionType(actionType) {
 }
 
 function formatPower(power) {
-  const text = safeText(power, "unnamed power");
+  const text = safeText(power, "their power");
   return text;
 }
 
-function formatTarget(targetName) {
-  return safeText(targetName, "the target");
+function formatTarget(targetName, actorName) {
+  const actor = safeText(actorName).toLowerCase();
+  const target = safeText(targetName, "the opponent");
+  if (actor && target.toLowerCase() === actor) {
+    return "the opponent";
+  }
+  return target;
 }
 
 function formatAmount(amount) {
@@ -144,7 +156,7 @@ function buildAmountClause(actionType, success, amount) {
 }
 
 function pickVariant(variants, rng) {
-  const list = Array.isArray(variants) && variants.length > 0 ? variants : ["{name} moves with {power}."];
+  const list = Array.isArray(variants) && variants.length > 0 ? variants : ["channels {power}."];
   const randomValue = typeof rng === "function" ? rng() : Math.random();
   const normalized = Number.isFinite(randomValue) ? randomValue : 0;
   const index = Math.min(list.length - 1, Math.max(0, Math.floor(normalized * list.length)));
@@ -153,7 +165,6 @@ function pickVariant(variants, rng) {
 
 function applyTokens(template, values) {
   return template
-    .split("{name}").join(values.name)
     .split("{power}").join(values.power)
     .split("{target}").join(values.target)
     .split("{amountClause}").join(values.amountClause);
@@ -162,33 +173,30 @@ function applyTokens(template, values) {
 function ensureSentence(text) {
   const compact = String(text || "").replace(/\s+/g, " ").trim();
   if (!compact) {
-    return "The worm stirs.";
+    return "channels their power.";
   }
   return /[.!?]$/.test(compact) ? compact : `${compact}.`;
+}
+
+function buildActionPrefix(name, actionKey) {
+  const actionLabel = ACTION_TYPE_LABELS[actionKey] || ACTION_TYPE_LABELS[WORM_ACTION_TYPES.info];
+  return `${name} | ${actionLabel}: `;
 }
 
 export function buildWormActionFlavor({ card = {}, actionType, success, targetName, amount, rng } = {}) {
   const actionKey = normalizeActionType(actionType);
   const isSuccess = Boolean(success);
   const cardName = safeText(card && card.name, "The worm");
-  const fallbackPower = safeText(card && (card.powerFull || card.power), "");
-  const flavorPack = getCapeActionFlavorTemplates(cardName, actionKey, fallbackPower);
+  const powerText = safeText(card && (card.power || card.powerFull), "their power");
   const fallbackTemplates = FALLBACK_ACTION_TEMPLATES[actionKey][isSuccess ? "success" : "fail"];
-  const templates =
-    flavorPack &&
-    typeof flavorPack === "object" &&
-    Array.isArray(flavorPack[isSuccess ? "success" : "fail"]) &&
-    flavorPack[isSuccess ? "success" : "fail"].length > 0
-      ? flavorPack[isSuccess ? "success" : "fail"]
-      : fallbackTemplates;
-  const template = pickVariant(templates, rng);
+  const template = pickVariant(fallbackTemplates, rng);
 
   const values = {
-    name: cardName,
-    power: formatPower(card && card.power),
-    target: formatTarget(targetName),
+    power: formatPower(powerText),
+    target: formatTarget(targetName, cardName),
     amountClause: buildAmountClause(actionKey, isSuccess, amount),
   };
 
-  return ensureSentence(applyTokens(template, values));
+  const body = ensureSentence(applyTokens(template, values));
+  return `${buildActionPrefix(cardName, actionKey)}${body}`;
 }

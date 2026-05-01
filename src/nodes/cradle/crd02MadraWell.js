@@ -1419,7 +1419,7 @@ function upgradeNodeMarkup(runtime, layoutNode, view) {
       data-node-id="${NODE_ID}"
       data-node-action="crd02-buy-upgrade"
       data-upgrade-id="${escapeHtml(upgrade.id)}"
-      title="${escapeHtml(detailLines)}"
+      data-tooltip="${escapeHtml(detailLines)}"
       style="grid-column:${layoutNode.col};grid-row:${layoutNode.row};"
     >
       <span class="sr-only">${escapeHtml(upgrade.label)} level ${escapeHtml(levelLabel)}</span>
@@ -1643,6 +1643,26 @@ export function renderCrd02Experience(context) {
           <section class="crd02-origin-card">
             <h3>Spiritual Origin Test</h3>
             <p>The elders place your hand above a bowl of pure madra to read your spirit.</p>
+            ${renderSlotRing({
+    slots: [
+      {
+        filled: hasStarterSelected,
+        clickable: false,
+        title: hasStarterSelected
+          ? "Starter Core aligned."
+          : "Select Starter Core in Artifacts to attempt the test.",
+        ariaLabel: "Starter Core requirement",
+        symbolHtml: renderArtifactSymbol({
+          artifactName: REQUIRED_ARTIFACT,
+          className: "slot-ring-symbol artifact-symbol",
+        }),
+        attrs: {},
+      },
+    ],
+    className: "crd02-origin-slot-ring",
+    radiusPct: 42,
+    ariaLabel: "Starter Core requirement socket",
+  })}
             <button
               type="button"
               data-node-id="${NODE_ID}"

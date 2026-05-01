@@ -671,7 +671,7 @@ function wormShardSlotCountFromProgression(progression, cardId = "") {
   if (cleanCardId && Object.prototype.hasOwnProperty.call(byCape, cleanCardId)) {
     return clamp(Math.floor(safeFinite(byCape[cleanCardId], 1)), 1, SLOT_CAPS.wormShardSlotsPerCape);
   }
-  return clamp(Math.floor(safeFinite(source.wormShardSlotsPerCape, 1)), 1, SLOT_CAPS.wormShardSlotsPerCape);
+  return 1;
 }
 
 export function normalizeLootInventoryState(candidate, now = Date.now()) {

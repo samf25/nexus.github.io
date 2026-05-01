@@ -323,7 +323,7 @@ export const DESK_HINT_OVERRIDES = Object.freeze({
   PGE01: Object.freeze([
     "There is no single victory route here; your choices shape your Role.",
     "Keep a consistent narrative posture instead of random optimization.",
-    "Reset Role through MOL02 if you need a different path identity later.",
+    "Reset Role through Loop Reset if you need a different path identity later.",
   ]),
   PGE02: Object.freeze([
     "Story pressure rewards coherent narrative framing over tactical greed.",

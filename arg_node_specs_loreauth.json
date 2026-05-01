@@ -2747,7 +2747,7 @@
       "writes_state": [
         "inventory.story_beat_a"
       ],
-      "reward": "Story Beat A",
+      "reward": "Role Card",
       "surface": "Claimant’s Knife is a canon dialogue-state reasoning page built from how claimants preserve or destroy a name-shape through their choices.",
       "mechanics": "Use canon knowledge of claim pressure, branch evaluation, invariant story shape to explore the claimant scene and identify the invariant story shape across successful branches; then extract from invariant story shape.",
       "validation": "Require the correct canonical mapping or state plus extraction from invariant story shape.",

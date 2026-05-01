@@ -513,11 +513,47 @@ function earthMoversDistance(left, right) {
   return assignment.cost / a.length;
 }
 
+function cyclicPathDistance(left, right) {
+  const a = Array.isArray(left) ? left : [];
+  const b = Array.isArray(right) ? right : [];
+  if (!a.length || a.length !== b.length) {
+    return Infinity;
+  }
+
+  const count = a.length;
+  let best = Infinity;
+  for (let offset = 0; offset < count; offset += 1) {
+    let total = 0;
+    for (let index = 0; index < count; index += 1) {
+      const pointA = a[index];
+      const pointB = b[(index + offset) % count];
+      total += pointDistance(pointA, pointB);
+    }
+    best = Math.min(best, total / count);
+  }
+  return best;
+}
+
+function combinedRuneDistance(left, right) {
+  const emd = earthMoversDistance(left, right);
+  const path = cyclicPathDistance(left, right);
+  if (!Number.isFinite(emd) && !Number.isFinite(path)) {
+    return Infinity;
+  }
+  if (!Number.isFinite(emd)) {
+    return path;
+  }
+  if (!Number.isFinite(path)) {
+    return emd;
+  }
+  return (emd * 0.6) + (path * 0.4);
+}
+
 function scoreFromDistance(distance) {
   if (!Number.isFinite(distance)) {
     return 0;
   }
-  return clamp(1 - (distance / 1.25), 0, 1);
+  return clamp(1 - (distance / 1.1), 0, 1);
 }
 
 function confidenceFromDistances(bestDistance, secondDistance) {
@@ -528,8 +564,8 @@ function confidenceFromDistances(bestDistance, secondDistance) {
     ? secondDistance
     : bestDistance + 0.25;
   const separation = clamp((safeSecond - bestDistance) / Math.max(0.000001, safeSecond), 0, 1);
-  const distanceQuality = Math.exp(-Math.pow(bestDistance / 0.065, 2));
-  return clamp(distanceQuality * (0.55 + (0.45 * separation)), 0, 1);
+  const distanceQuality = Math.exp(-Math.pow(bestDistance / 0.42, 1.35));
+  return clamp((distanceQuality * 0.82) + (separation * 0.18), 0.04, 1);
 }
 
 export function normalizeRuneStroke(strokePoints) {
@@ -539,7 +575,7 @@ export function normalizeRuneStroke(strokePoints) {
 export function scoreRuneMatch({ strokePoints, glyphTemplatePoints } = {}) {
   const left = preprocessRunePointCloud(strokePoints, 72);
   const right = preprocessRunePointCloud(glyphTemplatePoints, 72);
-  return scoreFromDistance(earthMoversDistance(left, right));
+  return scoreFromDistance(combinedRuneDistance(left, right));
 }
 
 export function matchRuneAgainstGrimoire({ strokePoints, glyphType, ownedGlyphs } = {}) {
@@ -577,7 +613,7 @@ export function matchRuneAgainstGrimoire({ strokePoints, glyphType, ownedGlyphs 
   const ranked = candidates
     .map((glyphId) => ({
       glyphId,
-      distance: earthMoversDistance(
+      distance: combinedRuneDistance(
         normalizedStroke,
         preprocessRunePointCloud(templates[glyphId] || [], 72),
       ),

@@ -63,7 +63,7 @@ The following active-node blueprint rewards are currently trophy-only (no downst
 - Prime Vault: `Prime Teeth`, `Congruence Pair`, `Square Root Lantern`
 - Symmetry Forge: `Operation Card`, `Orbit Ribbon`, `Mirror Pair`, `Lattice Hook`
 - Curved Atlas: `Path Thread`, `Chart Pair`, `Curvature Chip`, `Transport Arrow`
-- Practical Guide (blueprint reward fields): `Story Beat A`, `Role Card`, `Storyweight Seed`, `Formation Thread`, `Moral Thread`, `Dinner Thread`
+- Practical Guide (legacy blueprint reward fields): `Role Card`, `Storyweight Seed`, `Formation Thread`, `Moral Thread`, `Dinner Thread`
 - Worm (blueprint reward fields): `Trauma Pair`, `Harbor Coordinates`, `Buzz Pattern`, `Threat Pattern`, `Evac Grid`, `Vial Key`
 
 ## Notes

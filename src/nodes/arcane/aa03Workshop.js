@@ -1,7 +1,7 @@
 import { escapeHtml } from "../../templates/shared.js";
 import { renderArtifactSymbol } from "../../core/artifacts.js";
 import { renderRegionSymbol } from "../../core/symbology.js";
-import { arcaneSystemFromState, glyphDisplayName } from "../../systems/arcaneAscension.js";
+import { arcaneSystemFromState, glyphDisplayName, glyphTemplatePoints } from "../../systems/arcaneAscension.js";
 import { lootInventoryFromState } from "../../systems/loot.js";
 import { renderSlotRing } from "../../ui/slotRing.js";
 
@@ -74,6 +74,29 @@ function renderGlyphSymbol(glyphId, className = "") {
     artifactName: readableGlyphName(glyphId),
     className: `${className} artifact-symbol`,
   });
+}
+
+function glyphTraceMarkup(glyphType, glyphId) {
+  const points = glyphTemplatePoints(glyphType, glyphId);
+  if (!Array.isArray(points) || !points.length) {
+    return `<svg class="aa03-glyph-trace" viewBox="0 0 100 100" aria-hidden="true"></svg>`;
+  }
+  const coords = points
+    .map((point) => {
+      if (Array.isArray(point)) {
+        const x = Number(point[0]);
+        const y = Number(point[1]);
+        return `${(x * 100).toFixed(1)},${(y * 100).toFixed(1)}`;
+      }
+      return "";
+    })
+    .filter(Boolean)
+    .join(" ");
+  return `
+    <svg class="aa03-glyph-trace" viewBox="0 0 100 100" aria-hidden="true">
+      <polyline points="${escapeHtml(coords)}"></polyline>
+    </svg>
+  `;
 }
 
 function normalizeRuntime(runtime) {
@@ -356,6 +379,7 @@ function appraisalMarkup(runtime, arcane) {
       <label>
         <span class="muted">Mana Investment</span>
         <input
+          class="aa03-mana-input"
           type="number"
           min="1"
           max="${escapeHtml(String(maxMana))}"
@@ -376,6 +400,16 @@ function appraisalMarkup(runtime, arcane) {
 
 function resultMarkup(runtime) {
   const outcome = runtime.lastOutcome || {};
+  if (outcome.junk) {
+    return `
+      <section class="card">
+        <h3>Craft Result</h3>
+        <p><strong>Outcome:</strong> Junk</p>
+        <p class="muted">The rune collapse left unusable residue.</p>
+        <button type="button" data-node-id="${NODE_ID}" data-node-action="aa03-new-craft">Start New Craft</button>
+      </section>
+    `;
+  }
   return `
     <section class="card">
       <h3>Craft Result</h3>
@@ -432,10 +466,11 @@ function workshopTabMarkup(runtime, arcane) {
 
 function glyphCardMarkup(glyphId, index) {
   const id = safeText(glyphId).toLowerCase();
+  const type = regionSectionFromGlyph(id) ? "region" : "enhancement";
   return `
     <article class="card" style="animation-delay:${(index * 40)}ms">
       <h4>${escapeHtml(readableGlyphName(id))}</h4>
-      <div class="aa03-glyph-preview">${renderGlyphSymbol(id, "aa03-glyph-symbol")}</div>
+      <div class="aa03-glyph-preview">${glyphTraceMarkup(type, id)}</div>
     </article>
   `;
 }

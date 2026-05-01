@@ -20,8 +20,8 @@ export const MEMORY_SYMBOL_KEYS = Object.freeze([
 const FIELD_COLUMNS = 16;
 const FIELD_ROWS = 12;
 const FIELD_SIZE = FIELD_COLUMNS * FIELD_ROWS;
-const SHOW_MS = 900;
-const PAUSE_MS = 300;
+const SHOW_MS = 1150;
+const PAUSE_MS = 260;
 const CHAFF_SYMBOL_COUNT = 96;
 const CHAFF_SYMBOL_NAMES = Object.freeze(
   Array.from({ length: CHAFF_SYMBOL_COUNT }, (_, index) => `Field Sigil ${index + 1}`),
@@ -104,6 +104,10 @@ function safePhase(value) {
 
 export function memoryRevealDurationMs(sequenceLength) {
   return Math.max(1, Math.floor(Number(sequenceLength) || 1)) * (SHOW_MS + PAUSE_MS);
+}
+
+export function memoryRevealBeatMs() {
+  return SHOW_MS + PAUSE_MS;
 }
 
 export function normalizeMemoryGameRuntime(candidate, targetSuccesses) {
@@ -276,21 +280,23 @@ function renderTokenSymbol(spec, className) {
 }
 
 function renderShowSequence(game) {
+  const now = Date.now();
+  const revealStart = Number(game.revealStartedAt || 0);
   const cycleMs = SHOW_MS + PAUSE_MS;
+  const elapsed = Math.max(0, now - revealStart);
+  const rawIndex = Math.floor(elapsed / cycleMs);
+  const activeIndex = Math.max(0, Math.min(game.sequence.length - 1, rawIndex));
+  const activeToken = game.sequence[activeIndex];
+  const activeSpec = PATTERN_TOKEN_BY_ID[activeToken];
+  const progressLabel = `${activeIndex + 1}/${game.sequence.length}`;
   return `
     <div class="mol-memory-sequence">
-      ${game.sequence.map((tokenId, index) => {
-        const tokenSpec = PATTERN_TOKEN_BY_ID[tokenId];
-        if (!tokenSpec) {
-          return "";
-        }
-        const delaySeconds = ((index * cycleMs) / 1000).toFixed(2);
-        return `
-          <span class="mol-memory-sequence-frame" style="animation-delay:${delaySeconds}s;">
-            ${renderTokenSymbol(tokenSpec, "mol-memory-display-symbol")}
-          </span>
-        `;
-      }).join("")}
+      <span class="mol-memory-sequence-progress">${escapeHtml(progressLabel)}</span>
+      ${
+        activeSpec
+          ? renderTokenSymbol(activeSpec, "mol-memory-display-symbol")
+          : `<span class="mol-memory-display-placeholder">Observe</span>`
+      }
     </div>
   `;
 }

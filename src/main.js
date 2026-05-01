@@ -64,12 +64,14 @@ import {
   arcaneSystemFromState,
   awardManaCrystals,
   consumeWorkshopMana,
+  enhancementGlyphPool,
   estimateAppraisal,
   glyphDisplayName,
   grantStarterGlyphs,
   matchRuneAgainstGrimoire,
   pullGlyphFromTome,
   recordWorkshopCraftResult,
+  regionGlyphPool,
   resolveWorkshopCraftOutcome,
   setEnchanterAttunement,
   spendManaCrystals,
@@ -78,6 +80,7 @@ import {
 import { wormCardById } from "./nodes/worm/wormData.js";
 import { TWI03_SPECIAL_REWARD_SEQUENCE } from "./nodes/wanderinginn/twi03Inn.js";
 import { FIN01_ARTIFACT_PHASE_METADATA } from "./nodes/final/final01ConvergenceGate.js";
+import { memoryRevealBeatMs, memoryRevealDurationMs } from "./nodes/motheroflearning/memoryGameCore.js";
 
 const root = document.getElementById("app");
 
@@ -101,6 +104,7 @@ const DEPRECATED_REWARD_NAMES = new Set([
   "Route Thread",
   "Common Tongue Scrap",
   "Board Code",
+  "Story Beat A",
 ]);
 let appState = loadState();
 let deskFocusNodeId = null;
@@ -126,6 +130,8 @@ let activeNodeContext = null;
 let routeVisitNonce = 0;
 let lastRouteForVisit = "";
 let forceVictoryPreview = false;
+let mol01RevealTimerId = 0;
+let mol01RevealBeatTimerIds = [];
 const AUTO_RENDER_INTERVAL_MS = 2000;
 const AA_TOME_RENDER_INTERVAL_MS = 350;
 const AA_TOME_STEP_MS = 1050;
@@ -343,6 +349,10 @@ const NODE_REWARD_OVERRIDES = Object.freeze({
   WORM02: Object.freeze({
     suppressBlueprintReward: false,
     supplementalRewards: Object.freeze(["Ivory Truce Fork"]),
+  }),
+  PGE01: Object.freeze({
+    suppressBlueprintReward: true,
+    supplementalRewards: Object.freeze([]),
   }),
 });
 let hub08OrbHoldSession = {
@@ -1728,11 +1738,18 @@ function dispatchActiveNodeAction(action) {
         };
       } else {
         const arcane = arcaneSystemFromState(next, Date.now());
-        const match = matchRuneAgainstGrimoire({
+        let match = matchRuneAgainstGrimoire({
           strokePoints,
           glyphType: "region",
           ownedGlyphs: arcane.grimoire.regionGlyphs,
         });
+        if (!match.bestMatch && !match.insufficientStroke) {
+          match = matchRuneAgainstGrimoire({
+            strokePoints,
+            glyphType: "region",
+            ownedGlyphs: regionGlyphPool(),
+          });
+        }
         const regionName = match.bestMatch ? glyphDisplayName(match.bestMatch, "region") : "";
         runtimeAction = {
           ...runtimeAction,
@@ -1743,7 +1760,7 @@ function dispatchActiveNodeAction(action) {
             ? `Region rune resolved as ${regionName}.`
             : match.insufficientStroke
               ? "Rune trace too sparse. Draw a fuller region rune."
-              : "No learned region glyphs are currently available in your grimoire.",
+              : "Region rune did not resolve. Draw a fuller trace.",
         };
       }
       setBanner(runtimeAction.message);
@@ -1781,18 +1798,25 @@ function dispatchActiveNodeAction(action) {
         } else {
           const arcane = arcaneSystemFromState(next, Date.now());
           const aaModifiers = getArcaneLootModifiers(next, Date.now());
-          const match = matchRuneAgainstGrimoire({
+          let match = matchRuneAgainstGrimoire({
             strokePoints,
             glyphType: "enhancement",
             ownedGlyphs: arcane.grimoire.enhancementGlyphs,
           });
+          if (!match.bestMatch && !match.insufficientStroke) {
+            match = matchRuneAgainstGrimoire({
+              strokePoints,
+              glyphType: "enhancement",
+              ownedGlyphs: enhancementGlyphPool(),
+            });
+          }
           if (!match.bestMatch) {
             runtimeAction = {
               ...runtimeAction,
               applied: false,
               message: match.insufficientStroke
                 ? "Rune trace too sparse. Draw a fuller enhancement rune."
-                : "No learned enhancement glyphs are currently available in your grimoire.",
+                : "Enhancement rune did not resolve. Draw a fuller trace.",
             };
           } else {
             const enhancementName = glyphDisplayName(match.bestMatch, "enhancement");
@@ -2588,6 +2612,55 @@ function dispatchActiveNodeAction(action) {
     return true;
   }
   renderApp();
+  if (node.node_id === "MOL01" && action.type === "mol01-begin-sequence") {
+    if (mol01RevealTimerId) {
+      window.clearTimeout(mol01RevealTimerId);
+      mol01RevealTimerId = 0;
+    }
+    if (Array.isArray(mol01RevealBeatTimerIds) && mol01RevealBeatTimerIds.length) {
+      for (const timerId of mol01RevealBeatTimerIds) {
+        window.clearTimeout(timerId);
+      }
+    }
+    mol01RevealBeatTimerIds = [];
+    const runtimeNow = readNodeRuntime(appState, node, experience);
+    const game = runtimeNow && runtimeNow.game && typeof runtimeNow.game === "object" ? runtimeNow.game : null;
+    if (game && String(game.phase || "") === "show") {
+      const sequenceLength = Math.max(1, Array.isArray(game.sequence) ? game.sequence.length : 1);
+      const beatMs = Math.max(120, memoryRevealBeatMs());
+      for (let index = 1; index < sequenceLength; index += 1) {
+        const timerId = window.setTimeout(() => {
+          renderApp();
+        }, index * beatMs + 16);
+        mol01RevealBeatTimerIds.push(timerId);
+      }
+      const revealDelay = Math.max(120, memoryRevealDurationMs(sequenceLength) + 40);
+      mol01RevealTimerId = window.setTimeout(() => {
+        mol01RevealTimerId = 0;
+        if (Array.isArray(mol01RevealBeatTimerIds) && mol01RevealBeatTimerIds.length) {
+          for (const timerId of mol01RevealBeatTimerIds) {
+            window.clearTimeout(timerId);
+          }
+        }
+        mol01RevealBeatTimerIds = [];
+        dispatchActiveNodeAction({
+          type: "mol01-enter-input",
+          at: Date.now(),
+        });
+      }, revealDelay);
+    }
+  } else if (mol01RevealTimerId || (Array.isArray(mol01RevealBeatTimerIds) && mol01RevealBeatTimerIds.length)) {
+    if (mol01RevealTimerId) {
+      window.clearTimeout(mol01RevealTimerId);
+      mol01RevealTimerId = 0;
+    }
+    if (Array.isArray(mol01RevealBeatTimerIds) && mol01RevealBeatTimerIds.length) {
+      for (const timerId of mol01RevealBeatTimerIds) {
+        window.clearTimeout(timerId);
+      }
+    }
+    mol01RevealBeatTimerIds = [];
+  }
   return true;
 }
 
@@ -3912,6 +3985,9 @@ function handleChange(event) {
 
   const aa03ManaInput = event.target.closest("[data-aa03-mana-invest]");
   if (aa03ManaInput) {
+    if (event.type === "input") {
+      return;
+    }
     const value = Number("value" in aa03ManaInput ? aa03ManaInput.value : 0);
     const handled = dispatchActiveNodeAction({
       type: "aa03-set-mana-invest",
@@ -3929,9 +4005,13 @@ function handleChange(event) {
     const row = wormOrderType.closest("[data-worm02-order-row]");
     if (row) {
       const infoWrap = row.querySelector("[data-worm02-info-wrap]");
+      const targetWrap = row.querySelector("[data-worm02-target-wrap]");
+      const type = String("value" in wormOrderType ? wormOrderType.value : "").trim().toLowerCase();
       if (infoWrap) {
-        const type = String("value" in wormOrderType ? wormOrderType.value : "").trim().toLowerCase();
         infoWrap.hidden = type !== "info";
+      }
+      if (targetWrap) {
+        targetWrap.hidden = !(type === "attack" || type === "info" || type === "manipulation");
       }
     }
     return;
@@ -3942,9 +4022,13 @@ function handleChange(event) {
     const row = worm03OrderType.closest("[data-worm03-order-row]");
     if (row) {
       const infoWrap = row.querySelector("[data-worm03-info-wrap]");
+      const targetWrap = row.querySelector("[data-worm03-target-wrap]");
+      const type = String("value" in worm03OrderType ? worm03OrderType.value : "").trim().toLowerCase();
       if (infoWrap) {
-        const type = String("value" in worm03OrderType ? worm03OrderType.value : "").trim().toLowerCase();
         infoWrap.hidden = type !== "info";
+      }
+      if (targetWrap) {
+        targetWrap.hidden = !(type === "attack" || type === "info" || type === "manipulation");
       }
     }
     return;
@@ -3955,9 +4039,13 @@ function handleChange(event) {
     const row = worm04OrderType.closest("[data-worm04-order-row]");
     if (row) {
       const infoWrap = row.querySelector("[data-worm04-info-wrap]");
+      const targetWrap = row.querySelector("[data-worm04-target-wrap]");
+      const type = String("value" in worm04OrderType ? worm04OrderType.value : "").trim().toLowerCase();
       if (infoWrap) {
-        const type = String("value" in worm04OrderType ? worm04OrderType.value : "").trim().toLowerCase();
         infoWrap.hidden = type !== "info";
+      }
+      if (targetWrap) {
+        targetWrap.hidden = !(type === "attack" || type === "info" || type === "manipulation");
       }
     }
     return;
@@ -4225,15 +4313,6 @@ async function bootstrap() {
       }
 
       const nodeId = String(activeNode.node_id || "");
-      if (nodeId === "MOL01") {
-        const runtime = getNodeRuntime(appState, nodeId, () => ({}));
-        const game = runtime && runtime.game && typeof runtime.game === "object" ? runtime.game : null;
-        if (game && String(game.phase || "") === "show") {
-          renderApp(route);
-        }
-        return;
-      }
-
       if (nodeId === "MOL02") {
         const runtime = getNodeRuntime(appState, nodeId, () => ({}));
         const challenge = runtime && runtime.challenge && typeof runtime.challenge === "object" ? runtime.challenge : null;

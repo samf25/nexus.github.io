@@ -69,28 +69,46 @@ function statusBadges(combatant) {
   }
 
   const badges = [];
-  if (Number(combatant.guardCharges || 0) > 0) {
+  const guardStacks = Math.max(0, Number(combatant.guardCharges || 0));
+  const speedStacks = Math.max(
+    0,
+    Number(combatant.speedStacks || (combatant.speedReady ? 1 : 0)),
+  );
+  const stealthStacks = Math.max(
+    0,
+    Number(combatant.stealthStacks || (combatant.stealthReady ? 1 : 0)),
+  );
+  const confusedStacks = Math.max(
+    0,
+    Number(combatant.confusedStacks || (combatant.confusedAttack ? 1 : 0)),
+  );
+
+  if (guardStacks > 0) {
     badges.push({
       type: "defense",
-      label: "Guard active",
+      label: `Guard x${guardStacks}`,
+      amount: guardStacks,
     });
   }
-  if (combatant.speedReady) {
+  if (speedStacks > 0) {
     badges.push({
       type: "speed",
-      label: "Speed active",
+      label: `Speed x${speedStacks}`,
+      amount: speedStacks,
     });
   }
-  if (combatant.stealthReady) {
+  if (stealthStacks > 0) {
     badges.push({
       type: "stealth",
-      label: "Stealth active",
+      label: `Stealth x${stealthStacks}`,
+      amount: stealthStacks,
     });
   }
-  if (combatant.confusedAttack) {
+  if (confusedStacks > 0) {
     badges.push({
       type: "confusion",
-      label: "Manipulated",
+      label: `Manipulated x${confusedStacks}`,
+      amount: confusedStacks,
     });
   }
 
@@ -105,6 +123,11 @@ function statusBadges(combatant) {
       (badge) => `
           <span class="worm-card-status worm-card-status-${escapeHtml(badge.type)}" title="${escapeHtml(badge.label)}">
             ${statusIconMarkup(badge.type)}
+            ${
+              Number(badge.amount || 0) > 1
+                ? `<span class="worm-card-status-count">${escapeHtml(String(Math.floor(Number(badge.amount))))}</span>`
+                : ""
+            }
           </span>
         `,
     )

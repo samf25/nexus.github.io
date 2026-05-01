@@ -56,6 +56,7 @@ function normalizeRuntime(runtime) {
     shardPopupCardId: safeText(source.shardPopupCardId),
     selectedLootItemId: safeText(source.selectedLootItemId),
     lastPulledCardId: safeText(source.lastPulledCardId),
+    pullPopupCardId: safeText(source.pullPopupCardId || source.lastPulledCardId),
     solved: Boolean(source.solved),
     lastMessage: safeText(source.lastMessage),
   };
@@ -282,7 +283,12 @@ function renderCapeShardPopup(runtime, ownedCards, maxShardSlotsPerCape, lootSta
   const canSocketSelected = Boolean(selectedLootItem && selectedLootItem.templateId === "worm_shard_slot_token");
   const unlockedSlots = getWormShardSlotCount({ inventory: { loot: lootState } }, cardId, Date.now());
 
-  const ringSlots = Array.from({ length: maxShardSlotsPerCape }, (_, index) => {
+  const visibleSlotCount = Math.min(
+    maxShardSlotsPerCape,
+    Math.max(1, unlockedSlots + (canSocketSelected && unlockedSlots < maxShardSlotsPerCape ? 1 : 0)),
+  );
+
+  const ringSlots = Array.from({ length: visibleSlotCount }, (_, index) => {
     const itemId = slots[index];
     const item = itemId ? allLootItems[itemId] : null;
     const isFilled = Boolean(item);
@@ -294,9 +300,7 @@ function renderCapeShardPopup(runtime, ownedCards, maxShardSlotsPerCape, lootSta
       title: item
         ? `${item.label} (${item.rarity || "common"}) | ${formatLootItemEffectSummary(item, { maxEffects: 3 })}`
         : locked
-          ? nextSocket
-            ? "Locked shard socket. Apply a Shard Lattice Socket to open it."
-            : "Locked shard socket."
+          ? "Locked shard socket. Apply a Shard Lattice Socket to open it."
           : "Empty shard slot",
       ariaLabel: `Shard slot ${index + 1}`,
       symbolHtml: item
@@ -331,7 +335,7 @@ function renderCapeShardPopup(runtime, ownedCards, maxShardSlotsPerCape, lootSta
                 "data-target-id": cardId,
                 "data-slot-id": index,
               }
-          : {},
+            : {},
     };
   });
 
@@ -339,6 +343,7 @@ function renderCapeShardPopup(runtime, ownedCards, maxShardSlotsPerCape, lootSta
     <div class="worm01-shard-modal-backdrop" role="dialog" aria-label="Cape shard slots">
       <section class="card worm01-shard-modal">
         <h3>${escapeHtml(entry.card.heroName)} Shard Slots</h3>
+        <p class="muted">Unlocked: ${escapeHtml(String(unlockedSlots))}/${escapeHtml(String(maxShardSlotsPerCape))}</p>
         ${renderSlotRing({
           slots: ringSlots,
           className: "worm01-shard-slot-ring",
@@ -349,13 +354,6 @@ function renderCapeShardPopup(runtime, ownedCards, maxShardSlotsPerCape, lootSta
           }),
           ariaLabel: `${entry.card.heroName} shard slot ring`,
         })}
-        <p class="muted">${
-          canSocketSelected
-            ? "Click the next locked slot to apply the selected lattice socket."
-            : canEquipSelected
-              ? "Click an empty unlocked slot to place selected shard. Filled slots clear on click."
-              : "Select a shard or lattice socket in Loot, then click a matching slot. Filled slots clear on click."
-        }</p>
         <div class="toolbar">
           <button type="button" data-action="toggle-widget" data-widget="loot">Open Loot Panel</button>
           <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="worm01-close-shard-popup">Close</button>
@@ -429,16 +427,33 @@ function renderSickbayPanel(ownedCards, wormState, maxSickbaySlots) {
   `;
 }
 
+function pullPopupMarkup(runtime) {
+  const pulledCard = runtime.pullPopupCardId ? wormCardById(runtime.pullPopupCardId) : null;
+  if (!pulledCard) {
+    return "";
+  }
+  return `
+    <div class="worm01-shard-modal-backdrop" role="dialog" aria-label="Hiring result">
+      <section class="card worm01-shard-modal">
+        <h3>New Hire</h3>
+        ${renderWormCard(pulledCard, { role: "player" })}
+        <div class="toolbar">
+          <button type="button" data-node-id="${NODE_ID}" data-node-action="worm01-close-pull-popup">Close</button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
 function renderJobsPanel(runtime, wormState, weightBase, maxRarity, specialWindows = [], hasTenPullAccess = false) {
-  const pulledCard = runtime.lastPulledCardId ? wormCardById(runtime.lastPulledCardId) : null;
   const canHire = Number(wormState.clout || 0) >= BASIC_HIRE_COST;
   const tenPullCost = BASIC_HIRE_COST * 10;
   const canTenPull = Number(wormState.clout || 0) >= tenPullCost;
   return `
-    <section class="card worm01-job-board">
+    <section class="card worm01-job-board worm01-job-board-surface">
       <h3>Job Board</h3>
-      <p>Basic Hiring Window. Cost: <strong>${BASIC_HIRE_COST} Clout</strong>.</p>
-      <p class="muted">Pulls capes of rarity ${maxRarity} or lower, weighted toward more common underlings.</p>
+      <p><strong>Clout:</strong> ${escapeHtml(String(Number(wormState.clout || 0).toFixed(2)))}</p>
+      <p class="muted">Basic Window | Max rarity ${escapeHtml(String(maxRarity.toFixed(1)))} | Cost ${BASIC_HIRE_COST}</p>
       <div class="toolbar">
         <button type="button" data-node-id="${NODE_ID}" data-node-action="worm01-hire-basic" data-weight-base="${escapeHtml(String(weightBase))}" data-max-rarity="${escapeHtml(String(maxRarity))}" ${canHire ? "" : "disabled"}>
           Hire Underling
@@ -478,7 +493,6 @@ function renderJobsPanel(runtime, wormState, weightBase, maxRarity, specialWindo
         `
     : ""
 }
-      ${pulledCard ? `<h4>Latest Pull</h4>${renderWormCard(pulledCard, { role: "player" })}` : ""}
     </section>
   `;
 }
@@ -574,6 +588,7 @@ export function reduceWorm01Runtime(runtime, action) {
       panel: PANELS.jobs,
       popup: POPUPS.none,
       lastPulledCardId: safeText(action.pulledCardId),
+      pullPopupCardId: safeText(action.pulledCardId),
     };
   }
 
@@ -583,6 +598,7 @@ export function reduceWorm01Runtime(runtime, action) {
       panel: PANELS.jobs,
       popup: POPUPS.none,
       lastPulledCardId: safeText(action.pulledCardId),
+      pullPopupCardId: safeText(action.pulledCardId),
     };
   }
 
@@ -594,6 +610,14 @@ export function reduceWorm01Runtime(runtime, action) {
       panel: PANELS.jobs,
       popup: POPUPS.none,
       lastPulledCardId: latest,
+      pullPopupCardId: latest,
+    };
+  }
+
+  if (action.type === "worm01-close-pull-popup") {
+    return {
+      ...current,
+      pullPopupCardId: "",
     };
   }
 
@@ -740,6 +764,12 @@ export function buildWorm01ActionFromElement(element, runtime) {
     };
   }
 
+  if (actionName === "worm01-close-pull-popup") {
+    return {
+      type: "worm01-close-pull-popup",
+    };
+  }
+
   if (actionName === "worm01-equip-shard") {
     return {
       type: "worm01-equip-shard",
@@ -792,13 +822,13 @@ export function renderWorm01Experience(context) {
   const popupMarkup = runtime.popup === POPUPS.cape
     ? renderCapeShardPopup(runtime, ownedCards, maxShardSlotsPerCape, lootState)
     : "";
+  const pullPopup = pullPopupMarkup(runtime);
 
   return `
     <article class="worm01-node" data-node-id="${NODE_ID}">
       <section class="card worm01-loft-header">
         <h3>The Undersiders' Loft</h3>
         <p><strong>Clout:</strong> ${escapeHtml(String(Number(wormState.clout || 0).toFixed(2)))}</p>
-        <p class="muted"><strong>Hiring Window Bonus:</strong> +${escapeHtml(String(hiringBonus))} rarity cap</p>
         <div class="toolbar">
           ${panelButton(PANELS.deck, panel === PANELS.deck)}
           ${panelButton(PANELS.sickbay, panel === PANELS.sickbay)}
@@ -807,6 +837,7 @@ export function renderWorm01Experience(context) {
       </section>
       ${panelMarkup}
       ${popupMarkup}
+      ${pullPopup}
     </article>
   `;
 }

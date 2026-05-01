@@ -107,10 +107,16 @@ function normalizeRuntime(runtime) {
     helpOpen: Boolean(source.helpOpen),
     pickerSlot: normalizePickerSlot(source.pickerSlot),
     lootEvents: Array.isArray(source.lootEvents) ? source.lootEvents.filter((entry) => entry && typeof entry === "object") : [],
+    outcomePopup: source.outcomePopup && typeof source.outcomePopup === "object" ? { ...source.outcomePopup } : null,
     bossDefeated: Boolean(source.bossDefeated),
     solved: Boolean(source.bossDefeated),
     lastMessage: safeText(source.lastMessage),
   };
+}
+
+function actionNeedsTarget(actionType) {
+  const type = safeText(actionType).toLowerCase();
+  return type === "attack" || type === "info" || type === "manipulation";
 }
 
 function ensureLoadout(runtime, ownedCardIds) {
@@ -125,7 +131,8 @@ function ensureLoadout(runtime, ownedCardIds) {
 }
 
 function teamCardsMarkup(team, role) {
-  return team
+  const living = (Array.isArray(team) ? team : []).filter((combatant) => Number(combatant && combatant.hp) > 0);
+  return living
     .map((combatant) =>
       renderWormCard(
         {
@@ -175,6 +182,7 @@ function normalizePreferenceForActor(combatant, enemyTeam, preference) {
 function playerOrderMarkup(combatant, enemyTeam, preference) {
   const aliveEnemies = enemyTeam.filter((enemy) => enemy.hp > 0);
   const normalized = normalizePreferenceForActor(combatant, aliveEnemies, preference);
+  const showTarget = actionNeedsTarget(normalized.type);
   const actionOptions = selectableWormActions()
     .map(
       (action) =>
@@ -203,7 +211,7 @@ function playerOrderMarkup(combatant, enemyTeam, preference) {
           ${actionOptions}
         </select>
       </label>
-      <label>
+      <label data-worm02-target-wrap ${showTarget ? "" : "hidden"}>
         <span>Target</span>
         <select class="worm02-select" data-worm02-order-target>
           ${targetOptions}
@@ -380,6 +388,9 @@ function battleMarkup(runtime, cloutMultiplier) {
   const playerTeam = Array.isArray(battle.playerTeam) ? battle.playerTeam : [];
   const enemyTeam = Array.isArray(battle.enemyTeam) ? battle.enemyTeam : [];
   const playerAlive = playerTeam.filter((combatant) => combatant.hp > 0);
+  const enemyAlive = enemyTeam.filter((combatant) => combatant.hp > 0);
+  const visiblePlayers = playerAlive.length ? playerAlive : playerTeam;
+  const visibleEnemies = enemyAlive.length ? enemyAlive : enemyTeam;
   const canResolve = !battle.winner && playerAlive.length > 0;
   const winnerLabel = battle.winner
     ? battle.winner === "player"
@@ -391,7 +402,7 @@ function battleMarkup(runtime, cloutMultiplier) {
   const turnNumber = Math.max(1, Number(battle.round || 1) - 1);
   const turnEvents = Array.isArray(battle.lastRoundEvents) && battle.lastRoundEvents.length
     ? battle.lastRoundEvents
-    : ["No decisive actions."];
+    : ["Turn resolves without momentum shift."];
 
   return `
     <section class="worm02-battle">
@@ -404,7 +415,7 @@ function battleMarkup(runtime, cloutMultiplier) {
         <section class="worm02-team-column">
           <h3>Your Team</h3>
           <div class="worm02-card-grid">
-            ${teamCardsMarkup(playerTeam, "player")}
+            ${teamCardsMarkup(visiblePlayers, "player")}
           </div>
         </section>
 
@@ -413,7 +424,7 @@ function battleMarkup(runtime, cloutMultiplier) {
             <h3>Turn Orders</h3>
             <div class="worm02-order-grid">
               ${playerAlive
-    .map((combatant) => playerOrderMarkup(combatant, enemyTeam, runtime.orderPrefs[combatant.combatantId] || null))
+    .map((combatant) => playerOrderMarkup(combatant, enemyAlive, runtime.orderPrefs[combatant.combatantId] || null))
     .join("")}
             </div>
             <div class="toolbar">
@@ -439,7 +450,7 @@ function battleMarkup(runtime, cloutMultiplier) {
         <section class="worm02-team-column">
           <h3>Enemy Team</h3>
           <div class="worm02-card-grid">
-            ${teamCardsMarkup(enemyTeam, "enemy")}
+            ${teamCardsMarkup(visibleEnemies, "enemy")}
           </div>
         </section>
       </section>
@@ -453,6 +464,31 @@ function battleMarkup(runtime, cloutMultiplier) {
               <p>${escapeHtml(line)}</p>
             </article>
           `).join("")}
+        </div>
+      </section>
+    </section>
+  `;
+}
+
+function outcomePopupMarkup(runtime) {
+  const popup = runtime && runtime.outcomePopup && typeof runtime.outcomePopup === "object"
+    ? runtime.outcomePopup
+    : null;
+  if (!popup) {
+    return "";
+  }
+  const lines = Array.isArray(popup.lines) ? popup.lines : [];
+  return `
+    <section class="worm02-picker-overlay" aria-modal="true" role="dialog">
+      <section class="card worm02-picker-panel">
+        <header class="worm02-picker-header">
+          <h4>${escapeHtml(String(popup.title || "Outcome"))}</h4>
+        </header>
+        <div class="worm02-help">
+          ${lines.map((line) => `<p>${escapeHtml(String(line || ""))}</p>`).join("")}
+        </div>
+        <div class="toolbar">
+          <button type="button" data-node-id="${NODE_ID}" data-node-action="worm02-close-outcome-popup">Close</button>
         </div>
       </section>
     </section>
@@ -509,6 +545,13 @@ export function reduceWorm02Runtime(runtime, action) {
     return {
       ...current,
       pickerSlot: "",
+    };
+  }
+
+  if (action.type === "worm02-close-outcome-popup") {
+    return {
+      ...current,
+      outcomePopup: null,
     };
   }
 
@@ -582,6 +625,7 @@ export function reduceWorm02Runtime(runtime, action) {
       battleMode: "normal",
       battleDifficulty: difficulty,
       enemyRarities: enemyCards.map((card) => Number(card.rarity || 0)).slice(0, 2),
+      outcomePopup: null,
       lastMessage: `${BATTLE_DIFFICULTY_CONFIG[difficulty].label} arena battle initialized.`,
     };
   }
@@ -625,6 +669,7 @@ export function reduceWorm02Runtime(runtime, action) {
       battleMode: "boss",
       battleDifficulty: "hard",
       enemyRarities: enemyCards.map((card) => Number(card.rarity || 0)).slice(0, 2),
+      outcomePopup: null,
       lastMessage: "Arena Boss challenge initialized.",
     };
   }
@@ -698,6 +743,18 @@ export function reduceWorm02Runtime(runtime, action) {
       solved: current.bossDefeated || solvedNow,
       battle: null,
       lootEvents,
+      outcomePopup: {
+        title: winner === "player" ? "Arena Victory" : "Arena Defeat",
+        lines: winner === "player"
+          ? [
+            mode === "boss" ? "Boss clear registered." : `Difficulty: ${String(current.battleDifficulty || "easy").toUpperCase()}.`,
+            "Clout has been awarded.",
+            lootEvents.length
+              ? `Reward bundle generated: ${lootEvents.length} loot drop${lootEvents.length === 1 ? "" : "s"}.`
+              : "No bonus loot this round.",
+          ]
+          : ["No clout gained.", "Your capes return with their current injuries."],
+      },
       lastMessage: winner === "player" ? "Outcome claimed. Clout awarded." : "Outcome claimed.",
     };
   }
@@ -707,6 +764,7 @@ export function reduceWorm02Runtime(runtime, action) {
       ...current,
       battle: null,
       pickerSlot: "",
+      outcomePopup: null,
       lastMessage: "Battle abandoned.",
     };
   }
@@ -754,6 +812,12 @@ export function buildWorm02ActionFromElement(element, runtime) {
   if (actionName === "worm02-close-picker") {
     return {
       type: "worm02-close-picker",
+    };
+  }
+
+  if (actionName === "worm02-close-outcome-popup") {
+    return {
+      type: "worm02-close-outcome-popup",
     };
   }
 
@@ -908,9 +972,10 @@ export function renderWorm02Experience(context) {
       <button type="button" class="worm02-help-toggle" data-node-id="${NODE_ID}" data-node-action="worm02-toggle-help" aria-label="Combat help">
         ?
       </button>
-      ${setupMarkup}
+      ${runtime.battle ? "" : setupMarkup}
       ${helpMarkup}
       ${battleMarkup({ ...runtime, playerLoadout: loadout }, cloutMultiplier)}
+      ${outcomePopupMarkup(runtime)}
     </article>
   `;
 }

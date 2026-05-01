@@ -58,8 +58,14 @@ function normalizeRuntime(runtime) {
     solved: Boolean(source.solved),
     pendingCloutAward: Math.max(0, Number(source.pendingCloutAward) || 0),
     lootEvents: Array.isArray(source.lootEvents) ? source.lootEvents.filter((entry) => entry && typeof entry === "object") : [],
+    outcomePopup: source.outcomePopup && typeof source.outcomePopup === "object" ? { ...source.outcomePopup } : null,
     lastMessage: safeText(source.lastMessage),
   };
+}
+
+function actionNeedsTarget(actionType) {
+  const type = safeText(actionType).toLowerCase();
+  return type === "attack" || type === "info" || type === "manipulation";
 }
 
 function normalizePreferenceForActor(combatant, enemyTeam, preference) {
@@ -85,6 +91,7 @@ function normalizePreferenceForActor(combatant, enemyTeam, preference) {
 function playerOrderMarkup(combatant, enemyTeam, preference) {
   const aliveEnemies = enemyTeam.filter((enemy) => enemy.hp > 0);
   const normalized = normalizePreferenceForActor(combatant, aliveEnemies, preference);
+  const showTarget = actionNeedsTarget(normalized.type);
   const actionOptions = selectableWormActions()
     .map(
       (action) =>
@@ -113,7 +120,7 @@ function playerOrderMarkup(combatant, enemyTeam, preference) {
           ${actionOptions}
         </select>
       </label>
-      <label>
+      <label data-worm03-target-wrap ${showTarget ? "" : "hidden"}>
         <span>Target</span>
         <select class="worm02-select" data-worm03-order-target>
           ${targetOptions}
@@ -215,7 +222,8 @@ function topPlayerCards(wormState, contextState) {
 }
 
 function teamCardsMarkup(team, role) {
-  return team
+  const living = (Array.isArray(team) ? team : []).filter((combatant) => Number(combatant && combatant.hp) > 0);
+  return living
     .map((combatant) =>
       renderWormCard(
         {
@@ -251,6 +259,9 @@ function battleMarkup(runtime) {
   const playerTeam = Array.isArray(battle.playerTeam) ? battle.playerTeam : [];
   const enemyTeam = Array.isArray(battle.enemyTeam) ? battle.enemyTeam : [];
   const playerAlive = playerTeam.filter((combatant) => combatant.hp > 0);
+  const enemyAlive = enemyTeam.filter((combatant) => combatant.hp > 0);
+  const visiblePlayers = playerAlive.length ? playerAlive : playerTeam;
+  const visibleEnemies = enemyAlive.length ? enemyAlive : enemyTeam;
   const canResolve = !battle.winner && playerAlive.length > 0;
   const winnerLabel = battle.winner
     ? battle.winner === "player"
@@ -262,7 +273,7 @@ function battleMarkup(runtime) {
   const turnNumber = Math.max(1, Number(battle.round || 1) - 1);
   const turnEvents = Array.isArray(battle.lastRoundEvents) && battle.lastRoundEvents.length
     ? battle.lastRoundEvents
-    : ["No decisive actions."];
+    : ["Turn resolves without momentum shift."];
 
   return `
     <section class="worm02-battle">
@@ -274,7 +285,7 @@ function battleMarkup(runtime) {
         <section class="worm02-team-column">
           <h3>Your Team</h3>
           <div class="worm02-card-grid">
-            ${teamCardsMarkup(playerTeam, "player")}
+            ${teamCardsMarkup(visiblePlayers, "player")}
           </div>
         </section>
         <section class="worm02-center-column">
@@ -282,7 +293,7 @@ function battleMarkup(runtime) {
             <h3>Turn Orders</h3>
             <div class="worm02-order-grid">
               ${playerAlive
-    .map((combatant) => playerOrderMarkup(combatant, enemyTeam, runtime.orderPrefs[combatant.combatantId] || null))
+    .map((combatant) => playerOrderMarkup(combatant, enemyAlive, runtime.orderPrefs[combatant.combatantId] || null))
     .join("")}
             </div>
             <div class="toolbar">
@@ -299,7 +310,7 @@ function battleMarkup(runtime) {
         <section class="worm02-team-column">
           <h3>Leviathan</h3>
           <div class="worm02-card-grid">
-            ${teamCardsMarkup(enemyTeam, "enemy")}
+            ${teamCardsMarkup(visibleEnemies, "enemy")}
           </div>
         </section>
       </section>
@@ -318,6 +329,31 @@ function battleMarkup(runtime) {
   `;
 }
 
+function outcomePopupMarkup(runtime) {
+  const popup = runtime && runtime.outcomePopup && typeof runtime.outcomePopup === "object"
+    ? runtime.outcomePopup
+    : null;
+  if (!popup) {
+    return "";
+  }
+  const lines = Array.isArray(popup.lines) ? popup.lines : [];
+  return `
+    <section class="worm02-picker-overlay" aria-modal="true" role="dialog">
+      <section class="card worm02-picker-panel">
+        <header class="worm02-picker-header">
+          <h4>${escapeHtml(String(popup.title || "Outcome"))}</h4>
+        </header>
+        <div class="worm02-help">
+          ${lines.map((line) => `<p>${escapeHtml(String(line || ""))}</p>`).join("")}
+        </div>
+        <div class="toolbar">
+          <button type="button" data-node-id="${NODE_ID}" data-node-action="worm03-close-outcome-popup">Close</button>
+        </div>
+      </section>
+    </section>
+  `;
+}
+
 export function initialWorm03Runtime() {
   return normalizeRuntime({
     summoned: false,
@@ -326,6 +362,7 @@ export function initialWorm03Runtime() {
     solved: false,
     pendingCloutAward: 0,
     lootEvents: [],
+    outcomePopup: null,
     lastMessage: "",
   });
 }
@@ -388,6 +425,7 @@ export function reduceWorm03Runtime(runtime, action, context = {}) {
         enemyAiMode: "boss",
       }),
       orderPrefs: {},
+      outcomePopup: null,
       lastMessage: "Leviathan crashes into range.",
     };
   }
@@ -417,7 +455,15 @@ export function reduceWorm03Runtime(runtime, action, context = {}) {
       ...current,
       battle: null,
       orderPrefs: {},
+      outcomePopup: null,
       lastMessage: "You retreat from the flooded district.",
+    };
+  }
+
+  if (action.type === "worm03-close-outcome-popup") {
+    return {
+      ...current,
+      outcomePopup: null,
     };
   }
 
@@ -458,6 +504,16 @@ export function reduceWorm03Runtime(runtime, action, context = {}) {
           },
         ]
         : [],
+      outcomePopup: {
+        title: won ? "Leviathan Defeated" : "Leviathan Repelled You",
+        lines: won
+          ? [
+            "Clout awarded: 220",
+            "Artifacts awarded: Nightwine Ledger, Leviathan Core Sigil",
+            "Loot queued: CRD + WORM + DCC drops",
+          ]
+          : ["No clout awarded.", "No artifact rewards.", "Regroup and try again."],
+      },
       lastMessage: won ? "Leviathan falls. Brockton Bay survives." : "Defeat recorded.",
     };
   }
@@ -492,6 +548,12 @@ export function buildWorm03ActionFromElement(element, runtime) {
   if (actionName === "worm03-reset-battle") {
     return {
       type: "worm03-reset-battle",
+      at: Date.now(),
+    };
+  }
+  if (actionName === "worm03-close-outcome-popup") {
+    return {
+      type: "worm03-close-outcome-popup",
       at: Date.now(),
     };
   }
@@ -592,6 +654,7 @@ export function renderWorm03Experience(context) {
         ${runtime.lastMessage ? `<p class="muted">${escapeHtml(runtime.lastMessage)}</p>` : ""}
       </section>
       ${battleMarkup(runtime)}
+      ${outcomePopupMarkup(runtime)}
     </article>
   `;
 }

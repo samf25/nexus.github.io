@@ -74,6 +74,31 @@ export function madraPoolMultiplierForStage(stageId) {
   return MADRA_POOL_MULTIPLIER[normalizeCombatStage(stageId)] || 1;
 }
 
+export function stageGap(defenderStageId, attackerStageId) {
+  const defenderIndex = COMBAT_STAGES.indexOf(normalizeCombatStage(defenderStageId));
+  const attackerIndex = COMBAT_STAGES.indexOf(normalizeCombatStage(attackerStageId));
+  return Math.max(0, defenderIndex - attackerIndex);
+}
+
+export function emptyPalmSuccessRoll({
+  seed,
+  salt = 0,
+  attackerStage = "foundation",
+  defenderStage = "foundation",
+  baseChance = 0.84,
+  penaltyPerStage = 0.14,
+  minChance = 0.18,
+} = {}) {
+  const gap = stageGap(defenderStage, attackerStage);
+  const chance = Math.max(minChance, Math.min(0.95, Number(baseChance) - gap * Number(penaltyPerStage)));
+  const rng = randomUnit(seed, salt);
+  return {
+    seed: rng.seed,
+    success: rng.value <= chance,
+    chance,
+  };
+}
+
 export function cradleCombatAttackMultiplierFromState(state, now = Date.now()) {
   const prestige = prestigeModifiersFromState(state || {});
   const loot = getCradleLootModifiers(state || {}, now);

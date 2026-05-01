@@ -1,6 +1,7 @@
 import { escapeHtml } from "../../templates/shared.js";
 import {
   cradleCombatAttackMultiplierFromState,
+  emptyPalmSuccessRoll,
   madraPoolMultiplierForStage,
   normalizeCombatStage,
   randomUnit,
@@ -226,7 +227,26 @@ function resolvePlayerAction(runtime, actionId) {
       attackerStage: runtime.playerStage,
       defenderStage: enemy.stage,
     });
-    seed = roll.seed;
+    const successRoll = emptyPalmSuccessRoll({
+      seed: roll.seed,
+      salt: 137,
+      attackerStage: runtime.playerStage,
+      defenderStage: enemy.stage,
+      baseChance: 0.76,
+      penaltyPerStage: 0.16,
+      minChance: 0.14,
+    });
+    seed = successRoll.seed;
+    if (!successRoll.success) {
+      return appendLog(
+        {
+          ...runtime,
+          seed,
+          playerMadra: Math.max(0, runtime.playerMadra - 16),
+        },
+        `Empty Palm slips off Jai Long's flow (${Math.round(successRoll.chance * 100)}% chance).`,
+      );
+    }
     return appendLog(
       {
         ...runtime,

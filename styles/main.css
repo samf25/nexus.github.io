@@ -2668,6 +2668,38 @@ a:hover {
   display: none;
 }
 
+.worm02-order-row [data-worm02-target-wrap][hidden],
+.worm02-order-row [data-worm03-target-wrap][hidden],
+.worm02-order-row [data-worm04-target-wrap][hidden],
+.worm02-order-row [data-worm03-info-wrap][hidden],
+.worm02-order-row [data-worm04-info-wrap][hidden] {
+  display: none;
+}
+
+.worm02-order-row [data-worm02-info-wrap],
+.worm02-order-row [data-worm03-info-wrap],
+.worm02-order-row [data-worm04-info-wrap] {
+  display: none;
+}
+
+.worm02-order-row:has([data-worm02-order-type] option[value="info"]:checked) [data-worm02-info-wrap],
+.worm02-order-row:has([data-worm03-order-type] option[value="info"]:checked) [data-worm03-info-wrap],
+.worm02-order-row:has([data-worm04-order-type] option[value="info"]:checked) [data-worm04-info-wrap] {
+  display: grid;
+}
+
+.worm02-order-row:has([data-worm02-order-type] option[value="defense"]:checked) [data-worm02-target-wrap],
+.worm02-order-row:has([data-worm02-order-type] option[value="speed"]:checked) [data-worm02-target-wrap],
+.worm02-order-row:has([data-worm02-order-type] option[value="stealth"]:checked) [data-worm02-target-wrap],
+.worm02-order-row:has([data-worm03-order-type] option[value="defense"]:checked) [data-worm03-target-wrap],
+.worm02-order-row:has([data-worm03-order-type] option[value="speed"]:checked) [data-worm03-target-wrap],
+.worm02-order-row:has([data-worm03-order-type] option[value="stealth"]:checked) [data-worm03-target-wrap],
+.worm02-order-row:has([data-worm04-order-type] option[value="defense"]:checked) [data-worm04-target-wrap],
+.worm02-order-row:has([data-worm04-order-type] option[value="speed"]:checked) [data-worm04-target-wrap],
+.worm02-order-row:has([data-worm04-order-type] option[value="stealth"]:checked) [data-worm04-target-wrap] {
+  display: none;
+}
+
 .worm02-order-row label span {
   font-size: 0.68rem;
   color: #adc2e3;
@@ -2677,10 +2709,11 @@ a:hover {
   width: 100%;
   border: 1px solid #486590;
   border-radius: 8px;
-  background: #0a1428;
+  background: linear-gradient(180deg, #121f3d, #0b152b);
   color: #e2efff;
   font-size: 0.72rem;
   padding: 6px 8px;
+  box-shadow: inset 0 0 0 1px #20345b66;
 }
 
 .worm02-turn-panel {
@@ -2734,12 +2767,14 @@ a:hover {
 .worm-card-status-stack {
   position: absolute;
   top: 6px;
-  right: 6px;
-  display: inline-grid;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
   gap: 4px;
 }
 
 .worm-card-status {
+  position: relative;
   width: 18px;
   height: 18px;
   border-radius: 999px;
@@ -2748,6 +2783,21 @@ a:hover {
   place-items: center;
   background: #0f1a32e6;
   box-shadow: 0 1px 4px rgba(3, 7, 17, 0.4);
+}
+
+.worm-card-status-count {
+  position: absolute;
+  right: -6px;
+  top: -6px;
+  min-width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 1px solid #7f9cc8;
+  background: #0a1730;
+  color: #dff0ff;
+  font-size: 0.5rem;
+  line-height: 12px;
+  text-align: center;
 }
 
 .worm-card-status svg {
@@ -3083,6 +3133,11 @@ a:hover {
   max-width: 680px;
 }
 
+.crd02-origin-slot-ring {
+  width: min(100%, 168px);
+  margin: 0 auto 4px;
+}
+
 .crd02-header {
   display: flex;
   justify-content: space-between;
@@ -3181,8 +3236,9 @@ a:hover {
 
 .crd02-tech-tree {
   position: relative;
-  overflow-x: auto;
-  padding: 0;
+  overflow: auto;
+  overflow-y: visible;
+  padding: 6px 4px 120px;
 }
 
 .crd02-tech-links {
@@ -3209,6 +3265,7 @@ a:hover {
   width: max(var(--tech-grid-width, 720px), 100%);
   min-height: 270px;
   padding: 0;
+  overflow: visible;
 }
 
 .crd02-tech-node {
@@ -3225,6 +3282,34 @@ a:hover {
   display: grid;
   place-items: center;
   padding: 0;
+}
+
+.crd02-tech-node[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: 210px;
+  max-width: min(56vw, 210px);
+  white-space: pre-line;
+  font-size: 0.66rem;
+  line-height: 1.34;
+  text-align: left;
+  color: #dbe9ff;
+  background: linear-gradient(180deg, #122447f5, #0a142bf4);
+  border: 1px solid #5f80b4;
+  border-radius: 8px;
+  padding: 7px 8px;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 50;
+  box-shadow: 0 6px 16px #0007;
+}
+
+.crd02-tech-node[data-tooltip]:hover::after,
+.crd02-tech-node[data-tooltip]:focus-visible::after {
+  opacity: 1;
 }
 
 .crd02-tech-node:hover,
@@ -3284,11 +3369,11 @@ a:hover {
 
 .crd02-tech-node.is-shape-diamond {
   border-radius: 8px;
-  transform: rotate(45deg);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
 }
 
 .crd02-tech-node.is-shape-diamond .crd02-tech-core {
-  transform: rotate(-45deg);
+  border-radius: 4px;
 }
 
 .crd02-tech-node.is-shape-hex {
@@ -3862,15 +3947,18 @@ a:hover {
   place-items: center;
 }
 
-.mol-memory-sequence-frame {
+.mol-memory-sequence-progress {
   position: absolute;
-  opacity: 0;
-  animation: mol-memory-flash 750ms ease-in-out 1 both;
+  top: 6px;
+  right: 8px;
+  font-size: 0.72rem;
+  color: #9bb7e0;
+  letter-spacing: 0.04em;
 }
 
 .mol-memory-display-symbol {
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 2.9rem;
+  height: 2.9rem;
 }
 
 .mol-memory-display-placeholder {
@@ -4186,7 +4274,7 @@ a:hover {
 }
 
 .dcc-gear-mini {
-  width: 152px;
+  width: 128px;
   justify-self: end;
 }
 
@@ -4374,6 +4462,9 @@ a:hover {
   padding: 0;
   display: grid;
   gap: 6px;
+  max-height: 220px;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .dcc-item-list li {
@@ -4383,6 +4474,10 @@ a:hover {
   padding: 7px;
   display: grid;
   gap: 6px;
+}
+
+.dcc-inventory {
+  margin-top: 8px;
 }
 
 .dcc-slot-list {
@@ -4545,8 +4640,38 @@ a:hover {
   height: 32px;
 }
 
+.aa03-glyph-trace {
+  width: 120px;
+  height: 86px;
+}
+
+.aa03-glyph-trace polyline {
+  fill: none;
+  stroke: #d9e9ff;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .aa03-slot-ring {
   width: min(100%, 230px);
+}
+
+.aa03-mana-input {
+  width: min(100%, 220px);
+  border: 1px solid #705f3f;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #1f1911, #151008);
+  color: #efe4d0;
+  font-size: 0.88rem;
+  padding: 8px 10px;
+  box-shadow: inset 0 0 0 1px #2c2211;
+}
+
+.aa03-mana-input:focus {
+  outline: none;
+  border-color: #bda36d;
+  box-shadow: 0 0 0 2px #c9a86933, inset 0 0 0 1px #382b14;
 }
 
 .crd02-soul-slot-ring {
@@ -4792,9 +4917,49 @@ a:hover {
   gap: 8px;
 }
 
+.crd04-bar {
+  display: grid;
+  gap: 4px;
+}
+
 .crd04-bar-label {
   font-size: 0.82rem;
   margin-bottom: 4px;
+}
+
+.crd04-bar-track {
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid #426497;
+  background: #0b152acc;
+  overflow: hidden;
+}
+
+.crd04-bar-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #65a4ff, #8ad3ff);
+  box-shadow: 0 0 10px #69adff55;
+}
+
+.crd04-bar.is-health .crd04-bar-track span {
+  background: linear-gradient(90deg, #65d29a, #9ef0bf);
+  box-shadow: 0 0 10px #74dba755;
+}
+
+.crd04-bar.is-madra .crd04-bar-track span {
+  background: linear-gradient(90deg, #76b4ff, #b8ddff);
+}
+
+.crd04-bar.is-enemy .crd04-bar-track span {
+  background: linear-gradient(90deg, #e08484, #f0b0b0);
+  box-shadow: 0 0 10px #d86f6f55;
+}
+
+.crd04-bar-value {
+  font-size: 0.74rem;
+  color: #d8e8ff;
 }
 
 .crd04-actions {

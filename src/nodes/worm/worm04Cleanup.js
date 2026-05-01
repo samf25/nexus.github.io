@@ -65,8 +65,14 @@ function normalizeRuntime(runtime) {
     pendingCloutAward: Math.max(0, Number(source.pendingCloutAward) || 0),
     solved: Boolean(source.solved),
     lootEvents: Array.isArray(source.lootEvents) ? source.lootEvents.filter((entry) => entry && typeof entry === "object") : [],
+    outcomePopup: source.outcomePopup && typeof source.outcomePopup === "object" ? { ...source.outcomePopup } : null,
     lastMessage: safeText(source.lastMessage),
   };
+}
+
+function actionNeedsTarget(actionType) {
+  const type = safeText(actionType).toLowerCase();
+  return type === "attack" || type === "info" || type === "manipulation";
 }
 
 function applyCardBonus(card, bonus) {
@@ -133,6 +139,7 @@ function normalizePreferenceForActor(combatant, enemyTeam, preference) {
 function playerOrderMarkup(combatant, enemyTeam, preference) {
   const aliveEnemies = enemyTeam.filter((enemy) => enemy.hp > 0);
   const normalized = normalizePreferenceForActor(combatant, aliveEnemies, preference);
+  const showTarget = actionNeedsTarget(normalized.type);
   const actionOptions = selectableWormActions()
     .map(
       (action) =>
@@ -161,7 +168,7 @@ function playerOrderMarkup(combatant, enemyTeam, preference) {
           ${actionOptions}
         </select>
       </label>
-      <label>
+      <label data-worm04-target-wrap ${showTarget ? "" : "hidden"}>
         <span>Target</span>
         <select class="worm02-select" data-worm04-order-target>
           ${targetOptions}
@@ -208,7 +215,8 @@ function normalizeOrderPrefs(orders, battle) {
 }
 
 function teamCardsMarkup(team, role) {
-  return team
+  const living = (Array.isArray(team) ? team : []).filter((combatant) => Number(combatant && combatant.hp) > 0);
+  return living
     .map((combatant) =>
       renderWormCard(
         {
@@ -244,6 +252,9 @@ function battleMarkup(runtime) {
   const playerTeam = Array.isArray(battle.playerTeam) ? battle.playerTeam : [];
   const enemyTeam = Array.isArray(battle.enemyTeam) ? battle.enemyTeam : [];
   const playerAlive = playerTeam.filter((combatant) => combatant.hp > 0);
+  const enemyAlive = enemyTeam.filter((combatant) => combatant.hp > 0);
+  const visiblePlayers = playerAlive.length ? playerAlive : playerTeam;
+  const visibleEnemies = enemyAlive.length ? enemyAlive : enemyTeam;
   const canResolve = !battle.winner && playerAlive.length > 0;
   const winnerLabel = battle.winner
     ? battle.winner === "player"
@@ -255,7 +266,7 @@ function battleMarkup(runtime) {
   const turnNumber = Math.max(1, Number(battle.round || 1) - 1);
   const turnEvents = Array.isArray(battle.lastRoundEvents) && battle.lastRoundEvents.length
     ? battle.lastRoundEvents
-    : ["No decisive actions."];
+    : ["Turn resolves without momentum shift."];
 
   return `
     <section class="worm02-battle">
@@ -267,7 +278,7 @@ function battleMarkup(runtime) {
         <section class="worm02-team-column">
           <h3>Your Team</h3>
           <div class="worm02-card-grid">
-            ${teamCardsMarkup(playerTeam, "player")}
+            ${teamCardsMarkup(visiblePlayers, "player")}
           </div>
         </section>
         <section class="worm02-center-column">
@@ -275,7 +286,7 @@ function battleMarkup(runtime) {
             <h3>Turn Orders</h3>
             <div class="worm02-order-grid">
               ${playerAlive
-    .map((combatant) => playerOrderMarkup(combatant, enemyTeam, runtime.orderPrefs[combatant.combatantId] || null))
+    .map((combatant) => playerOrderMarkup(combatant, enemyAlive, runtime.orderPrefs[combatant.combatantId] || null))
     .join("")}
             </div>
             <div class="toolbar">
@@ -292,7 +303,7 @@ function battleMarkup(runtime) {
         <section class="worm02-team-column">
           <h3>Cleanup Targets</h3>
           <div class="worm02-card-grid">
-            ${teamCardsMarkup(enemyTeam, "enemy")}
+            ${teamCardsMarkup(visibleEnemies, "enemy")}
           </div>
         </section>
       </section>
@@ -305,6 +316,31 @@ function battleMarkup(runtime) {
               <p>${escapeHtml(line)}</p>
             </article>
           `).join("")}
+        </div>
+      </section>
+    </section>
+  `;
+}
+
+function outcomePopupMarkup(runtime) {
+  const popup = runtime && runtime.outcomePopup && typeof runtime.outcomePopup === "object"
+    ? runtime.outcomePopup
+    : null;
+  if (!popup) {
+    return "";
+  }
+  const lines = Array.isArray(popup.lines) ? popup.lines : [];
+  return `
+    <section class="worm02-picker-overlay" aria-modal="true" role="dialog">
+      <section class="card worm02-picker-panel">
+        <header class="worm02-picker-header">
+          <h4>${escapeHtml(String(popup.title || "Outcome"))}</h4>
+        </header>
+        <div class="worm02-help">
+          ${lines.map((line) => `<p>${escapeHtml(String(line || ""))}</p>`).join("")}
+        </div>
+        <div class="toolbar">
+          <button type="button" data-node-id="${NODE_ID}" data-node-action="worm04-close-outcome-popup">Close</button>
         </div>
       </section>
     </section>
@@ -388,6 +424,7 @@ export function initialWorm04Runtime() {
     pendingCloutAward: 0,
     solved: false,
     lootEvents: [],
+    outcomePopup: null,
     lastMessage: "",
   });
 }
@@ -450,6 +487,7 @@ export function reduceWorm04Runtime(runtime, action, context = {}) {
       activeEncounterMember: selected.activeEncounterMember,
       activeDifficulty: difficulty,
       pendingCloutReward: Math.max(1, Number(action.baseCloutReward || 0) * DIFFICULTY_CONFIG[difficulty].cloutMult),
+      outcomePopup: null,
       lastMessage: labels,
     };
   }
@@ -482,7 +520,15 @@ export function reduceWorm04Runtime(runtime, action, context = {}) {
       activeEncounterMember: "",
       pendingCloutReward: 0,
       pendingCloutAward: 0,
+      outcomePopup: null,
       lastMessage: "You break contact and fall back.",
+    };
+  }
+
+  if (action.type === "worm04-close-outcome-popup") {
+    return {
+      ...current,
+      outcomePopup: null,
     };
   }
 
@@ -539,6 +585,20 @@ export function reduceWorm04Runtime(runtime, action, context = {}) {
             },
           ]
           : [],
+      outcomePopup: {
+        title: won ? "Cleanup Complete" : "Cleanup Failed",
+        lines: won
+          ? [
+            `Clout awarded: ${Math.max(0, Number(current.pendingCloutReward || 0))}`,
+            current.activeEncounterMember
+              ? `S9 neutralized: ${current.activeEncounterMember}`
+              : "No S9 member encountered this run.",
+            fullClear
+              ? "Full-clear rewards queued: CRD + WORM + DCC + Mercy Bell Chime"
+              : "Cleanup loot queued: WORM",
+          ]
+          : ["No clout awarded.", "No artifact rewards.", "Regroup and redeploy."],
+      },
       lastMessage: won
         ? fullClear
           ? "All Slaughterhouse targets defeated. Territory secured."
@@ -572,6 +632,9 @@ export function buildWorm04ActionFromElement(element, runtime) {
   }
   if (actionName === "worm04-reset-battle") {
     return { type: "worm04-reset-battle", at: Date.now() };
+  }
+  if (actionName === "worm04-close-outcome-popup") {
+    return { type: "worm04-close-outcome-popup", at: Date.now() };
   }
   if (actionName === "worm04-claim-outcome") {
     const current = normalizeRuntime(runtime);
@@ -642,6 +705,7 @@ export function renderWorm04Experience(context) {
         ${runtime.lastMessage ? `<p class="muted">${escapeHtml(runtime.lastMessage)}</p>` : ""}
       </section>
       ${battleMarkup(runtime)}
+      ${outcomePopupMarkup(runtime)}
     </article>
   `;
 }

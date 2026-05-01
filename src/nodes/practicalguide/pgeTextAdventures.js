@@ -2043,7 +2043,7 @@ function renderTerminal(nodeId, story, runtime, currentScene) {
         ${
           claimed
             ? `
-              <p class="muted">Role already claimed. To change Role, complete a Practical Guide reset in MOL02.</p>
+              <p class="muted">Role already claimed. To change Role, complete a Practical Guide reset in Loop Reset.</p>
             `
             : `
               <div class="toolbar">
@@ -2114,7 +2114,7 @@ function reduceAdventureRuntime(nodeId, runtime, action, context) {
     if (nodeId === "PGE01" && current.solved) {
       return {
         ...current,
-        lastMessage: "Role already claimed. Use MOL02 Loop Reset to take a new Role.",
+        lastMessage: "Role already claimed. Use Loop Reset to take a new Role.",
       };
     }
     return {

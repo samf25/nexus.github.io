@@ -145,18 +145,38 @@ function buildCombatant(card, teamId, slotIndex) {
     debuffs: emptyDebuffs(),
     guardTargetId: "",
     guardCharges: 0,
-    speedReady: false,
-    stealthReady: false,
-    confusedAttack: false,
+    speedStacks: 0,
+    stealthStacks: 0,
+    confusedStacks: 0,
+    nonAttackStreak: 0,
   };
 }
 
 function cloneCombatant(combatant) {
+  const source = combatant && typeof combatant === "object" ? combatant : {};
+  const legacySpeedReady = Boolean(source.speedReady);
+  const legacyStealthReady = Boolean(source.stealthReady);
+  const legacyConfused = Boolean(source.confusedAttack);
   return {
-    ...combatant,
-    stats: { ...combatant.stats },
-    modifiers: { ...(combatant.modifiers || emptyModifiers()) },
-    debuffs: { ...combatant.debuffs },
+    ...source,
+    stats: { ...(source.stats || {}) },
+    modifiers: { ...(source.modifiers || emptyModifiers()) },
+    debuffs: { ...(source.debuffs || emptyDebuffs()) },
+    guardTargetId: safeText(source.guardTargetId),
+    guardCharges: Math.max(0, Math.floor(Number(source.guardCharges) || 0)),
+    speedStacks: Math.max(
+      0,
+      Math.floor(Number(source.speedStacks || (legacySpeedReady ? 1 : 0)) || 0),
+    ),
+    stealthStacks: Math.max(
+      0,
+      Math.floor(Number(source.stealthStacks || (legacyStealthReady ? 1 : 0)) || 0),
+    ),
+    confusedStacks: Math.max(
+      0,
+      Math.floor(Number(source.confusedStacks || (legacyConfused ? 1 : 0)) || 0),
+    ),
+    nonAttackStreak: Math.max(0, Math.floor(Number(source.nonAttackStreak) || 0)),
   };
 }
 
@@ -218,7 +238,11 @@ function applyDamage(combatant, damage) {
 }
 
 function logLine(state, line) {
-  state.log = [...state.log.slice(-23), safeText(line)];
+  const message = safeText(line);
+  state.log = [...state.log.slice(-23), message];
+  if (Array.isArray(state._roundEvents)) {
+    state._roundEvents.push(message);
+  }
 }
 
 function hasLivingTeam(state, teamId) {
@@ -351,14 +375,14 @@ function maybeRedirectByGuard(state, target) {
 }
 
 function consumeSpeedCheck(state, target, seed, salt = 0) {
-  if (!target || !target.speedReady) {
+  if (!target || Number(target.speedStacks || 0) <= 0) {
     return {
       seed,
       dodged: false,
     };
   }
 
-  target.speedReady = false;
+  target.speedStacks = Math.max(0, Number(target.speedStacks || 0) - 1);
   const speedValue = effectiveStat(target, "speed");
   const dodgeChance = clamp(speedValue * 0.1, 0, 0.95);
   const roll = randomUnit(seed, salt);
@@ -393,7 +417,7 @@ function normalizeOrderForActor(actor, order, state) {
 
 function enemyActionWeight(actor, action) {
   if (action === WORM_ACTION_TYPES.attack) {
-    return Math.max(0.4, effectiveStat(actor, "attack"));
+    return Math.max(1.2, effectiveStat(actor, "attack") + (Number(actor.nonAttackStreak || 0) * 2.5));
   }
   if (action === WORM_ACTION_TYPES.defense) {
     return Math.max(0.2, effectiveStat(actor, "defense"));
@@ -410,7 +434,7 @@ function enemyActionWeight(actor, action) {
   if (action === WORM_ACTION_TYPES.stealth) {
     return Math.max(0.15, effectiveStat(actor, "stealth"));
   }
-  return 1;
+  return 0.9;
 }
 
 function attackTargetWeight(actor, target) {
@@ -496,9 +520,16 @@ function defaultEnemyOrdersWeighted(state) {
   const actions = selectableWormActions();
 
   for (const actor of livingTeamMembers(state, "enemy")) {
-    const actionPick = pickWeighted(actions, (action) => enemyActionWeight(actor, action), seed, 173);
-    seed = actionPick.seed;
-    const actionType = actionPick.value || WORM_ACTION_TYPES.attack;
+    let actionType = WORM_ACTION_TYPES.attack;
+    const forcedAttackRoll = randomUnit(seed, 167);
+    seed = forcedAttackRoll.seed;
+    const nonAttackStreak = Math.max(0, Number(actor.nonAttackStreak || 0));
+    const forceAttack = nonAttackStreak >= 2 && forcedAttackRoll.value < 0.65;
+    if (!forceAttack) {
+      const actionPick = pickWeighted(actions, (action) => enemyActionWeight(actor, action), seed, 173);
+      seed = actionPick.seed;
+      actionType = actionPick.value || WORM_ACTION_TYPES.attack;
+    }
 
     const targetPick = targetByAction(state, actor, actionType, seed);
     seed = targetPick.seed;
@@ -537,6 +568,18 @@ function defaultEnemyOrdersBoss(state) {
 
     const name = safeText(actor.heroName).toLowerCase();
     let actionType = WORM_ACTION_TYPES.attack;
+    const forcedAttackRoll = randomUnit(seed, 307);
+    seed = forcedAttackRoll.seed;
+    const nonAttackStreak = Math.max(0, Number(actor.nonAttackStreak || 0));
+    const forceAttack = nonAttackStreak >= 3 && forcedAttackRoll.value < 0.55;
+    if (forceAttack) {
+      orders[actor.combatantId] = {
+        type: WORM_ACTION_TYPES.attack,
+        targetId,
+        infoStat: "attack",
+      };
+      continue;
+    }
 
     if (name.includes("jack")) {
       const actionPick = pickWeighted(
@@ -627,11 +670,11 @@ function resolveAttack(state, actor, order) {
     return;
   }
 
-  if (actor.confusedAttack) {
+  if (Number(actor.confusedStacks || 0) > 0) {
     const confusedPick = chooseFriendlyTarget(state, actor, state.seed);
     state.seed = confusedPick.seed;
     target = confusedPick.target;
-    actor.confusedAttack = false;
+    actor.confusedStacks = Math.max(0, Number(actor.confusedStacks || 0) - 1);
     logLine(state, `${actor.heroName} is turned around and lashes at their own side.`);
   }
 
@@ -640,8 +683,11 @@ function resolveAttack(state, actor, order) {
   const speedCheck = consumeSpeedCheck(state, target, state.seed, 17);
   state.seed = speedCheck.seed;
 
-  const stealthBoost = actor.stealthReady ? 1.3 : 1;
-  actor.stealthReady = false;
+  const hasStealth = Number(actor.stealthStacks || 0) > 0;
+  const stealthBoost = hasStealth ? 1.3 : 1;
+  if (hasStealth) {
+    actor.stealthStacks = Math.max(0, Number(actor.stealthStacks || 0) - 1);
+  }
 
   if (speedCheck.dodged) {
     logLine(
@@ -718,7 +764,7 @@ function resolveDefense(state, actor) {
 
   const ally = allies[0];
   actor.guardTargetId = ally.combatantId;
-  actor.guardCharges = 1;
+  actor.guardCharges = Math.max(0, Number(actor.guardCharges || 0)) + 1;
 
   logLine(
     state,
@@ -727,7 +773,7 @@ function resolveDefense(state, actor) {
       actionType: WORM_ACTION_TYPES.defense,
       success: true,
       targetName: ally.heroName,
-      amount: "1 redirect",
+      amount: `${actor.guardCharges} redirects`,
     }),
   );
 }
@@ -840,7 +886,7 @@ function resolveManipulation(state, actor, order) {
     return;
   }
 
-  target.confusedAttack = true;
+  target.confusedStacks = Math.max(0, Number(target.confusedStacks || 0)) + 1;
   logLine(
     state,
     buildWormActionFlavor({
@@ -848,13 +894,13 @@ function resolveManipulation(state, actor, order) {
       actionType: WORM_ACTION_TYPES.manipulation,
       success: true,
       targetName: target.heroName,
-      amount: "confused",
+      amount: `${target.confusedStacks} confusion`,
     }),
   );
 }
 
 function resolveSpeed(state, actor) {
-  actor.speedReady = true;
+  actor.speedStacks = Math.max(0, Number(actor.speedStacks || 0)) + 1;
   logLine(
     state,
     buildWormActionFlavor({
@@ -867,7 +913,7 @@ function resolveSpeed(state, actor) {
 }
 
 function resolveStealth(state, actor) {
-  actor.stealthReady = true;
+  actor.stealthStacks = Math.max(0, Number(actor.stealthStacks || 0)) + 1;
   logLine(
     state,
     buildWormActionFlavor({
@@ -902,6 +948,26 @@ function resolveOrder(state, actor, order) {
     default:
       resolveAttack(state, actor, order);
   }
+}
+
+function actionLabel(actionType) {
+  const type = normalizeActionType(actionType);
+  if (type === WORM_ACTION_TYPES.defense) {
+    return "Defense";
+  }
+  if (type === WORM_ACTION_TYPES.info) {
+    return "Info";
+  }
+  if (type === WORM_ACTION_TYPES.manipulation) {
+    return "Manipulation";
+  }
+  if (type === WORM_ACTION_TYPES.speed) {
+    return "Speed";
+  }
+  if (type === WORM_ACTION_TYPES.stealth) {
+    return "Stealth";
+  }
+  return "Attack";
 }
 
 function normalizeBattleState(state) {
@@ -981,7 +1047,7 @@ export function resolveWormRound(
 
   const resolvedEnemyOrders =
     enemyOrders && typeof enemyOrders === "object" ? enemyOrders : defaultEnemyOrders(next);
-  const startLogLength = next.log.length;
+  next._roundEvents = [];
 
   const order = buildInitiativeOrder(next);
   for (const combatantId of order) {
@@ -996,12 +1062,21 @@ export function resolveWormRound(
 
     const sourceOrders = actor.teamId === "player" ? playerOrders : resolvedEnemyOrders;
     const selectedOrder = normalizeOrderForActor(actor, sourceOrders[actor.combatantId], next);
+    const beforeLogLength = next.log.length;
     resolveOrder(next, actor, selectedOrder);
+    actor.nonAttackStreak =
+      selectedOrder.type === WORM_ACTION_TYPES.attack
+        ? 0
+        : Math.max(0, Number(actor.nonAttackStreak || 0) + 1);
+    if (next.log.length === beforeLogLength) {
+      logLine(next, `${actor.heroName} uses ${actionLabel(selectedOrder.type)}.`);
+    }
     updateWinner(next);
   }
 
-  const roundEvents = next.log.slice(startLogLength).filter(Boolean);
-  next.lastRoundEvents = roundEvents.length ? roundEvents.slice(0, 12) : ["No decisive actions."];
+  const roundEvents = Array.isArray(next._roundEvents) ? next._roundEvents.filter(Boolean) : [];
+  delete next._roundEvents;
+  next.lastRoundEvents = roundEvents.length ? roundEvents.slice(0, 12) : ["Turn resolves without momentum shift."];
   next.round += 1;
   return next;
 }
