@@ -1,11 +1,19 @@
 import { escapeHtml } from "../../templates/shared.js";
 import {
+  applyCradleTechniqueAttackDamage,
+  applyCradleConsumeLeech,
+  applyCradleTechniqueDamageReduction,
+  cradleTechniqueAdjustedEmptyPalmBaseChance,
+  cradleTechniqueAdjustedDodgeChance,
+  cradleTechniqueAdjustedMadraCost,
+  cradleTechniqueEffectsFromState,
   cradleCombatAttackMultiplierFromState,
   emptyPalmSuccessRoll,
   madraPoolMultiplierForStage,
   normalizeCombatStage,
   randomUnit,
   rollDamage,
+  rollHollowDomainSuppression,
 } from "./combatSystem.js";
 
 const NODE_ID = "CRD05";
@@ -33,6 +41,7 @@ function normalizeRuntime(runtime) {
     dodgeReady: Boolean(source.dodgeReady),
     dodgeBonus: Math.max(0, Number(source.dodgeBonus) || 0),
     meleeBonus: Math.max(0, Number(source.meleeBonus) || 0),
+    techEffects: source.techEffects && typeof source.techEffects === "object" ? { ...source.techEffects } : {},
     emptyPalmUnlocked: Boolean(source.emptyPalmUnlocked),
     enemy: source.enemy && typeof source.enemy === "object"
       ? {
@@ -41,7 +50,7 @@ function normalizeRuntime(runtime) {
         stage: normalizeCombatStage(source.enemy.stage || "jade"),
         stunnedTurns: Math.max(0, Math.floor(Number(source.enemy.stunnedTurns) || 0)),
       }
-      : { hp: 260, maxHp: 260, stage: "jade", stunnedTurns: 0 },
+      : { hp: 340, maxHp: 340, stage: "jade", stunnedTurns: 0 },
     turn: Math.max(1, Math.floor(Number(source.turn) || 1)),
     log: Array.isArray(source.log) ? source.log.slice(-10).map((line) => String(line)) : [],
     lastMessage: String(source.lastMessage || ""),
@@ -72,6 +81,7 @@ function combatProfileFromState(state) {
     hasEmptyPalm: emptyPalm > 0,
     meleeBonus: (soulCloak + consume + hollowDomain) * attackMultiplier,
     dodgeBonus: soulCloak + hollowDomain,
+    techEffects: cradleTechniqueEffectsFromState(state || {}, stage),
     maxHp: 118 + ironBody * 24 + (stage === "copper" ? 16 : stage === "iron" ? 34 : 0),
     maxMadra: Math.round((100 + soulCloak * 4 + consume * 5 + hollowDomain * 6) * madraPoolMultiplierForStage(stage)),
   };
@@ -113,10 +123,11 @@ function startBattle(runtime, action) {
     dodgeReady: false,
     dodgeBonus: Math.max(0, Number(action.dodgeBonus) || 0),
     meleeBonus: Math.max(0, Number(action.meleeBonus) || 0),
+    techEffects: action.techEffects && typeof action.techEffects === "object" ? { ...action.techEffects } : {},
     emptyPalmUnlocked: Boolean(action.emptyPalmUnlocked),
     enemy: {
-      hp: 260,
-      maxHp: 260,
+      hp: 340,
+      maxHp: 340,
       stage: "jade",
       stunnedTurns: 0,
     },
@@ -149,24 +160,27 @@ function resolveEnemyTurn(runtime) {
     const roll = rollDamage({
       seed,
       salt: 41,
-      base: 30,
+      base: 34,
       spread: 4,
       attackerStage: "jade",
       defenderStage: runtime.playerStage,
     });
     seed = roll.seed;
+    const mitigatedDamage = applyCradleTechniqueDamageReduction(roll.damage, runtime.techEffects);
     return appendLog(
       {
         ...next,
         seed,
-        playerHp: Math.max(0, runtime.playerHp - roll.damage),
+        playerHp: Math.max(0, runtime.playerHp - mitigatedDamage),
         dodgeReady: false,
       },
-      `Jade Script lashes through your channels for ${roll.damage}.`,
+      `Jade Script lashes through your channels for ${mitigatedDamage}.`,
     );
   }
 
-  const dodgeChance = runtime.dodgeReady ? Math.min(0.86, 0.48 + runtime.dodgeBonus * 0.05) : 0;
+  const dodgeChance = runtime.dodgeReady
+    ? cradleTechniqueAdjustedDodgeChance(Math.min(0.86, 0.48 + runtime.dodgeBonus * 0.05), runtime.techEffects)
+    : 0;
   if (dodgeChance > 0) {
     const dodgeRoll = randomUnit(seed, 27);
     seed = dodgeRoll.seed;
@@ -182,23 +196,30 @@ function resolveEnemyTurn(runtime) {
     }
   }
 
+  const suppressRoll = rollHollowDomainSuppression({
+    seed,
+    salt: 121,
+    effects: runtime.techEffects,
+  });
+  seed = suppressRoll.seed;
   const roll = rollDamage({
     seed,
     salt: 31,
-    base: 24,
+    base: 28 + (suppressRoll.success ? 0 : 2),
     spread: 5,
     attackerStage: "jade",
     defenderStage: runtime.playerStage,
   });
   seed = roll.seed;
+  const mitigatedDamage = applyCradleTechniqueDamageReduction(roll.damage, runtime.techEffects);
   return appendLog(
     {
       ...next,
       seed,
-      playerHp: Math.max(0, runtime.playerHp - roll.damage),
+      playerHp: Math.max(0, runtime.playerHp - mitigatedDamage),
       dodgeReady: false,
     },
-    `Elder Rahm's jade whip tears across you for ${roll.damage}.`,
+    `${suppressRoll.success ? "Hollow Domain shears off part of the strike. " : ""}Elder Rahm's jade whip tears across you for ${mitigatedDamage}.`,
   );
 }
 
@@ -221,7 +242,8 @@ function resolvePlayerAction(runtime, actionId) {
     if (!runtime.emptyPalmUnlocked) {
       return appendLog(runtime, "You do not know the Empty Palm.");
     }
-    if (runtime.playerMadra < 14) {
+    const cost = cradleTechniqueAdjustedMadraCost(14, runtime.techEffects);
+    if (runtime.playerMadra < cost) {
       return appendLog(runtime, "Not enough madra for the Empty Palm.");
     }
     const roll = rollDamage({
@@ -237,9 +259,11 @@ function resolvePlayerAction(runtime, actionId) {
       salt: 97,
       attackerStage: runtime.playerStage,
       defenderStage: enemy.stage,
-      baseChance: 0.8,
-      penaltyPerStage: 0.17,
-      minChance: 0.16,
+      baseChance: cradleTechniqueAdjustedEmptyPalmBaseChance(0.75, runtime.techEffects),
+      penaltyPerStage: 0.24,
+      minChance: 0.03,
+      severeGapThreshold: 2,
+      severeGapChance: 0.01,
     });
     seed = successRoll.seed;
     if (!successRoll.success) {
@@ -247,23 +271,33 @@ function resolvePlayerAction(runtime, actionId) {
         {
           ...next,
           seed,
-          playerMadra: Math.max(0, runtime.playerMadra - 14),
+          playerMadra: Math.max(0, runtime.playerMadra - cost),
         },
         `Empty Palm fails to root against Elder Rahm (${Math.round(successRoll.chance * 100)}% chance).`,
       );
     }
+    const leech = applyCradleConsumeLeech({
+      hp: runtime.playerHp,
+      maxHp: runtime.playerMaxHp,
+      madra: Math.max(0, runtime.playerMadra - cost),
+      maxMadra: runtime.playerMaxMadra,
+      damageDealt: applyCradleTechniqueAttackDamage(roll.damage, runtime.techEffects),
+      effects: runtime.techEffects,
+    });
+    const inflicted = applyCradleTechniqueAttackDamage(roll.damage, runtime.techEffects);
     return appendLog(
       {
         ...next,
         seed,
-        playerMadra: Math.max(0, runtime.playerMadra - 14),
+        playerHp: leech.hp,
+        playerMadra: leech.madra,
         enemy: {
           ...enemy,
-          hp: Math.max(0, enemy.hp - roll.damage),
+          hp: Math.max(0, enemy.hp - inflicted),
           stunnedTurns: Math.max(enemy.stunnedTurns, 1),
         },
       },
-      `Empty Palm strikes for ${roll.damage}. Elder Rahm's channels sputter.`,
+      `Empty Palm strikes for ${inflicted}. Elder Rahm's channels sputter.${leech.gainedHp || leech.gainedMadra ? ` Consume restores ${leech.gainedHp} HP / ${leech.gainedMadra} Madra.` : ""}`,
     );
   }
 
@@ -276,16 +310,27 @@ function resolvePlayerAction(runtime, actionId) {
     defenderStage: enemy.stage,
   });
   seed = roll.seed;
+  const inflicted = applyCradleTechniqueAttackDamage(roll.damage, runtime.techEffects);
+  const leech = applyCradleConsumeLeech({
+    hp: runtime.playerHp,
+    maxHp: runtime.playerMaxHp,
+    madra: runtime.playerMadra,
+    maxMadra: runtime.playerMaxMadra,
+    damageDealt: inflicted,
+    effects: runtime.techEffects,
+  });
   return appendLog(
     {
       ...next,
       seed,
-      enemy: {
-        ...enemy,
-        hp: Math.max(0, enemy.hp - roll.damage),
+      playerHp: leech.hp,
+        playerMadra: leech.madra,
+        enemy: {
+          ...enemy,
+          hp: Math.max(0, enemy.hp - inflicted),
+        },
       },
-    },
-    `You carve through Elder Rahm's guard for ${roll.damage}.`,
+    `You carve through Elder Rahm's guard for ${inflicted}.${leech.gainedHp || leech.gainedMadra ? ` Consume restores ${leech.gainedHp} HP / ${leech.gainedMadra} Madra.` : ""}`,
   );
 }
 
@@ -302,8 +347,9 @@ export function initialCrd05Runtime() {
     dodgeReady: false,
     dodgeBonus: 0,
     meleeBonus: 0,
+    techEffects: {},
     emptyPalmUnlocked: false,
-    enemy: { hp: 260, maxHp: 260, stage: "jade", stunnedTurns: 0 },
+    enemy: { hp: 340, maxHp: 340, stage: "jade", stunnedTurns: 0 },
     turn: 1,
     log: [],
     lastMessage: "",
@@ -373,6 +419,26 @@ export function buildCrd05ActionFromElement(element) {
       playerMaxMadra: Number(element.getAttribute("data-player-max-madra") || 100),
       dodgeBonus: Number(element.getAttribute("data-player-dodge-bonus") || 0),
       meleeBonus: Number(element.getAttribute("data-player-melee-bonus") || 0),
+      techEffects: {
+        ironBodyDamageReduction: Number(element.getAttribute("data-tech-iron-dr") || 0),
+        soulCloakDodgeBonus: Number(element.getAttribute("data-tech-dodge") || 0),
+        soulCloakMadraDiscount: Number(element.getAttribute("data-tech-madra-discount") || 0),
+        consumeLifeStealRatio: Number(element.getAttribute("data-tech-consume-life") || 0),
+        consumeMadraStealRatio: Number(element.getAttribute("data-tech-consume-madra") || 0),
+        hollowDomainDamageReduction: Number(element.getAttribute("data-tech-hollow-dr") || 0),
+        hollowDomainSuppressChance: Number(element.getAttribute("data-tech-hollow-suppress") || 0),
+        dragonBreathFlatDamage: Number(element.getAttribute("data-tech-dragon-flat") || 0),
+        burningCloakDodgeBonus: Number(element.getAttribute("data-tech-burning-dodge") || 0),
+        burningCloakMadraDiscount: Number(element.getAttribute("data-tech-burning-discount") || 0),
+        burningCloakDamageMultiplier: Number(element.getAttribute("data-tech-burning-mult") || 1),
+        voidDragonsDanceDamageMultiplier: Number(element.getAttribute("data-tech-void-mult") || 1),
+        twinStarsCombatDamageMultiplier: Number(element.getAttribute("data-tech-twinstars-mult") || 1),
+        twinStarsCombatMadraOnHit: Number(element.getAttribute("data-tech-twinstars-madra") || 0),
+        drossAttackMultiplier: Number(element.getAttribute("data-tech-dross-atk") || 1),
+        drossDamageReduction: Number(element.getAttribute("data-tech-dross-dr") || 0),
+        drossMadraDiscount: Number(element.getAttribute("data-tech-dross-discount") || 0),
+        drossEmptyPalmBonus: Number(element.getAttribute("data-tech-dross-palm") || 0),
+      },
       emptyPalmUnlocked: element.getAttribute("data-player-empty-palm") === "true",
       at: nowMs(),
     };
@@ -400,7 +466,7 @@ export function renderCrd05Experience(context) {
     return `
       <article class="crd04-node" data-node-id="${NODE_ID}">
         <section class="crd04-dialog">
-          <h3>CRD05: The Heaven's Glory School</h3>
+          <h3>The Heaven's Glory School</h3>
           <p>You stand before Elder Rahm, Jade elder of Heaven's Glory. Survive his techniques and claim the vault.</p>
           <div class="crd04-actions">
             <button
@@ -412,6 +478,24 @@ export function renderCrd05Experience(context) {
               data-player-max-madra="${escapeHtml(String(profile.maxMadra))}"
               data-player-dodge-bonus="${escapeHtml(String(profile.dodgeBonus))}"
               data-player-melee-bonus="${escapeHtml(String(profile.meleeBonus))}"
+              data-tech-iron-dr="${escapeHtml(String(profile.techEffects.ironBodyDamageReduction || 0))}"
+              data-tech-dodge="${escapeHtml(String(profile.techEffects.soulCloakDodgeBonus || 0))}"
+              data-tech-madra-discount="${escapeHtml(String(profile.techEffects.soulCloakMadraDiscount || 0))}"
+              data-tech-consume-life="${escapeHtml(String(profile.techEffects.consumeLifeStealRatio || 0))}"
+              data-tech-consume-madra="${escapeHtml(String(profile.techEffects.consumeMadraStealRatio || 0))}"
+              data-tech-hollow-dr="${escapeHtml(String(profile.techEffects.hollowDomainDamageReduction || 0))}"
+              data-tech-hollow-suppress="${escapeHtml(String(profile.techEffects.hollowDomainSuppressChance || 0))}"
+              data-tech-dragon-flat="${escapeHtml(String(profile.techEffects.dragonBreathFlatDamage || 0))}"
+              data-tech-burning-dodge="${escapeHtml(String(profile.techEffects.burningCloakDodgeBonus || 0))}"
+              data-tech-burning-discount="${escapeHtml(String(profile.techEffects.burningCloakMadraDiscount || 0))}"
+              data-tech-burning-mult="${escapeHtml(String(profile.techEffects.burningCloakDamageMultiplier || 1))}"
+              data-tech-void-mult="${escapeHtml(String(profile.techEffects.voidDragonsDanceDamageMultiplier || 1))}"
+              data-tech-twinstars-mult="${escapeHtml(String(profile.techEffects.twinStarsCombatDamageMultiplier || 1))}"
+              data-tech-twinstars-madra="${escapeHtml(String(profile.techEffects.twinStarsCombatMadraOnHit || 0))}"
+              data-tech-dross-atk="${escapeHtml(String(profile.techEffects.drossAttackMultiplier || 1))}"
+              data-tech-dross-dr="${escapeHtml(String(profile.techEffects.drossDamageReduction || 0))}"
+              data-tech-dross-discount="${escapeHtml(String(profile.techEffects.drossMadraDiscount || 0))}"
+              data-tech-dross-palm="${escapeHtml(String(profile.techEffects.drossEmptyPalmBonus || 0))}"
               data-player-empty-palm="${profile.hasEmptyPalm ? "true" : "false"}"
             >
               Challenge Elder Rahm
@@ -427,7 +511,7 @@ export function renderCrd05Experience(context) {
     return `
       <article class="crd04-node" data-node-id="${NODE_ID}">
         <section class="crd04-dialog">
-          <h3>CRD05: The Heaven's Glory School</h3>
+          <h3>The Heaven's Glory School</h3>
           <p>Elder Rahm collapses. The Heaven's Glory vault opens and ancient relics spill into your hands.</p>
         </section>
       </article>

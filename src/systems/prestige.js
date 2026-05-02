@@ -59,7 +59,7 @@ const PRESTIGE_UPGRADES = Object.freeze({
       id: "soulfire-forge",
       label: "Soulfire Forge",
       cost: 1,
-      effect: "Soulfire upgrades cost less in CRD02",
+      effect: "Soulfire upgrades cost less in Madra Well",
     }),
   ]),
   worm: Object.freeze([

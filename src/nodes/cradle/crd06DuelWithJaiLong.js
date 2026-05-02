@@ -1,11 +1,19 @@
 import { escapeHtml } from "../../templates/shared.js";
 import {
+  applyCradleTechniqueAttackDamage,
+  applyCradleConsumeLeech,
+  applyCradleTechniqueDamageReduction,
+  cradleTechniqueAdjustedEmptyPalmBaseChance,
+  cradleTechniqueAdjustedDodgeChance,
+  cradleTechniqueAdjustedMadraCost,
+  cradleTechniqueEffectsFromState,
   cradleCombatAttackMultiplierFromState,
   emptyPalmSuccessRoll,
   madraPoolMultiplierForStage,
   normalizeCombatStage,
   randomUnit,
   rollDamage,
+  rollHollowDomainSuppression,
 } from "./combatSystem.js";
 
 const NODE_ID = "CRD06";
@@ -29,6 +37,7 @@ function normalizeRuntime(runtime) {
     dodgeReady: Boolean(source.dodgeReady),
     dodgeBonus: Math.max(0, Number(source.dodgeBonus) || 0),
     meleeBonus: Math.max(0, Number(source.meleeBonus) || 0),
+    techEffects: source.techEffects && typeof source.techEffects === "object" ? { ...source.techEffects } : {},
     emptyPalmUnlocked: Boolean(source.emptyPalmUnlocked),
     enemy: source.enemy && typeof source.enemy === "object"
       ? {
@@ -38,7 +47,7 @@ function normalizeRuntime(runtime) {
         stunnedTurns: Math.max(0, Math.floor(Number(source.enemy.stunnedTurns) || 0)),
         coilStacks: Math.max(0, Math.floor(Number(source.enemy.coilStacks) || 0)),
       }
-      : { hp: 220, maxHp: 220, stage: "gold", stunnedTurns: 0, coilStacks: 0 },
+      : { hp: 300, maxHp: 300, stage: "gold", stunnedTurns: 0, coilStacks: 0 },
     turn: Math.max(1, Math.floor(Number(source.turn) || 1)),
     log: Array.isArray(source.log) ? source.log.slice(-10).map((line) => String(line)) : [],
     lastMessage: String(source.lastMessage || ""),
@@ -69,6 +78,7 @@ function combatProfileFromState(state) {
     hasEmptyPalm: emptyPalm > 0,
     meleeBonus: (soulCloak + consume + hollowDomain) * attackMultiplier,
     dodgeBonus: soulCloak + hollowDomain,
+    techEffects: cradleTechniqueEffectsFromState(state || {}, stage),
     maxHp: 128 + ironBody * 26 + (stage === "jade" ? 26 : stage === "gold" ? 44 : 0),
     maxMadra: Math.round((112 + soulCloak * 4 + consume * 6 + hollowDomain * 7) * madraPoolMultiplierForStage(stage)),
   };
@@ -110,10 +120,11 @@ function startBattle(runtime, action) {
     dodgeReady: false,
     dodgeBonus: Math.max(0, Number(action.dodgeBonus) || 0),
     meleeBonus: Math.max(0, Number(action.meleeBonus) || 0),
+    techEffects: action.techEffects && typeof action.techEffects === "object" ? { ...action.techEffects } : {},
     emptyPalmUnlocked: Boolean(action.emptyPalmUnlocked),
     enemy: {
-      hp: 230,
-      maxHp: 230,
+      hp: 300,
+      maxHp: 300,
       stage: "gold",
       stunnedTurns: 0,
       coilStacks: 0,
@@ -158,7 +169,9 @@ function resolveEnemyTurn(runtime) {
     );
   }
 
-  const dodgeChance = runtime.dodgeReady ? Math.min(0.88, 0.45 + runtime.dodgeBonus * 0.05) : 0;
+  const dodgeChance = runtime.dodgeReady
+    ? cradleTechniqueAdjustedDodgeChance(Math.min(0.88, 0.45 + runtime.dodgeBonus * 0.05), runtime.techEffects)
+    : 0;
   if (dodgeChance > 0) {
     const dodgeRoll = randomUnit(seed, 73);
     seed = dodgeRoll.seed;
@@ -175,27 +188,34 @@ function resolveEnemyTurn(runtime) {
   }
 
   const biteBonus = Math.min(28, enemy.coilStacks * 7);
+  const suppressRoll = rollHollowDomainSuppression({
+    seed,
+    salt: 167,
+    effects: runtime.techEffects,
+  });
+  seed = suppressRoll.seed;
   const roll = rollDamage({
     seed,
     salt: 79,
-    base: 20 + biteBonus,
+    base: 26 + biteBonus + (suppressRoll.success ? 0 : 3),
     spread: 6,
     attackerStage: "gold",
     defenderStage: runtime.playerStage,
   });
   seed = roll.seed;
+  const mitigatedDamage = applyCradleTechniqueDamageReduction(roll.damage, runtime.techEffects);
   return appendLog(
     {
       ...runtime,
       seed,
       dodgeReady: false,
-      playerHp: Math.max(0, runtime.playerHp - roll.damage),
+      playerHp: Math.max(0, runtime.playerHp - mitigatedDamage),
       enemy: {
         ...enemy,
         coilStacks: Math.max(0, enemy.coilStacks - 1),
       },
     },
-    `Jai Long's spear-line tears through you for ${roll.damage}.`,
+    `${suppressRoll.success ? "Hollow Domain softens the serpent-line. " : ""}Jai Long's spear-line tears through you for ${mitigatedDamage}.`,
   );
 }
 
@@ -216,7 +236,8 @@ function resolvePlayerAction(runtime, actionId) {
     if (!runtime.emptyPalmUnlocked) {
       return appendLog(runtime, "You do not know the Empty Palm.");
     }
-    if (runtime.playerMadra < 16) {
+    const cost = cradleTechniqueAdjustedMadraCost(16, runtime.techEffects);
+    if (runtime.playerMadra < cost) {
       return appendLog(runtime, "Not enough madra for the Empty Palm.");
     }
     const roll = rollDamage({
@@ -232,9 +253,11 @@ function resolvePlayerAction(runtime, actionId) {
       salt: 137,
       attackerStage: runtime.playerStage,
       defenderStage: enemy.stage,
-      baseChance: 0.76,
-      penaltyPerStage: 0.16,
-      minChance: 0.14,
+      baseChance: cradleTechniqueAdjustedEmptyPalmBaseChance(0.68, runtime.techEffects),
+      penaltyPerStage: 0.26,
+      minChance: 0.02,
+      severeGapThreshold: 2,
+      severeGapChance: 0.01,
     });
     seed = successRoll.seed;
     if (!successRoll.success) {
@@ -242,24 +265,34 @@ function resolvePlayerAction(runtime, actionId) {
         {
           ...runtime,
           seed,
-          playerMadra: Math.max(0, runtime.playerMadra - 16),
+          playerMadra: Math.max(0, runtime.playerMadra - cost),
         },
         `Empty Palm slips off Jai Long's flow (${Math.round(successRoll.chance * 100)}% chance).`,
       );
     }
+    const leech = applyCradleConsumeLeech({
+      hp: runtime.playerHp,
+      maxHp: runtime.playerMaxHp,
+      madra: Math.max(0, runtime.playerMadra - cost),
+      maxMadra: runtime.playerMaxMadra,
+      damageDealt: applyCradleTechniqueAttackDamage(roll.damage, runtime.techEffects),
+      effects: runtime.techEffects,
+    });
+    const inflicted = applyCradleTechniqueAttackDamage(roll.damage, runtime.techEffects);
     return appendLog(
       {
         ...runtime,
         seed,
-        playerMadra: Math.max(0, runtime.playerMadra - 16),
+        playerHp: leech.hp,
+        playerMadra: leech.madra,
         enemy: {
           ...enemy,
-          hp: Math.max(0, enemy.hp - roll.damage),
+          hp: Math.max(0, enemy.hp - inflicted),
           stunnedTurns: Math.max(enemy.stunnedTurns, 1),
           coilStacks: Math.max(0, enemy.coilStacks - 1),
         },
       },
-      `Empty Palm catches Jai Long for ${roll.damage} and disrupts his flow.`,
+      `Empty Palm catches Jai Long for ${inflicted} and disrupts his flow.${leech.gainedHp || leech.gainedMadra ? ` Consume restores ${leech.gainedHp} HP / ${leech.gainedMadra} Madra.` : ""}`,
     );
   }
 
@@ -272,16 +305,27 @@ function resolvePlayerAction(runtime, actionId) {
     defenderStage: enemy.stage,
   });
   seed = roll.seed;
+  const inflicted = applyCradleTechniqueAttackDamage(roll.damage, runtime.techEffects);
+  const leech = applyCradleConsumeLeech({
+    hp: runtime.playerHp,
+    maxHp: runtime.playerMaxHp,
+    madra: runtime.playerMadra,
+    maxMadra: runtime.playerMaxMadra,
+    damageDealt: inflicted,
+    effects: runtime.techEffects,
+  });
   return appendLog(
     {
       ...runtime,
       seed,
-      enemy: {
-        ...enemy,
-        hp: Math.max(0, enemy.hp - roll.damage),
+      playerHp: leech.hp,
+        playerMadra: leech.madra,
+        enemy: {
+          ...enemy,
+          hp: Math.max(0, enemy.hp - inflicted),
+        },
       },
-    },
-    `You force Jai Long back with a strike for ${roll.damage}.`,
+    `You force Jai Long back with a strike for ${inflicted}.${leech.gainedHp || leech.gainedMadra ? ` Consume restores ${leech.gainedHp} HP / ${leech.gainedMadra} Madra.` : ""}`,
   );
 }
 
@@ -298,8 +342,9 @@ export function initialCrd06Runtime() {
     dodgeReady: false,
     dodgeBonus: 0,
     meleeBonus: 0,
+    techEffects: {},
     emptyPalmUnlocked: false,
-    enemy: { hp: 230, maxHp: 230, stage: "gold", stunnedTurns: 0, coilStacks: 0 },
+    enemy: { hp: 300, maxHp: 300, stage: "gold", stunnedTurns: 0, coilStacks: 0 },
     turn: 1,
     log: [],
     lastMessage: "",
@@ -373,6 +418,26 @@ export function buildCrd06ActionFromElement(element) {
       playerMaxMadra: Number(element.getAttribute("data-player-max-madra") || 100),
       dodgeBonus: Number(element.getAttribute("data-player-dodge-bonus") || 0),
       meleeBonus: Number(element.getAttribute("data-player-melee-bonus") || 0),
+      techEffects: {
+        ironBodyDamageReduction: Number(element.getAttribute("data-tech-iron-dr") || 0),
+        soulCloakDodgeBonus: Number(element.getAttribute("data-tech-dodge") || 0),
+        soulCloakMadraDiscount: Number(element.getAttribute("data-tech-madra-discount") || 0),
+        consumeLifeStealRatio: Number(element.getAttribute("data-tech-consume-life") || 0),
+        consumeMadraStealRatio: Number(element.getAttribute("data-tech-consume-madra") || 0),
+        hollowDomainDamageReduction: Number(element.getAttribute("data-tech-hollow-dr") || 0),
+        hollowDomainSuppressChance: Number(element.getAttribute("data-tech-hollow-suppress") || 0),
+        dragonBreathFlatDamage: Number(element.getAttribute("data-tech-dragon-flat") || 0),
+        burningCloakDodgeBonus: Number(element.getAttribute("data-tech-burning-dodge") || 0),
+        burningCloakMadraDiscount: Number(element.getAttribute("data-tech-burning-discount") || 0),
+        burningCloakDamageMultiplier: Number(element.getAttribute("data-tech-burning-mult") || 1),
+        voidDragonsDanceDamageMultiplier: Number(element.getAttribute("data-tech-void-mult") || 1),
+        twinStarsCombatDamageMultiplier: Number(element.getAttribute("data-tech-twinstars-mult") || 1),
+        twinStarsCombatMadraOnHit: Number(element.getAttribute("data-tech-twinstars-madra") || 0),
+        drossAttackMultiplier: Number(element.getAttribute("data-tech-dross-atk") || 1),
+        drossDamageReduction: Number(element.getAttribute("data-tech-dross-dr") || 0),
+        drossMadraDiscount: Number(element.getAttribute("data-tech-dross-discount") || 0),
+        drossEmptyPalmBonus: Number(element.getAttribute("data-tech-dross-palm") || 0),
+      },
       emptyPalmUnlocked: element.getAttribute("data-player-empty-palm") === "true",
       at: nowMs(),
     };
@@ -396,7 +461,7 @@ export function renderCrd06Experience(context) {
     return `
       <article class="crd04-node" data-node-id="${NODE_ID}">
         <section class="crd04-dialog">
-          <h3>CRD06: Duel with Jai Long</h3>
+          <h3>Duel with Jai Long</h3>
           <p>Jai Long arrives with spear and serpents. Defeat him to force your way into the wider world.</p>
           <div class="crd04-actions">
             <button
@@ -408,6 +473,24 @@ export function renderCrd06Experience(context) {
               data-player-max-madra="${escapeHtml(String(profile.maxMadra))}"
               data-player-dodge-bonus="${escapeHtml(String(profile.dodgeBonus))}"
               data-player-melee-bonus="${escapeHtml(String(profile.meleeBonus))}"
+              data-tech-iron-dr="${escapeHtml(String(profile.techEffects.ironBodyDamageReduction || 0))}"
+              data-tech-dodge="${escapeHtml(String(profile.techEffects.soulCloakDodgeBonus || 0))}"
+              data-tech-madra-discount="${escapeHtml(String(profile.techEffects.soulCloakMadraDiscount || 0))}"
+              data-tech-consume-life="${escapeHtml(String(profile.techEffects.consumeLifeStealRatio || 0))}"
+              data-tech-consume-madra="${escapeHtml(String(profile.techEffects.consumeMadraStealRatio || 0))}"
+              data-tech-hollow-dr="${escapeHtml(String(profile.techEffects.hollowDomainDamageReduction || 0))}"
+              data-tech-hollow-suppress="${escapeHtml(String(profile.techEffects.hollowDomainSuppressChance || 0))}"
+              data-tech-dragon-flat="${escapeHtml(String(profile.techEffects.dragonBreathFlatDamage || 0))}"
+              data-tech-burning-dodge="${escapeHtml(String(profile.techEffects.burningCloakDodgeBonus || 0))}"
+              data-tech-burning-discount="${escapeHtml(String(profile.techEffects.burningCloakMadraDiscount || 0))}"
+              data-tech-burning-mult="${escapeHtml(String(profile.techEffects.burningCloakDamageMultiplier || 1))}"
+              data-tech-void-mult="${escapeHtml(String(profile.techEffects.voidDragonsDanceDamageMultiplier || 1))}"
+              data-tech-twinstars-mult="${escapeHtml(String(profile.techEffects.twinStarsCombatDamageMultiplier || 1))}"
+              data-tech-twinstars-madra="${escapeHtml(String(profile.techEffects.twinStarsCombatMadraOnHit || 0))}"
+              data-tech-dross-atk="${escapeHtml(String(profile.techEffects.drossAttackMultiplier || 1))}"
+              data-tech-dross-dr="${escapeHtml(String(profile.techEffects.drossDamageReduction || 0))}"
+              data-tech-dross-discount="${escapeHtml(String(profile.techEffects.drossMadraDiscount || 0))}"
+              data-tech-dross-palm="${escapeHtml(String(profile.techEffects.drossEmptyPalmBonus || 0))}"
               data-player-empty-palm="${profile.hasEmptyPalm ? "true" : "false"}"
             >
               Begin Duel
@@ -423,7 +506,7 @@ export function renderCrd06Experience(context) {
     return `
       <article class="crd04-node" data-node-id="${NODE_ID}">
         <section class="crd04-dialog">
-          <h3>CRD06: Duel with Jai Long</h3>
+          <h3>Duel with Jai Long</h3>
           <p>Eithan Arelius strolls in, claps once, and declares he is your mentor now. He teaches the Heaven and Earth Purification Wheel, then tosses you two cryptic artifacts.</p>
         </section>
       </article>

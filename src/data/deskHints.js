@@ -360,7 +360,7 @@ export const DESK_HINT_OVERRIDES = Object.freeze({
   FIN01: Object.freeze([
     "Only two artifacts hard-lock entry; the rest change phase difficulty and options.",
     "Progress is checkpointed by phase, so stabilize one phase before pushing next.",
-    "Final synthesis requires correct grouping and ordering, not simple fill-all slotting.",
+    "Final synthesis is staged: lock channels, align structure, route circuits, then seal in exact order.",
   ]),
 });
 

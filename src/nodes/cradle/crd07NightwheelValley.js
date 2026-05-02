@@ -3,11 +3,20 @@ import { renderArtifactSymbol } from "../../core/artifacts.js";
 import { renderRegionSymbol } from "../../core/symbology.js";
 import { renderSlotRing } from "../../ui/slotRing.js";
 import {
+  applyCradleTechniqueAttackDamage,
+  applyCradleConsumeLeech,
+  applyCradleTechniqueDamageReduction,
+  cradleTechniqueAdjustedEmptyPalmBaseChance,
+  cradleTechniqueAdjustedDodgeChance,
+  cradleTechniqueAdjustedMadraCost,
+  cradleTechniqueEffectsFromState,
   cradleCombatAttackMultiplierFromState,
+  emptyPalmSuccessRoll,
   madraPoolMultiplierForStage,
   normalizeCombatStage,
   randomUnit,
   rollDamage,
+  rollHollowDomainSuppression,
 } from "./combatSystem.js";
 import { lootInventoryFromState } from "../../systems/loot.js";
 
@@ -40,6 +49,21 @@ function normalizeText(value) {
 
 function rewardMatches(name, expected) {
   return normalizeText(name) === normalizeText(expected);
+}
+
+function materialPresentInLoot(state, material) {
+  const loot = lootInventoryFromState(state || {}, Date.now());
+  const target = normalizeText(material);
+  return Object.values(loot.items || {}).some((item) => {
+    const label = normalizeText(item && item.label ? item.label : "");
+    if (!label.includes(target)) {
+      return false;
+    }
+    if (item && item.kind && String(item.kind) === "crd_advancement_material") {
+      return true;
+    }
+    return label.includes("(uncommon)");
+  });
 }
 
 function readCrd02Runtime(state) {
@@ -93,6 +117,7 @@ function combatProfileFromState(state) {
     hasEmptyPalm: emptyPalm > 0,
     meleeBonus: (soulCloak + consume + hollowDomain + soulfireCycler) * attackMultiplier,
     dodgeBonus: soulCloak + hollowDomain,
+    techEffects: cradleTechniqueEffectsFromState(state || {}, stage),
     maxHp: 145 + ironBody * 30 + (stage === "truegold" ? 40 : stage === "underlord" ? 80 : 0),
     maxMadra: Math.round((130 + soulCloak * 4 + consume * 7 + hollowDomain * 8) * madraPoolMultiplierForStage(stage)),
   };
@@ -140,6 +165,7 @@ function normalizeRuntime(candidate) {
       dodgeReady: Boolean(source.battle.dodgeReady),
       dodgeBonus: Math.max(0, Number(source.battle.dodgeBonus) || 0),
       meleeBonus: Math.max(0, Number(source.battle.meleeBonus) || 0),
+      techEffects: source.battle.techEffects && typeof source.battle.techEffects === "object" ? { ...source.battle.techEffects } : {},
       emptyPalmUnlocked: Boolean(source.battle.emptyPalmUnlocked),
       log: Array.isArray(source.battle.log) ? source.battle.log.slice(-10).map((line) => String(line)) : [],
       winner: String(source.battle.winner || ""),
@@ -149,8 +175,16 @@ function normalizeRuntime(candidate) {
       turn: Math.max(1, Math.floor(Number(source.battle.turn) || 1)),
     } : null,
     pendingMadraAward: Math.max(0, Number(source.pendingMadraAward) || 0),
+    pendingSoulfireAward: Math.max(0, Number(source.pendingSoulfireAward) || 0),
     pendingUnderlordAdvance: Boolean(source.pendingUnderlordAdvance),
     consumeLootItemId: String(source.consumeLootItemId || ""),
+    claimPopup: source.claimPopup && typeof source.claimPopup === "object"
+      ? {
+        open: Boolean(source.claimPopup.open),
+        title: String(source.claimPopup.title || ""),
+        lines: Array.isArray(source.claimPopup.lines) ? source.claimPopup.lines.map((line) => String(line)) : [],
+      }
+      : { open: false, title: "", lines: [] },
     lootEvents: Array.isArray(source.lootEvents) ? source.lootEvents.filter((entry) => entry && typeof entry === "object") : [],
     solved: Boolean(source.solved),
     lastMessage: String(source.lastMessage || ""),
@@ -172,6 +206,23 @@ function barMarkup(label, current, max, className = "") {
       <div class="crd04-bar-value">${escapeHtml(String(Math.round(value)))}/${escapeHtml(String(Math.round(safeMax)))}</div>
     </div>
   `;
+}
+
+function nightwheelEnemyTechnique(enemy) {
+  const ability = String(enemy && enemy.ability ? enemy.ability : "").toLowerCase();
+  if (ability === "charge") {
+    return "moon-tusk charge";
+  }
+  if (ability === "bleed") {
+    return "bleeding fang rush";
+  }
+  if (ability === "guard") {
+    return "stonehorn crush";
+  }
+  if (ability === "shroud") {
+    return "riftfeather dive";
+  }
+  return "wild aura strike";
 }
 
 function resolveEnemyTurn(battle) {
@@ -196,20 +247,30 @@ function resolveEnemyTurn(battle) {
     return next;
   }
 
-  const dodgeChance = next.dodgeReady ? Math.min(0.85, 0.45 + next.dodgeBonus * 0.05) : 0;
+  const dodgeChance = next.dodgeReady
+    ? cradleTechniqueAdjustedDodgeChance(Math.min(0.85, 0.45 + next.dodgeBonus * 0.05), next.techEffects)
+    : 0;
   if (dodgeChance > 0) {
     const dodgeRoll = randomUnit(next.seed, 33);
     next.seed = dodgeRoll.seed;
     if (dodgeRoll.value < dodgeChance) {
       next.dodgeReady = false;
-      next.log = [...next.log, "You slip clear of the beast's strike."].slice(-10);
+      next.log = [...next.log, `You slip clear of ${next.enemy.name}'s ${nightwheelEnemyTechnique(next.enemy)}.`].slice(-10);
       return next;
     }
   }
 
-  const bonus = next.enemy.ability === "bleed" ? 4 : next.enemy.ability === "charge" ? 6 : 0;
-  const roll = rollDamage({
+  const suppressRoll = rollHollowDomainSuppression({
     seed: next.seed,
+    salt: 133,
+    effects: next.techEffects,
+  });
+  next.seed = suppressRoll.seed;
+  const bonus = suppressRoll.success
+    ? 0
+    : next.enemy.ability === "bleed" ? 4 : next.enemy.ability === "charge" ? 6 : 0;
+  const roll = rollDamage({
+    seed: suppressRoll.seed,
     salt: 19,
     base: next.enemy.attack + bonus,
     spread: 6,
@@ -217,9 +278,10 @@ function resolveEnemyTurn(battle) {
     defenderStage: next.playerStage,
   });
   next.seed = roll.seed;
-  next.playerHp = Math.max(0, next.playerHp - roll.damage);
+  const mitigatedDamage = applyCradleTechniqueDamageReduction(roll.damage, next.techEffects);
+  next.playerHp = Math.max(0, next.playerHp - mitigatedDamage);
   next.dodgeReady = false;
-  next.log = [...next.log, `${next.enemy.name} tears across you for ${roll.damage}.`].slice(-10);
+  next.log = [...next.log, `${suppressRoll.success ? "Hollow Domain dampens the pattern. " : ""}${next.enemy.name}'s ${nightwheelEnemyTechnique(next.enemy)} tears through you for ${mitigatedDamage}.`].slice(-10);
   return next;
 }
 
@@ -244,7 +306,8 @@ function resolvePlayerMove(battle, move) {
       next.log = [...next.log, "You have not learned the Empty Palm."].slice(-10);
       return next;
     }
-    if (next.playerMadra < 16) {
+    const cost = cradleTechniqueAdjustedMadraCost(16, next.techEffects);
+    if (next.playerMadra < cost) {
       next.log = [...next.log, "Not enough madra for the Empty Palm."].slice(-10);
       return next;
     }
@@ -256,11 +319,37 @@ function resolvePlayerMove(battle, move) {
       attackerStage: next.playerStage,
       defenderStage: next.enemy.stage,
     });
-    next.seed = roll.seed;
-    next.playerMadra = Math.max(0, next.playerMadra - 16);
-    next.enemy.hp = Math.max(0, next.enemy.hp - roll.damage);
+    const palmRoll = emptyPalmSuccessRoll({
+      seed: roll.seed,
+      salt: 113,
+      attackerStage: next.playerStage,
+      defenderStage: next.enemy.stage,
+      baseChance: cradleTechniqueAdjustedEmptyPalmBaseChance(0.7, next.techEffects),
+      penaltyPerStage: 0.22,
+      minChance: 0.03,
+      severeGapThreshold: 2,
+      severeGapChance: 0.01,
+    });
+    next.seed = palmRoll.seed;
+    next.playerMadra = Math.max(0, next.playerMadra - cost);
+    if (!palmRoll.success) {
+      next.log = [...next.log, `Empty Palm fails to destabilize ${next.enemy.name}'s channels.`].slice(-10);
+      return next;
+    }
+    const leech = applyCradleConsumeLeech({
+      hp: next.playerHp,
+      maxHp: next.playerMaxHp,
+      madra: next.playerMadra,
+      maxMadra: next.playerMaxMadra,
+      damageDealt: applyCradleTechniqueAttackDamage(roll.damage, next.techEffects),
+      effects: next.techEffects,
+    });
+    const inflicted = applyCradleTechniqueAttackDamage(roll.damage, next.techEffects);
+    next.playerHp = leech.hp;
+    next.playerMadra = leech.madra;
+    next.enemy.hp = Math.max(0, next.enemy.hp - inflicted);
     next.enemy.stunnedTurns = Math.max(1, next.enemy.stunnedTurns);
-    next.log = [...next.log, `Empty Palm lands for ${roll.damage}.`].slice(-10);
+    next.log = [...next.log, `Empty Palm lands for ${inflicted}.${leech.gainedHp || leech.gainedMadra ? ` Consume restores ${leech.gainedHp} HP / ${leech.gainedMadra} Madra.` : ""}`].slice(-10);
     return next;
   }
 
@@ -274,13 +363,27 @@ function resolvePlayerMove(battle, move) {
   });
   next.seed = roll.seed;
   const shielded = next.enemy.shieldTurns > 0;
+  const inflicted = applyCradleTechniqueAttackDamage(roll.damage, next.techEffects);
   if (shielded) {
     next.enemy.shieldTurns = 0;
-    next.enemy.hp = Math.max(0, next.enemy.hp - Math.max(1, Math.floor(roll.damage * 0.45)));
-    next.log = [...next.log, `Your strike is partially deflected (${roll.damage} -> reduced).`].slice(-10);
+    next.enemy.hp = Math.max(0, next.enemy.hp - Math.max(1, Math.floor(inflicted * 0.45)));
+    next.log = [...next.log, `Your strike is partially deflected (${inflicted} -> reduced).`].slice(-10);
   } else {
-    next.enemy.hp = Math.max(0, next.enemy.hp - roll.damage);
-    next.log = [...next.log, `You strike for ${roll.damage}.`].slice(-10);
+    next.enemy.hp = Math.max(0, next.enemy.hp - inflicted);
+    next.log = [...next.log, `You strike for ${inflicted}.`].slice(-10);
+  }
+  const leech = applyCradleConsumeLeech({
+    hp: next.playerHp,
+    maxHp: next.playerMaxHp,
+    madra: next.playerMadra,
+    maxMadra: next.playerMaxMadra,
+    damageDealt: inflicted,
+    effects: next.techEffects,
+  });
+  next.playerHp = leech.hp;
+  next.playerMadra = leech.madra;
+  if (leech.gainedHp || leech.gainedMadra) {
+    next.log = [...next.log.slice(0, -1), `${next.log[next.log.length - 1]} Consume restores ${leech.gainedHp} HP / ${leech.gainedMadra} Madra.`].slice(-10);
   }
   return next;
 }
@@ -292,8 +395,10 @@ function initialRuntime() {
     revelationInput: "",
     battle: null,
     pendingMadraAward: 0,
+    pendingSoulfireAward: 0,
     pendingUnderlordAdvance: false,
     consumeLootItemId: "",
+    claimPopup: { open: false, title: "", lines: [] },
     lootEvents: [],
     solved: false,
     lastMessage: "",
@@ -345,6 +450,7 @@ export function reduceCrd07Runtime(runtime, action, context = {}) {
         dodgeReady: false,
         dodgeBonus: profile.dodgeBonus,
         meleeBonus: profile.meleeBonus,
+        techEffects: profile.techEffects,
         emptyPalmUnlocked: profile.hasEmptyPalm,
         enemy,
         log: [`${enemy.name} emerges from the ravine.`],
@@ -405,6 +511,29 @@ export function reduceCrd07Runtime(runtime, action, context = {}) {
     }
 
     const material = current.battle.rewardMaterial;
+    const rewardMadra = Math.max(0, Number(current.battle.rewardMadra) || 0);
+    const duplicateMaterial = Boolean(current.materials[material]) || materialPresentInLoot(context.state || {}, material);
+
+    if (duplicateMaterial) {
+      const soulfireGain = 4;
+      return {
+        ...current,
+        battle: null,
+        pendingMadraAward: rewardMadra,
+        pendingSoulfireAward: Math.max(0, Number(current.pendingSoulfireAward) || 0) + soulfireGain,
+        claimPopup: {
+          open: true,
+          title: "Nightwheel Spoils",
+          lines: [
+            `+${rewardMadra} Madra`,
+            `${material} duplicate decomposed`,
+            `+${soulfireGain} Soulfire`,
+          ],
+        },
+        lastMessage: `${material} duplicate decomposed into soulfire.`,
+      };
+    }
+
     const label = `${material} (Uncommon)`;
     const customDrop = {
       templateId: `crd_underlord_material_${normalizeText(material).replace(/[^a-z0-9]+/g, "-")}`,
@@ -424,8 +553,16 @@ export function reduceCrd07Runtime(runtime, action, context = {}) {
     return {
       ...current,
       battle: null,
-      pendingMadraAward: current.battle.rewardMadra,
+      pendingMadraAward: rewardMadra,
       lootEvents: [{ customDrop }],
+      claimPopup: {
+        open: true,
+        title: "Nightwheel Spoils",
+        lines: [
+          `+${rewardMadra} Madra`,
+          `${material} recovered`,
+        ],
+      },
       lastMessage: `${material} recovered from the valley hunt.`,
     };
   }
@@ -467,6 +604,7 @@ export function reduceCrd07Runtime(runtime, action, context = {}) {
     return {
       ...current,
       revelationInput: String(action.value || ""),
+      lastMessage: "Revelation set.",
     };
   }
 
@@ -525,6 +663,31 @@ export function reduceCrd07Runtime(runtime, action, context = {}) {
     return {
       ...current,
       pendingUnderlordAdvance: false,
+    };
+  }
+
+  if (action.type === "crd07-close-claim-popup") {
+    return {
+      ...current,
+      claimPopup: {
+        open: false,
+        title: "",
+        lines: [],
+      },
+    };
+  }
+
+  if (action.type === "crd07-dev-underlord") {
+    return {
+      ...current,
+      solved: true,
+      pendingUnderlordAdvance: true,
+      claimPopup: {
+        open: true,
+        title: "Developer Shortcut",
+        lines: ["Queued Underlord advancement for testing."],
+      },
+      lastMessage: "Developer shortcut queued: Underlord advancement.",
     };
   }
 
@@ -591,6 +754,18 @@ export function buildCrd07ActionFromElement(element) {
       at: Date.now(),
     };
   }
+  if (actionName === "crd07-close-claim-popup") {
+    return {
+      type: "crd07-close-claim-popup",
+      at: Date.now(),
+    };
+  }
+  if (actionName === "crd07-dev-underlord") {
+    return {
+      type: "crd07-dev-underlord",
+      at: Date.now(),
+    };
+  }
   return null;
 }
 
@@ -605,7 +780,7 @@ function homeTabMarkup(runtime, context) {
   const hasCipher = hasReward(state, REVELATION_CIPHER);
   const crd02 = readCrd02Runtime(state);
   const stage = normalizeCombatStage(crd02.cultivationStage || "foundation");
-  const canWriteRevelation = stage === "truegold" || stage === "underlord";
+  const canWriteRevelation = true;
   const canAttempt = stage === "truegold" && hasR1 && hasR2 && hasCipher && allMaterialsSocketed(runtime.materials);
 
   const slots = REQUIRED_MATERIALS.map((material) => {
@@ -653,6 +828,7 @@ function homeTabMarkup(runtime, context) {
       ${hasR2 ? `<p class="muted">${escapeHtml(revelationLine("no longer cast aside.", hasCipher))}</p>` : ""}
       <input
         type="text"
+        class="crd07-revelation-input"
         data-crd07-revelation-input
         value="${escapeHtml(runtime.revelationInput)}"
         placeholder="Underlord revelation"
@@ -672,8 +848,31 @@ function homeTabMarkup(runtime, context) {
         >
           Advance to Underlord
         </button>
+        <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="crd07-dev-underlord">Dev: Underlord</button>
       </div>
     </section>
+  `;
+}
+
+function claimPopupMarkup(runtime) {
+  const popup = runtime && runtime.claimPopup && typeof runtime.claimPopup === "object" ? runtime.claimPopup : null;
+  if (!popup || !popup.open) {
+    return "";
+  }
+  const title = String(popup.title || "Outcome");
+  const lines = Array.isArray(popup.lines) ? popup.lines : [];
+  return `
+    <div class="crd02-tech-modal" role="dialog" aria-label="Outcome summary">
+      <section class="crd02-tech-surface">
+        <header>
+          <h3>${escapeHtml(title)}</h3>
+          <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="crd07-close-claim-popup">Close</button>
+        </header>
+        <ul class="crd07-popup-list">
+          ${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
+        </ul>
+      </section>
+    </div>
   `;
 }
 
@@ -726,7 +925,7 @@ export function renderCrd07Experience(context) {
   return `
     <article class="crd04-node crd07-node" data-node-id="${NODE_ID}">
       <section class="crd02-panel">
-        <h3>CRD07: Nightwheel Valley</h3>
+        <h3>Nightwheel Valley</h3>
         <div class="toolbar">
           <button type="button" data-node-id="${NODE_ID}" data-node-action="crd07-open-tab" data-tab="home" ${runtime.tab === "home" ? "disabled" : ""}>Home Base</button>
           <button type="button" data-node-id="${NODE_ID}" data-node-action="crd07-open-tab" data-tab="hunts" ${runtime.tab === "hunts" ? "disabled" : ""}>Valley Hunts</button>
@@ -735,6 +934,7 @@ export function renderCrd07Experience(context) {
       </section>
 
       ${runtime.tab === "hunts" ? huntsTabMarkup(runtime) : homeTabMarkup(runtime, context)}
+      ${claimPopupMarkup(runtime)}
 
       ${runtime.solved ? `<section class="completion-banner"><p><strong>Underlord Ascended</strong></p></section>` : ""}
     </article>

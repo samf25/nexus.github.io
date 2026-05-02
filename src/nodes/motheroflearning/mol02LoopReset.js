@@ -410,7 +410,7 @@ function regionPanelMarkup(snapshot) {
         <p><strong>Current Role:</strong> ${escapeHtml(roleText)}</p>
         <p><strong>Reset Cost:</strong> None</p>
         <p><strong>Completed resets:</strong> ${escapeHtml(String(snapshot.resets || 0))}</p>
-        <p><strong>Effect:</strong> Remove active role artifact and reopen PGE01.</p>
+        <p><strong>Effect:</strong> Remove active role artifact and reopen Claimant's Knife.</p>
       </section>
     `;
   }

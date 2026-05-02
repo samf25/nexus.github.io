@@ -3,6 +3,16 @@ import { renderRegionSymbol } from "../core/symbology.js";
 import { renderArtifactSymbol } from "../core/artifacts.js";
 import { formatLootItemEffectSummary, isDirectUseLootItem, isLootItemEquipped, lootItemsByRegion } from "../systems/loot.js";
 
+const ARTIFACT_SOURCE_LABEL_MAP = Object.freeze({
+  "The Wandering Inn": "Wandering Inn",
+  "A Practical Guide to Evil": "Practical Guide",
+});
+
+function compactArtifactSourceLabel(source) {
+  const text = String(source || "").trim();
+  return ARTIFACT_SOURCE_LABEL_MAP[text] || text || "Unknown source";
+}
+
 function renderInventory(state, selectedArtifactReward, selectedArtifactSource = "all") {
   const rewardEntries = Object.entries(state.inventory.rewards || {}).map(([reward, meta]) => ({
     reward,
@@ -43,7 +53,7 @@ function renderInventory(state, selectedArtifactReward, selectedArtifactSource =
           data-source="${escapeHtml(source)}"
           ${selectedSource === source ? "disabled" : ""}
         >
-          ${escapeHtml(source)}
+          ${escapeHtml(compactArtifactSourceLabel(source))}
         </button>
       `).join("")}
     </div>
@@ -55,7 +65,7 @@ function renderInventory(state, selectedArtifactReward, selectedArtifactSource =
 
   return `
     ${tabs}
-    <ul class="widget-list widget-artifact-list widget-scroll-list">
+    <ul class="widget-list widget-artifact-list widget-scroll-list" data-widget-artifact-list="true">
       ${filtered
         .sort((a, b) => String(a.reward).localeCompare(String(b.reward)))
         .map(
@@ -74,7 +84,7 @@ function renderInventory(state, selectedArtifactReward, selectedArtifactSource =
                 })}
                 <span class="widget-artifact-labels">
                   <strong>${escapeHtml(reward)}</strong>
-                  <small>${escapeHtml(String(meta.section || "Unknown source"))}</small>
+                  <small>${escapeHtml(compactArtifactSourceLabel(meta.section || "Unknown source"))}</small>
                 </span>
               </button>
             </li>
@@ -101,25 +111,25 @@ function placementHintForItem(item, activeNodeId) {
   const templateId = String(item.templateId || "").toLowerCase();
   const kind = String(item.kind || "").toLowerCase();
   if (templateId === "worm_shard_enhancement") {
-    return "Shard enhancement selected. Open a cape shard popup in WORM01 and click a socket.";
+    return "Shard enhancement selected. Open a cape shard popup in The Undersiders' Loft and click a socket.";
   }
   if (templateId === "worm_shard_slot_token") {
-    return "Shard lattice selected. Open a cape shard popup in WORM01 and click that cape's next locked socket.";
+    return "Shard lattice selected. Open a cape shard popup in The Undersiders' Loft and click that cape's next locked socket.";
   }
   if (templateId === "worm_hiring_window_token") {
-    return "Use this dossier to permanently improve WORM hiring quality.";
+    return "Use this dossier to permanently improve Worm hiring quality.";
   }
   if (templateId === "crd_soul_crystal" || templateId === "crd_combat_relic") {
-    return "Cradle gear selected. Open CRD02 soul/combat slots to place it.";
+    return "Cradle gear selected. Open Madra Well soul/combat slots to place it.";
   }
   if (kind === "aa_focus") {
-    return "Workshop focus selected. Open AA03 Slots and click a socket.";
+    return "Workshop focus selected. Open The Workshop slots and click a socket.";
   }
   if (kind === "dcc_armor") {
-    return "DCC armor selected. Place it from DCC slot controls before entering a run.";
+    return "Dungeon Crawler Carl armor selected. Place it from The Crawl slot controls before entering a run.";
   }
   if (kind === "dcc_enchant") {
-    return "Legacy DCC enchant selected. It can be sold, but new enchants come embedded on armor.";
+    return "Legacy Dungeon Crawler Carl enchant selected. It can be sold, but new enchants come embedded on armor.";
   }
   return "Selected item can be used or placed in its matching region slots.";
 }
@@ -145,10 +155,10 @@ function renderLootInventory(state, selectedLootItemId, selectedLootRegion, acti
 
   const regionTabs = `
     <div class="toolbar">
-      <button type="button" data-action="loot-select-region" data-region="crd" ${region === "crd" ? "disabled" : ""}>CRD</button>
-      <button type="button" data-action="loot-select-region" data-region="worm" ${region === "worm" ? "disabled" : ""}>WORM</button>
-      <button type="button" data-action="loot-select-region" data-region="dcc" ${region === "dcc" ? "disabled" : ""}>DCC</button>
-      <button type="button" data-action="loot-select-region" data-region="aa" ${region === "aa" ? "disabled" : ""}>AA</button>
+      <button type="button" data-action="loot-select-region" data-region="crd" ${region === "crd" ? "disabled" : ""}>Cradle</button>
+      <button type="button" data-action="loot-select-region" data-region="worm" ${region === "worm" ? "disabled" : ""}>Worm</button>
+      <button type="button" data-action="loot-select-region" data-region="dcc" ${region === "dcc" ? "disabled" : ""}>Dungeon Crawler Carl</button>
+      <button type="button" data-action="loot-select-region" data-region="aa" ${region === "aa" ? "disabled" : ""}>Arcane Ascension</button>
     </div>
   `;
 
@@ -215,6 +225,7 @@ export function renderShellLayout({
   activeNodeId,
   activeNodeSolved,
 }) {
+  const isDccNode = String(activeNodeId || "") === "DCC01";
   return `
     <div class="space-app-shell">
       <header class="space-header">
@@ -265,7 +276,7 @@ export function renderShellLayout({
         </section>
       </main>
 
-      <aside class="widget-stack" aria-label="Utility Widgets">
+      <aside class="widget-stack ${isDccNode ? "is-dcc-node" : ""}" aria-label="Utility Widgets">
         <section class="${widgetClass(widgetState.artifacts)}">
           <header>
             <h3>Artifacts</h3>
@@ -274,7 +285,7 @@ export function renderShellLayout({
           ${renderInventory(state, selectedArtifactReward, selectedArtifactSource)}
         </section>
 
-        <section class="${widgetClass(widgetState.loot)}">
+        <section class="${widgetClass(widgetState.loot)} widget-panel-loot">
           <header>
             <h3>Loot</h3>
             <button class="ghost" data-action="toggle-widget" data-widget="loot">Close</button>

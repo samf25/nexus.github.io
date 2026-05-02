@@ -119,6 +119,8 @@ let selectedArtifactReward = "";
 let selectedArtifactSource = "all";
 let selectedLootItemId = "";
 let selectedLootRegion = "crd";
+let artifactListScrollTop = 0;
+let pendingArtifactListScrollRestore = false;
 let nexusRingSelectionIndex = 0;
 let nexusItemSelectionByRing = [];
 let lastNexusRings = [];
@@ -2126,7 +2128,7 @@ function dispatchActiveNodeAction(action) {
       setBanner(`Madra gained: +${award}.`);
     }
 
-    if (node.node_id === "CRD08" && Number(runtime && runtime.pendingSoulfireAward) > 0) {
+    if ((node.node_id === "CRD07" || node.node_id === "CRD08") && Number(runtime && runtime.pendingSoulfireAward) > 0) {
       const award = Math.max(0, Number(runtime.pendingSoulfireAward) || 0);
       next = updateNodeRuntime(
         next,
@@ -2134,11 +2136,14 @@ function dispatchActiveNodeAction(action) {
         (currentRuntime) => {
           const source = currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {};
           const soulfire = source.soulfire && typeof source.soulfire === "object" ? source.soulfire : {};
+          const isUnderlordPlus = String(source.cultivationStage || "").toLowerCase() === "underlord"
+            || String(source.cultivationStage || "").toLowerCase() === "overlord"
+            || String(source.cultivationStage || "").toLowerCase() === "archlord";
           return {
             ...source,
             soulfire: {
               ...soulfire,
-              unlocked: true,
+              unlocked: Boolean(soulfire.unlocked) || (node.node_id === "CRD08" ? true : isUnderlordPlus),
               amount: Number((Math.max(0, Number(soulfire.amount || 0)) + award).toFixed(2)),
               totalGenerated: Number((Math.max(0, Number(soulfire.totalGenerated || 0)) + award).toFixed(2)),
               madraCyclerLevel: Math.max(0, Number(soulfire.madraCyclerLevel || 0)),
@@ -2146,11 +2151,11 @@ function dispatchActiveNodeAction(action) {
             },
           };
         },
-        () => ({ soulfire: { unlocked: true, amount: award, totalGenerated: award, madraCyclerLevel: 0, soulfireCyclerLevel: 0 } }),
+        () => ({ soulfire: { unlocked: node.node_id === "CRD08", amount: award, totalGenerated: award, madraCyclerLevel: 0, soulfireCyclerLevel: 0 } }),
       );
       next = updateNodeRuntime(
         next,
-        "CRD08",
+        node.node_id,
         (currentRuntime) => ({
           ...(currentRuntime && typeof currentRuntime === "object" ? currentRuntime : {}),
           pendingSoulfireAward: 0,
@@ -3287,7 +3292,7 @@ function contentForRoute(route, unlockedNodeIds, solvedSet, sectionProgress) {
         html: `
           <article class="animated-fade">
             <h2>Desk Unanchored</h2>
-            <p class="muted">Anchor the Correspondence Desk in HUB06 before this route becomes available.</p>
+            <p class="muted">Anchor the Correspondence Desk in the Correspondence Desk node before this route becomes available.</p>
           </article>
         `,
       };
@@ -3501,6 +3506,14 @@ function renderApp(route = getCurrentRoute()) {
     activeNodeSolved: activeRouteNodeSolved,
   });
 
+  if (pendingArtifactListScrollRestore) {
+    const artifactList = root.querySelector("[data-widget-artifact-list='true']");
+    if (artifactList && "scrollTop" in artifactList) {
+      artifactList.scrollTop = Math.max(0, Number(artifactListScrollTop) || 0);
+    }
+    pendingArtifactListScrollRestore = false;
+  }
+
   root.querySelectorAll("[data-aa03-canvas='true']").forEach((element) => {
     if (!(element instanceof HTMLCanvasElement)) {
       return;
@@ -3597,6 +3610,11 @@ function handleClick(event) {
   }
 
   if (action === "artifact-select") {
+    const artifactList = root.querySelector("[data-widget-artifact-list='true']");
+    if (artifactList && "scrollTop" in artifactList) {
+      artifactListScrollTop = Number(artifactList.scrollTop || 0);
+      pendingArtifactListScrollRestore = true;
+    }
     const reward = button.getAttribute("data-reward") || "";
     selectedArtifactReward = selectedArtifactReward === reward ? "" : reward;
     renderApp();
@@ -3680,7 +3698,7 @@ function handleClick(event) {
         const slot = rawSlot || "trinket";
         if (item.kind === "dcc_armor") {
           if (!["head", "chest", "legs", "trinket"].includes(slot)) {
-            setBanner("Choose a valid DCC armor slot.");
+            setBanner("Choose a valid Dungeon Crawler Carl armor slot.");
             return current;
           }
           const effects = Array.isArray(item.effects) ? item.effects : [];
@@ -3708,10 +3726,10 @@ function handleClick(event) {
           };
           setBanner(`Prepared ${item.label} in ${slot} slot.`);
         } else if (item.kind === "dcc_enchant") {
-          setBanner("Standalone DCC enchants are legacy sell items. New enchants come embedded on armor.");
+          setBanner("Standalone Dungeon Crawler Carl enchants are legacy sell items. New enchants come embedded on armor.");
           return current;
         } else {
-          setBanner("That item cannot be slotted in DCC.");
+          setBanner("That item cannot be slotted in Dungeon Crawler Carl.");
           return current;
         }
 

@@ -515,7 +515,7 @@ export function renderCrd09Experience(context) {
     return `
       <article class="crd09-node" data-node-id="${NODE_ID}">
         <section class="crd02-origin-card">
-          <h3>CRD09: Scaling The Lord Realm</h3>
+          <h3>Scaling The Lord Realm</h3>
           <p>You have crossed the Lord Realm. Overlord and Archlord both stand behind you.</p>
         </section>
       </article>
@@ -534,7 +534,7 @@ export function renderCrd09Experience(context) {
     <article class="crd09-node" data-node-id="${NODE_ID}">
       <section class="crd02-header">
         <div>
-          <h3>CRD09: Scaling The Lord Realm</h3>
+          <h3>Scaling The Lord Realm</h3>
           <p class="muted">Current stage: ${escapeHtml(stageLabel(resources.stage))} | Target: ${escapeHtml(stageLabel(track.stageGranted))}</p>
         </div>
       </section>

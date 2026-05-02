@@ -78,6 +78,7 @@ const COMBAT_UPGRADES = Object.freeze([
     label: "The Empty Palm",
     baseCost: 100,
     maxLevel: 1,
+    effect: "Disrupt channels and briefly stun enemies. Stage gaps greatly reduce success.",
     requires: [{ id: "manual-refinement", minLevel: 1 }],
   },
   {
@@ -86,6 +87,7 @@ const COMBAT_UPGRADES = Object.freeze([
     baseCost: 500,
     maxLevel: 1,
     minStage: "iron",
+    effect: "Forged physique reduces incoming damage. Reduction scales with advancement stage.",
     requires: [{ id: "empty-palm", minLevel: 1 }],
   },
   {
@@ -94,6 +96,7 @@ const COMBAT_UPGRADES = Object.freeze([
     baseCost: 1000,
     maxLevel: 1,
     minStage: "iron",
+    effect: "Faster movement: improves dodge windows and lowers madra costs in combat.",
     requires: [{ id: "blood-forged-iron-body", minLevel: 1 }],
   },
   {
@@ -101,7 +104,8 @@ const COMBAT_UPGRADES = Object.freeze([
     label: "Dragon's Breath",
     baseCost: 3200,
     maxLevel: 1,
-    minStage: "copper",
+    minStage: "jade",
+    effect: "Ignite attacks with Blackflame. Adds heavy burn pressure to all offensive techniques.",
     requires: [{ id: "soul-cloak", minLevel: 1 }],
   },
   {
@@ -110,6 +114,7 @@ const COMBAT_UPGRADES = Object.freeze([
     baseCost: 10000,
     maxLevel: 1,
     minStage: "jade",
+    effect: "On hit, siphon vitality and madra. Leech strength scales with advancement stage.",
     requires: [{ id: "soul-cloak", minLevel: 1 }],
   },
   {
@@ -117,7 +122,8 @@ const COMBAT_UPGRADES = Object.freeze([
     label: "Burning Cloak",
     baseCost: 18000,
     maxLevel: 1,
-    minStage: "jade",
+    minStage: "lowgold",
+    effect: "Flood your channels with speed and force. Improves dodge and amplifies technique impact.",
     requires: [
       { id: "dragon-breath", minLevel: 1 },
       { id: "consume", minLevel: 1 },
@@ -128,7 +134,8 @@ const COMBAT_UPGRADES = Object.freeze([
     label: "Hollow Domain",
     baseCost: 100000,
     maxLevel: 1,
-    minStage: "lowgold",
+    minStage: "highgold",
+    effect: "Suppress hostile techniques and dampen incoming damage when your domain takes hold.",
     requires: [{ id: "consume", minLevel: 1 }],
   },
   {
@@ -136,7 +143,10 @@ const COMBAT_UPGRADES = Object.freeze([
     label: "Void Dragon's Dance",
     baseCost: 240000,
     maxLevel: 1,
-    minStage: "lowgold",
+    minStage: "underlord",
+    soulfireBaseCost: 18,
+    soulfireGrowth: 1,
+    effect: "Layer Blackflame and pure madra into a lethal cadence. Greatly increases offensive throughput.",
     requires: [
       { id: "burning-cloak", minLevel: 1 },
       { id: "spiral-confluence", minLevel: 1 },
@@ -147,7 +157,10 @@ const COMBAT_UPGRADES = Object.freeze([
     label: "Heart of Twin Stars",
     baseCost: 1000000,
     maxLevel: 1,
-    minStage: "lowgold",
+    minStage: "underlord",
+    soulfireBaseCost: 28,
+    soulfireGrowth: 1,
+    effect: "Twin-core combat control. Increases strike potency and restores madra on successful attacks.",
     requires: [
       { id: "hollow-domain", minLevel: 1 },
       { id: "skyline-annulus", minLevel: 1 },
@@ -158,7 +171,10 @@ const COMBAT_UPGRADES = Object.freeze([
     label: "Dross Battle Planning",
     baseCost: 2200000,
     maxLevel: 1,
-    minStage: "highgold",
+    minStage: "overlord",
+    soulfireBaseCost: 56,
+    soulfireGrowth: 1,
+    effect: "Predictive combat modeling. Further sharpens your execution cadence in high-tier fights.",
     requires: [
       { id: "heart-of-twin-stars-combat", minLevel: 1 },
       { id: "void-dragons-dance", minLevel: 1 },
@@ -211,6 +227,7 @@ const WELL_UPGRADES = Object.freeze([
     maxLevel: 1,
     repeatable: false,
     effect: "+1 manual madra and branch unlock",
+    minStage: "iron",
     requires: [
       { id: "soul-cloak", minLevel: 1 },
       { id: "cycle-refinement", minLevel: 2 },
@@ -224,7 +241,7 @@ const WELL_UPGRADES = Object.freeze([
     maxLevel: 3,
     repeatable: true,
     effect: "+25% passive gain and Heaven/Earth scale",
-    minStage: "copper",
+    minStage: "jade",
     requires: [
       { id: "core-harmonization", minLevel: 1 },
       { id: "consume", minLevel: 1 },
@@ -238,7 +255,7 @@ const WELL_UPGRADES = Object.freeze([
     maxLevel: 1,
     repeatable: false,
     effect: "Unlocks deeper well optimization",
-    minStage: "copper",
+    minStage: "lowgold",
     requires: [
       { id: "hollow-domain", minLevel: 1 },
       { id: "well-reservoir", minLevel: 2 },
@@ -253,7 +270,7 @@ const WELL_UPGRADES = Object.freeze([
     maxLevel: 3,
     repeatable: true,
     effect: "+20% passive gain per level",
-    minStage: "jade",
+    minStage: "highgold",
     requires: [
       { id: "spiral-confluence", minLevel: 1 },
       { id: "dragon-breath", minLevel: 1 },
@@ -289,6 +306,10 @@ const TECH_LAYOUT_BY_ID = Object.freeze(
 );
 const TECH_GRID_COLS = Math.max(...TECH_TREE_LAYOUT.map((node) => Number(node.col) || 1), 1);
 const TECH_GRID_ROWS = Math.max(...TECH_TREE_LAYOUT.map((node) => Number(node.row) || 1), 1);
+const TECH_CELL_WIDTH = 116;
+const TECH_CELL_HEIGHT = 124;
+const TECH_GRID_WIDTH = Math.max(720, TECH_GRID_COLS * TECH_CELL_WIDTH);
+const TECH_GRID_HEIGHT = Math.max(300, TECH_GRID_ROWS * TECH_CELL_HEIGHT);
 
 function normalizeText(value) {
   return String(value || "")
@@ -399,6 +420,7 @@ function normalizeRuntime(runtime) {
     upgrades,
     manual,
     techniquesOpen: Boolean(source.techniquesOpen) && Math.max(0, Number(source.manualCompletions) || 0) > 0,
+    techPreviewId: String(source.techPreviewId || ""),
     prestige: {
       madraGainMultiplier: Math.max(1, Number(source.prestige && source.prestige.madraGainMultiplier) || 1),
       cyclingCostDivider: Math.max(1, Number(source.prestige && source.prestige.cyclingCostDivider) || 1),
@@ -437,6 +459,39 @@ function upgradeCost(runtime, upgrade) {
   return Math.round(cost);
 }
 
+function upgradeSoulfireCost(runtime, upgrade) {
+  const currentLevel = levelOf(runtime, upgrade.id);
+  if (currentLevel >= upgrade.maxLevel) {
+    return null;
+  }
+  const base = Number(upgrade.soulfireBaseCost || 0);
+  if (base <= 0) {
+    return 0;
+  }
+  const growth = Number(upgrade.soulfireGrowth || 1);
+  const divider = Math.max(1, Number(runtime.prestige && runtime.prestige.soulfireCostDivider) || 1);
+  return roundMadra((base * Math.pow(growth, currentLevel)) / divider);
+}
+
+function upgradeCostSummary(runtime, upgrade) {
+  const madraCost = upgradeCost(runtime, upgrade);
+  const soulfireCost = upgradeSoulfireCost(runtime, upgrade);
+  return {
+    madraCost,
+    soulfireCost,
+  };
+}
+
+function canAffordUpgradeCosts(runtime, costs) {
+  const madraOk = costs.madraCost != null && runtime.madra >= costs.madraCost;
+  const soulfireNeed = Math.max(0, Number(costs.soulfireCost || 0));
+  if (soulfireNeed <= 0) {
+    return madraOk;
+  }
+  const currentSoulfire = Math.max(0, Number(runtime.soulfire && runtime.soulfire.amount) || 0);
+  return madraOk && currentSoulfire >= soulfireNeed;
+}
+
 function manualMadraGain(runtime) {
   const resonanceLevel = levelOf(runtime, "manual-refinement");
   const harmonized = levelOf(runtime, "core-harmonization") > 0 ? 1 : 0;
@@ -450,14 +505,20 @@ function heartOfTwinStarsBase(runtime) {
   return 1.01 + levelOf(runtime, "cycle-refinement") * 0.005;
 }
 
+function heavenAndEarthRate(runtime) {
+  const confluence = levelOf(runtime, "spiral-confluence");
+  const annulus = levelOf(runtime, "skyline-annulus");
+  const heavenBase = 1.035 + confluence * 0.007 + annulus * 0.006;
+  return (Math.pow(heavenBase, runtime.cycling.heavenEarthLevel) - 1) * 7;
+}
+
 function passiveMadraPerSecond(runtime) {
   const twinBase = heartOfTwinStarsBase(runtime);
   const twinRate = Math.pow(twinBase, runtime.cycling.twinStarsLevel) - 1;
 
   const confluence = levelOf(runtime, "spiral-confluence");
   const annulus = levelOf(runtime, "skyline-annulus");
-  const heavenBase = 1.035 + confluence * 0.007 + annulus * 0.006;
-  const heavenRate = (Math.pow(heavenBase, runtime.cycling.heavenEarthLevel) - 1) * 7;
+  const heavenRate = heavenAndEarthRate(runtime);
 
   const reservoirMultiplier = 1 + levelOf(runtime, "well-reservoir") * 0.35;
   const confluenceMultiplier = 1 + confluence * 0.25;
@@ -476,13 +537,13 @@ function passiveMadraPerSecond(runtime) {
 }
 
 function twinStarsCost(level) {
-  const baseCost = 10 + Math.max(0, Math.floor(Number(level) || 0)) * 10;
-  return baseCost;
+  const lv = Math.max(0, Math.floor(Number(level) || 0));
+  return Math.max(12, Math.round(14 * Math.pow(1.38, lv) + lv * lv * 8));
 }
 
 function heavenEarthCost(level) {
-  const baseCost = 100 + Math.max(0, Math.floor(Number(level) || 0)) * 10;
-  return baseCost;
+  const lv = Math.max(0, Math.floor(Number(level) || 0));
+  return Math.max(220, Math.round(240 * Math.pow(1.52, lv) + lv * lv * 42));
 }
 
 function cyclingCostWithPrestige(baseCost, runtime) {
@@ -576,8 +637,8 @@ function upgradeVisible(runtime, upgrade) {
     return true;
   }
 
-  const nextCost = upgradeCost(runtime, upgrade);
-  if (nextCost == null) {
+  const costs = upgradeCostSummary(runtime, upgrade);
+  if (costs.madraCost == null) {
     return false;
   }
 
@@ -585,7 +646,11 @@ function upgradeVisible(runtime, upgrade) {
   if (!prereqsReady && level === 0) {
     return false;
   }
-  return level > 0 || runtime.madra >= nextCost / 100;
+  const madraVisible = runtime.madra >= Number(costs.madraCost || 0) / 100;
+  const soulfireNeed = Math.max(0, Number(costs.soulfireCost || 0));
+  const currentSoulfire = Math.max(0, Number(runtime.soulfire && runtime.soulfire.amount) || 0);
+  const soulfireVisible = soulfireNeed <= 0 || currentSoulfire >= soulfireNeed / 100;
+  return level > 0 || (madraVisible && soulfireVisible);
 }
 
 export function initialCrd02Runtime(context = {}) {
@@ -614,6 +679,7 @@ export function initialCrd02Runtime(context = {}) {
     upgrades: defaultUpgradeLevels(),
     manual: emptyManualRuntime(),
     techniquesOpen: false,
+    techPreviewId: "",
     activeTab: "well",
     soulfire: {
       unlocked: false,
@@ -770,9 +836,11 @@ export function reduceCrd02Runtime(runtime, action) {
     if (current.manualCompletions <= 0) {
       return current;
     }
+    const firstVisible = ALL_UPGRADES.find((upgrade) => upgradeVisible(current, upgrade));
     return {
       ...current,
       techniquesOpen: true,
+      techPreviewId: current.techPreviewId || (firstVisible ? firstVisible.id : ""),
     };
   }
 
@@ -793,6 +861,18 @@ export function reduceCrd02Runtime(runtime, action) {
     return {
       ...current,
       techniquesOpen: false,
+    };
+  }
+
+  if (action.type === "crd02-preview-upgrade") {
+    const upgradeId = String(action.upgradeId || "");
+    const upgrade = UPGRADE_BY_ID[upgradeId];
+    if (!upgrade || !upgradeVisible(current, upgrade)) {
+      return current;
+    }
+    return {
+      ...current,
+      techPreviewId: upgradeId,
     };
   }
 
@@ -989,7 +1069,13 @@ export function reduceCrd02Runtime(runtime, action) {
     if (techniqueId === "heaven-earth-wheel" && !crd06Solved) {
       return {
         ...current,
-        lastMessage: "The Heaven and Earth Purification Wheel is locked until CRD06.",
+        lastMessage: "The Heaven and Earth Purification Wheel is locked until Duel with Jai Long.",
+      };
+    }
+    if (techniqueId === "heaven-earth-wheel" && stageIndex(current.cultivationStage) < stageIndex("jade")) {
+      return {
+        ...current,
+        lastMessage: "Reach Jade before cycling the Heaven and Earth Purification Wheel.",
       };
     }
 
@@ -1040,8 +1126,8 @@ export function reduceCrd02Runtime(runtime, action) {
       return current;
     }
 
-    const cost = upgradeCost(current, upgrade);
-    if (cost == null || current.madra < cost) {
+    const costs = upgradeCostSummary(current, upgrade);
+    if (costs.madraCost == null || !canAffordUpgradeCosts(current, costs)) {
       return current;
     }
 
@@ -1049,7 +1135,14 @@ export function reduceCrd02Runtime(runtime, action) {
     const nextLevel = Math.min(currentLevel + 1, upgrade.maxLevel);
     const next = {
       ...current,
-      madra: roundMadra(current.madra - cost),
+      madra: roundMadra(current.madra - Number(costs.madraCost || 0)),
+      soulfire: {
+        ...current.soulfire,
+        amount: roundMadra(
+          Math.max(0, Number(current.soulfire && current.soulfire.amount) || 0) - Math.max(0, Number(costs.soulfireCost || 0)),
+        ),
+      },
+      techPreviewId: upgrade.id,
       upgrades: {
         ...current.upgrades,
         [upgrade.id]: nextLevel,
@@ -1222,6 +1315,14 @@ export function buildCrd02ActionFromElement(element) {
     };
   }
 
+  if (actionName === "crd02-preview-upgrade") {
+    return {
+      type: "crd02-preview-upgrade",
+      upgradeId: element.getAttribute("data-upgrade-id"),
+      at: nowMs(),
+    };
+  }
+
   if (actionName === "crd02-buy-soulfire-upgrade") {
     return {
       type: "crd02-buy-soulfire-upgrade",
@@ -1309,17 +1410,20 @@ export function buildCrd02KeyAction(event, runtime) {
 
 function upgradeViewState(runtime, upgrade) {
   const level = levelOf(runtime, upgrade.id);
-  const cost = upgradeCost(runtime, upgrade);
+  const costs = upgradeCostSummary(runtime, upgrade);
+  const cost = costs.madraCost;
+  const soulfireCost = costs.soulfireCost;
   const maxed = cost == null;
   const prereqsMet = requirementsMet(runtime, upgrade.requires);
   const acquired = level > 0;
-  const canBuy = !maxed && prereqsMet && runtime.madra >= cost;
+  const canBuy = !maxed && prereqsMet && canAffordUpgradeCosts(runtime, costs);
   const visible = upgradeVisible(runtime, upgrade);
 
   if (!visible) {
     return {
       level,
       cost,
+      soulfireCost,
       maxed,
       acquired,
       prereqsMet,
@@ -1331,6 +1435,7 @@ function upgradeViewState(runtime, upgrade) {
   return {
     level,
     cost,
+    soulfireCost,
     maxed,
     acquired,
     prereqsMet,
@@ -1339,27 +1444,28 @@ function upgradeViewState(runtime, upgrade) {
   };
 }
 
-function upgradeRequirementText(runtime, upgrade) {
-  const requirements = upgrade.requires || [];
-  if (!requirements.length) {
-    return "Prereq: None";
-  }
-
-  return `Prereq: ${requirements
-    .map((requirement) => {
-      const reqUpgrade = UPGRADE_BY_ID[requirement.id];
-      const label = reqUpgrade ? reqUpgrade.label : requirement.id;
-      const needed = requirement.minLevel || 1;
-      const met = levelOf(runtime, requirement.id) >= needed;
-      return `${met ? "[x]" : "[ ]"} ${label} L${needed}`;
-    })
-    .join(" | ")}`;
+function upgradeRequirementItems(runtime, upgrade) {
+  const requirements = Array.isArray(upgrade && upgrade.requires) ? upgrade.requires : [];
+  return requirements.map((requirement) => {
+    const reqUpgrade = UPGRADE_BY_ID[requirement.id];
+    const label = reqUpgrade ? reqUpgrade.label : requirement.id;
+    const needed = requirement.minLevel || 1;
+    const met = levelOf(runtime, requirement.id) >= needed;
+    return {
+      id: requirement.id,
+      label,
+      needed,
+      met,
+    };
+  });
 }
 
 function layoutCenter(layoutNode) {
+  const col = Math.max(1, Number(layoutNode.col) || 1);
+  const row = Math.max(1, Number(layoutNode.row) || 1);
   return {
-    x: ((layoutNode.col - 0.5) / TECH_GRID_COLS) * 100,
-    y: ((layoutNode.row - 0.5) / TECH_GRID_ROWS) * 100,
+    x: ((col - 0.5) / TECH_GRID_COLS) * TECH_GRID_WIDTH,
+    y: ((row - 0.5) / TECH_GRID_ROWS) * TECH_GRID_HEIGHT,
   };
 }
 
@@ -1382,7 +1488,7 @@ function techLinksMarkup(viewById) {
       const from = layoutCenter(sourceLayout);
       const to = layoutCenter(node);
       lines.push(
-        `<line x1="${from.x.toFixed(2)}%" y1="${from.y.toFixed(2)}%" x2="${to.x.toFixed(2)}%" y2="${to.y.toFixed(2)}%"></line>`,
+        `<line x1="${from.x.toFixed(2)}" y1="${from.y.toFixed(2)}" x2="${to.x.toFixed(2)}" y2="${to.y.toFixed(2)}"></line>`,
       );
     }
   }
@@ -1396,35 +1502,117 @@ function upgradeNodeMarkup(runtime, layoutNode, view) {
   }
 
   if (!view.visible) {
-    return `<span class="crd02-tech-node is-hidden" style="grid-column:${layoutNode.col};grid-row:${layoutNode.row};" aria-hidden="true"></span>`;
+    return "";
   }
 
   const levelLabel = upgrade.maxLevel ? `${view.level}/${upgrade.maxLevel}` : String(view.level);
-  const minimumStage = normalizeStage(upgrade.minStage || "foundation");
-  const detailLines = [
-    upgrade.label,
-    `Cost: ${view.maxed ? "MAX" : view.cost}`,
-    `Level: ${levelLabel}`,
-    `Stage: ${stageLabel(minimumStage)}+`,
-    upgrade.effect || "",
-    upgradeRequirementText(runtime, upgrade),
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const isPreview = String(runtime.techPreviewId || "") === upgrade.id;
+  const center = layoutCenter(layoutNode);
 
   return `
     <button
       type="button"
-      class="crd02-tech-node is-shape-${escapeHtml(layoutNode.shape || "hex")} ${view.canBuy ? "is-buyable" : "is-locked"} ${view.maxed ? "is-maxed" : ""} ${view.acquired ? "is-acquired" : ""}"
+      class="crd02-tech-node is-shape-${escapeHtml(layoutNode.shape || "hex")} ${view.canBuy ? "is-buyable" : "is-locked"} ${view.maxed ? "is-maxed" : ""} ${view.acquired ? "is-acquired" : ""} ${isPreview ? "is-preview" : ""}"
       data-node-id="${NODE_ID}"
-      data-node-action="crd02-buy-upgrade"
+      data-node-action="crd02-preview-upgrade"
       data-upgrade-id="${escapeHtml(upgrade.id)}"
-      data-tooltip="${escapeHtml(detailLines)}"
-      style="grid-column:${layoutNode.col};grid-row:${layoutNode.row};"
+      style="left:${center.x.toFixed(2)}px; top:${center.y.toFixed(2)}px;"
     >
       <span class="sr-only">${escapeHtml(upgrade.label)} level ${escapeHtml(levelLabel)}</span>
       <span class="crd02-tech-core" aria-hidden="true"></span>
     </button>
+  `;
+}
+
+function resolvedPreviewUpgradeId(runtime, viewById) {
+  const previewId = String(runtime.techPreviewId || "");
+  if (previewId && viewById[previewId] && viewById[previewId].visible) {
+    return previewId;
+  }
+
+  const best =
+    TECH_TREE_LAYOUT.find((node) => viewById[node.id] && viewById[node.id].visible && viewById[node.id].canBuy)
+    || TECH_TREE_LAYOUT.find((node) => viewById[node.id] && viewById[node.id].visible && viewById[node.id].acquired)
+    || TECH_TREE_LAYOUT.find((node) => viewById[node.id] && viewById[node.id].visible)
+    || null;
+  return best ? best.id : "";
+}
+
+function techniquesDetailMarkup(runtime, viewById, previewId) {
+  if (!previewId) {
+    return `
+      <aside class="crd02-tech-detail">
+        <h4>No Technique Selected</h4>
+        <p class="muted">Select a node in the constellation to inspect and purchase.</p>
+      </aside>
+    `;
+  }
+
+  const upgrade = UPGRADE_BY_ID[previewId];
+  const view = viewById[previewId];
+  if (!upgrade || !view) {
+    return `
+      <aside class="crd02-tech-detail">
+        <h4>No Technique Selected</h4>
+        <p class="muted">Select a node in the constellation to inspect and purchase.</p>
+      </aside>
+    `;
+  }
+
+  const levelLabel = upgrade.maxLevel ? `${view.level}/${upgrade.maxLevel}` : String(view.level);
+  const minimumStage = normalizeStage(upgrade.minStage || "foundation");
+  const reqItems = upgradeRequirementItems(runtime, upgrade);
+  const costLabel = view.maxed
+    ? "MAXED"
+    : Math.max(0, Number(view.soulfireCost || 0)) > 0
+      ? `${String(view.cost)} Madra + ${Number(view.soulfireCost).toFixed(2)} Soulfire`
+      : `${String(view.cost)} Madra`;
+  const canBuy = Boolean(view.canBuy && !view.maxed);
+  const stateLabel = view.maxed ? "Mastered" : view.canBuy ? "Available" : view.acquired ? "Owned" : "Locked";
+  const requirementMarkup = reqItems.length
+    ? `
+      <ul class="crd02-tech-req-list">
+        ${reqItems.map((item) => `
+          <li class="${item.met ? "is-met" : "is-unmet"}">
+            <span class="crd02-tech-req-mark" aria-hidden="true">${item.met ? "✓" : "○"}</span>
+            <span class="crd02-tech-req-label">${escapeHtml(item.label)}</span>
+            <span class="crd02-tech-req-level">Lv ${escapeHtml(String(item.needed))}</span>
+          </li>
+        `).join("")}
+      </ul>
+    `
+    : `<p class="crd02-tech-req-empty">No prerequisites.</p>`;
+
+  return `
+    <aside class="crd02-tech-detail">
+      <header>
+        <h4>${escapeHtml(upgrade.label)}</h4>
+        <span class="crd02-tech-state is-${escapeHtml(stateLabel.toLowerCase())}">${escapeHtml(stateLabel)}</span>
+      </header>
+      <p class="crd02-tech-effect">${escapeHtml(upgrade.effect || "No effect description.")}</p>
+      <p class="crd02-tech-meta-line">
+        <span><strong>Level</strong> ${escapeHtml(levelLabel)}</span>
+        <span><strong>Cost</strong> ${escapeHtml(costLabel)}</span>
+        <span><strong>Stage</strong> ${escapeHtml(stageLabel(minimumStage))}+</span>
+      </p>
+      <section class="crd02-tech-req-block">
+        <h5>Requirements</h5>
+        ${requirementMarkup}
+      </section>
+      <button
+        type="button"
+        data-node-id="${NODE_ID}"
+        data-node-action="crd02-buy-upgrade"
+        data-upgrade-id="${escapeHtml(upgrade.id)}"
+        ${canBuy ? "" : "disabled"}
+      >
+        ${view.maxed
+    ? "Mastered"
+    : Math.max(0, Number(view.soulfireCost || 0)) > 0
+      ? `Invest ${escapeHtml(String(view.cost))} Madra + ${escapeHtml(Number(view.soulfireCost).toFixed(2))} Soulfire`
+      : `Invest ${escapeHtml(String(view.cost))} Madra`}
+      </button>
+    </aside>
   `;
 }
 
@@ -1436,27 +1624,33 @@ function techniquesModalMarkup(runtime) {
   const viewById = Object.fromEntries(
     TECH_TREE_LAYOUT.map((node) => [node.id, upgradeViewState(runtime, UPGRADE_BY_ID[node.id])]),
   );
+  const previewId = resolvedPreviewUpgradeId(runtime, viewById);
+  const runtimeWithPreview = previewId && runtime.techPreviewId !== previewId
+    ? { ...runtime, techPreviewId: previewId }
+    : runtime;
 
   return `
     <div class="crd02-tech-modal" role="dialog" aria-label="Techniques">
-      <section class="crd02-tech-surface">
+      <section class="crd02-tech-surface crd02-tech-surface--arcane">
         <header>
           <h3>Techniques</h3>
           <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="crd02-close-techniques">Close</button>
         </header>
-        <div class="crd02-tech-tree">
-          <svg class="crd02-tech-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            ${techLinksMarkup(viewById)}
-          </svg>
-          <div
-            class="crd02-tech-constellation"
-            style="--tech-cols:${TECH_GRID_COLS}; --tech-rows:${TECH_GRID_ROWS}; --tech-grid-width:${Math.max(
-              720,
-              TECH_GRID_COLS * 116,
-            )}px;"
-          >
-            ${TECH_TREE_LAYOUT.map((layoutNode) => upgradeNodeMarkup(runtime, layoutNode, viewById[layoutNode.id])).join("")}
+        <div class="crd02-tech-layout">
+          <div class="crd02-tech-tree">
+            <div
+              class="crd02-tech-stage"
+              style="--tech-cols:${TECH_GRID_COLS}; --tech-rows:${TECH_GRID_ROWS}; --tech-grid-width:${TECH_GRID_WIDTH}px; --tech-grid-height:${TECH_GRID_HEIGHT}px;"
+            >
+              <svg class="crd02-tech-links" viewBox="0 0 ${TECH_GRID_WIDTH} ${TECH_GRID_HEIGHT}" preserveAspectRatio="none" aria-hidden="true">
+                ${techLinksMarkup(viewById)}
+              </svg>
+              <div class="crd02-tech-constellation">
+                ${TECH_TREE_LAYOUT.map((layoutNode) => upgradeNodeMarkup(runtimeWithPreview, layoutNode, viewById[layoutNode.id])).join("")}
+              </div>
+            </div>
           </div>
+          ${techniquesDetailMarkup(runtimeWithPreview, viewById, previewId)}
         </div>
       </section>
     </div>
@@ -1691,10 +1885,10 @@ export function renderCrd02Experience(context) {
 
   const twinCost = cyclingCostWithPrestige(twinStarsCost(runtime.cycling.twinStarsLevel), runtime);
   const heavenCost = cyclingCostWithPrestige(heavenEarthCost(runtime.cycling.heavenEarthLevel), runtime);
-  const canBuyTwin = runtime.madra >= twinCost;
-  const canBuyHeaven = crd06Solved && runtime.madra >= heavenCost;
-  const manualReward = manualMadraGain(runtime);
   const currentStage = normalizeStage(runtime.cultivationStage);
+  const canBuyTwin = runtime.madra >= twinCost;
+  const canBuyHeaven = crd06Solved && stageIndex(currentStage) >= stageIndex("jade") && runtime.madra >= heavenCost;
+  const manualReward = manualMadraGain(runtime);
   const lootState = lootInventoryFromState(context.state || {}, nowMs());
   const unlockedSoulSlots = Math.max(3, Number(lootState.progression && lootState.progression.crdSoulCrystalSlots) || 3);
   const soulSlotIds =
@@ -1771,7 +1965,7 @@ export function renderCrd02Experience(context) {
         <div class="crd02-tech-row">
           <div>
             <p><strong>The Heaven and Earth Purification Wheel</strong></p>
-            <p class="muted">Level ${escapeHtml(String(runtime.cycling.heavenEarthLevel))} | ${crd06Solved ? "Unlocked by CRD06" : "Locked until CRD06"}</p>
+            <p class="muted">Level ${escapeHtml(String(runtime.cycling.heavenEarthLevel))} | ${crd06Solved ? `${escapeHtml(heavenAndEarthRate(runtime).toFixed(3))} madra/sec` : "Locked until Duel with Jai Long"}</p>
           </div>
           <button
             type="button"

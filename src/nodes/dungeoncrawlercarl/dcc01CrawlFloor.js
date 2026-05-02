@@ -1636,7 +1636,7 @@ function descendFloor(runtime, state) {
   const nextFloor = run.floor + 1;
   const progress = dccProgressFromState(state);
   if (nextFloor >= 3 && !progress.floor3Unlocked) {
-    return "A sealed gate blocks descent. Seek the DCC Floor-3 Key (rumored in Cradle).";
+    return "A sealed gate blocks descent. Seek the Floor-3 Key (rumored in Cradle).";
   }
   runtime.solved = true;
   runtime.meta.bestFloor = Math.max(runtime.meta.bestFloor, nextFloor);
@@ -1841,7 +1841,7 @@ function reduceDccRuntime(runtime, action, context = {}) {
     if (action.ready !== true) {
       return {
         ...current,
-        lastMessage: "You need the DCC Floor-3 Key selected to unlock this gate.",
+        lastMessage: "You need the Floor-3 Key selected to unlock this gate.",
       };
     }
     return {
@@ -2405,9 +2405,9 @@ function dccLootPanelMarkup(runtime, state) {
           section: "Dungeon Crawler Carl",
           className: "slot-ring-center-symbol",
         }),
-        ariaLabel: "DCC gear slots",
+        ariaLabel: "Dungeon Crawler Carl gear slots",
       })}
-      <p class="muted">${canEquip ? "Click a slot to set run gear." : "Select DCC loot, then click a gear slot before entering a run."}</p>
+      <p class="muted">${canEquip ? "Click a slot to set run gear." : "Select Dungeon Crawler Carl loot, then click a gear slot before entering a run."}</p>
       <div class="toolbar">
         <button type="button" data-action="toggle-widget" data-widget="loot">Open Loot Panel</button>
       </div>
@@ -2634,7 +2634,7 @@ function renderDcc01(context) {
   return `
     <article class="dcc01-node" data-node-id="${NODE_ID}">
       <section class="card dcc-head">
-        <h3>DCC01: The Crawl</h3>
+        <h3>The Crawl</h3>
       </section>
       ${runtime.run ? runMarkup(runtime, context.state, selectedArtifact) : outsideMarkup(runtime, context.state, selectedArtifact)}
     </article>

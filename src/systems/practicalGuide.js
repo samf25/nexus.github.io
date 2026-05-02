@@ -208,7 +208,7 @@ export function applyPracticalGuideRoleReset(state) {
     applied: true,
     removedRole,
     message: removedRole
-      ? `${removedRole} unraveled. PGE01 reopened for a new Role.`
-      : "Role strands cleared. PGE01 reopened.",
+      ? `${removedRole} unraveled. Claimant's Knife reopened for a new Role.`
+      : "Role strands cleared. Claimant's Knife reopened.",
   };
 }

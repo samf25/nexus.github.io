@@ -7,10 +7,10 @@ const NORMALIZED_FOG_PHRASE = "THEFOGREMEMBERS";
 const MADRA_SINK_COST = 3;
 
 const REQUIRED_SOCKETS = Object.freeze([
-  { slotId: "mol01", label: "MOL01", reward: "Restart Token" },
-  { slotId: "twi01", label: "TWI01", reward: "Ledger Key" },
-  { slotId: "log01", label: "LOG01", reward: "Lemma of implication" },
-  { slotId: "num01", label: "NUM01", reward: "Mod Wheel" },
+  { slotId: "mol01", label: "Memory Spiral", reward: "Restart Token" },
+  { slotId: "twi01", label: "The True Guest Ledger", reward: "Ledger Key" },
+  { slotId: "log01", label: "Implication Hall", reward: "Lemma of implication" },
+  { slotId: "num01", label: "Residue Clock", reward: "Mod Wheel" },
 ]);
 
 const SOCKET_BY_ID = Object.freeze(

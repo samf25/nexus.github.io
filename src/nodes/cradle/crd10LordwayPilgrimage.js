@@ -1,10 +1,19 @@
 import { escapeHtml } from "../../templates/shared.js";
 import {
+  applyCradleTechniqueAttackDamage,
+  applyCradleConsumeLeech,
+  applyCradleTechniqueDamageReduction,
+  cradleTechniqueAdjustedEmptyPalmBaseChance,
+  cradleTechniqueAdjustedDodgeChance,
+  cradleTechniqueAdjustedMadraCost,
+  cradleTechniqueEffectsFromState,
   cradleCombatAttackMultiplierFromState,
+  emptyPalmSuccessRoll,
   madraPoolMultiplierForStage,
   normalizeCombatStage,
   randomUnit,
   rollDamage,
+  rollHollowDomainSuppression,
 } from "./combatSystem.js";
 
 const NODE_ID = "CRD10";
@@ -159,6 +168,7 @@ function combatProfileFromState(state) {
     meleeBonus: (soulCloak + consume + pathMight * 2) * attackMultiplier,
     dodgeBonus: soulCloak + pathSpell,
     spellBonus: (pathSpell * 3 + (lordPath === "sage" ? 4 : 0)) * attackMultiplier,
+    techEffects: cradleTechniqueEffectsFromState(state || {}, stage),
   };
 }
 
@@ -185,6 +195,9 @@ function normalizeRuntime(candidate) {
         dodgeBonus: Math.max(0, Number(source.player.dodgeBonus) || 0),
         meleeBonus: Math.max(0, Number(source.player.meleeBonus) || 0),
         spellBonus: Math.max(0, Number(source.player.spellBonus) || 0),
+        techEffects: source.player.techEffects && typeof source.player.techEffects === "object"
+          ? { ...source.player.techEffects }
+          : {},
         emptyPalm: Boolean(source.player.emptyPalm),
       }
       : null,
@@ -326,7 +339,8 @@ function resolvePlayerMove(current, move) {
       next.log = [...next.log, "You have not learned Empty Palm."].slice(-10);
       return next;
     }
-    if (next.player.madra < 20) {
+    const cost = cradleTechniqueAdjustedMadraCost(20, next.player.techEffects);
+    if (next.player.madra < cost) {
       next.log = [...next.log, "Not enough madra for Empty Palm."].slice(-10);
       return next;
     }
@@ -338,16 +352,42 @@ function resolvePlayerMove(current, move) {
       attackerStage: next.player.stage,
       defenderStage: next.enemy.stage,
     });
-    next.seed = roll.seed;
-    next.player.madra = Math.max(0, next.player.madra - 20);
-    next.enemy.hp = Math.max(0, next.enemy.hp - roll.damage);
+    const palmRoll = emptyPalmSuccessRoll({
+      seed: roll.seed,
+      salt: 191,
+      attackerStage: next.player.stage,
+      defenderStage: next.enemy.stage,
+      baseChance: cradleTechniqueAdjustedEmptyPalmBaseChance(0.62, next.player.techEffects),
+      penaltyPerStage: 0.23,
+      minChance: 0.02,
+      severeGapThreshold: 2,
+      severeGapChance: 0.01,
+    });
+    next.seed = palmRoll.seed;
+    next.player.madra = Math.max(0, next.player.madra - cost);
+    if (!palmRoll.success) {
+      next.log = [...next.log, `Empty Palm breaks against ${next.enemy.name}'s pressure.`].slice(-10);
+      return next;
+    }
+    const leech = applyCradleConsumeLeech({
+      hp: next.player.hp,
+      maxHp: next.player.maxHp,
+      madra: next.player.madra,
+      maxMadra: next.player.maxMadra,
+      damageDealt: applyCradleTechniqueAttackDamage(roll.damage, next.player.techEffects),
+      effects: next.player.techEffects,
+    });
+    const inflicted = applyCradleTechniqueAttackDamage(roll.damage, next.player.techEffects);
+    next.player.hp = leech.hp;
+    next.player.madra = leech.madra;
+    next.enemy.hp = Math.max(0, next.enemy.hp - inflicted);
     next.enemy.stunnedTurns = Math.max(1, next.enemy.stunnedTurns);
-    next.log = [...next.log, `Empty Palm ruptures channels for ${roll.damage}.`].slice(-10);
+    next.log = [...next.log, `Empty Palm ruptures channels for ${inflicted}.${leech.gainedHp || leech.gainedMadra ? ` Consume restores ${leech.gainedHp} HP / ${leech.gainedMadra} Madra.` : ""}`].slice(-10);
     return next;
   }
 
   if (move === "spell") {
-    const cost = 14;
+    const cost = cradleTechniqueAdjustedMadraCost(14, next.player.techEffects);
     if (next.player.madra < cost) {
       next.log = [...next.log, "Not enough madra to cast."].slice(-10);
       return next;
@@ -362,8 +402,9 @@ function resolvePlayerMove(current, move) {
     });
     next.seed = roll.seed;
     next.player.madra = Math.max(0, next.player.madra - cost);
-    next.enemy.hp = Math.max(0, next.enemy.hp - roll.damage);
-    next.log = [...next.log, `You script a focused technique for ${roll.damage}.`].slice(-10);
+    const inflicted = applyCradleTechniqueAttackDamage(roll.damage, next.player.techEffects);
+    next.enemy.hp = Math.max(0, next.enemy.hp - inflicted);
+    next.log = [...next.log, `You script a focused technique for ${inflicted}.`].slice(-10);
     return next;
   }
 
@@ -376,8 +417,19 @@ function resolvePlayerMove(current, move) {
     defenderStage: next.enemy.stage,
   });
   next.seed = roll.seed;
-  next.enemy.hp = Math.max(0, next.enemy.hp - roll.damage);
-  next.log = [...next.log, `You strike for ${roll.damage}.`].slice(-10);
+  const inflicted = applyCradleTechniqueAttackDamage(roll.damage, next.player.techEffects);
+  next.enemy.hp = Math.max(0, next.enemy.hp - inflicted);
+  const leech = applyCradleConsumeLeech({
+    hp: next.player.hp,
+    maxHp: next.player.maxHp,
+    madra: next.player.madra,
+    maxMadra: next.player.maxMadra,
+    damageDealt: inflicted,
+    effects: next.player.techEffects,
+  });
+  next.player.hp = leech.hp;
+  next.player.madra = leech.madra;
+  next.log = [...next.log, `You strike for ${inflicted}.${leech.gainedHp || leech.gainedMadra ? ` Consume restores ${leech.gainedHp} HP / ${leech.gainedMadra} Madra.` : ""}`].slice(-10);
   return next;
 }
 
@@ -390,19 +442,26 @@ function resolveEnemyTurn(current) {
     player: { ...current.player },
     enemy: { ...current.enemy },
   };
+  const enemyTechnique =
+    next.enemy.ability === "script" ? "living script barrage"
+      : next.enemy.ability === "quake" ? "faultline hammerfall"
+        : next.enemy.ability === "smash" ? "iron-body avalanche"
+          : "lord-realm assault";
   if (next.enemy.stunnedTurns > 0) {
     next.enemy.stunnedTurns -= 1;
     next.log = [...next.log, `${next.enemy.name} staggers and misses a beat.`].slice(-10);
     return next;
   }
 
-  const dodgeChance = next.player.dodgeReady ? Math.min(0.9, 0.45 + next.player.dodgeBonus * 0.05) : 0;
+  const dodgeChance = next.player.dodgeReady
+    ? cradleTechniqueAdjustedDodgeChance(Math.min(0.9, 0.45 + next.player.dodgeBonus * 0.05), next.player.techEffects)
+    : 0;
   if (dodgeChance > 0) {
     const dodgeRoll = randomUnit(next.seed, 41);
     next.seed = dodgeRoll.seed;
     if (dodgeRoll.value < dodgeChance) {
       next.player.dodgeReady = false;
-      next.log = [...next.log, "You evade the incoming assault."].slice(-10);
+      next.log = [...next.log, `You evade ${next.enemy.name}'s ${enemyTechnique}.`].slice(-10);
       return next;
     }
   }
@@ -412,18 +471,25 @@ function resolveEnemyTurn(current) {
       : next.enemy.ability === "quake" ? 13
         : next.enemy.ability === "smash" ? 12
           : 8;
-  const roll = rollDamage({
+  const suppressRoll = rollHollowDomainSuppression({
     seed: next.seed,
+    salt: 151,
+    effects: next.player.techEffects,
+  });
+  next.seed = suppressRoll.seed;
+  const roll = rollDamage({
+    seed: suppressRoll.seed,
     salt: 53,
-    base: next.enemy.attack + bonus,
+    base: next.enemy.attack + (suppressRoll.success ? Math.round(bonus * 0.4) : bonus),
     spread: 10,
     attackerStage: next.enemy.stage,
     defenderStage: next.player.stage,
   });
   next.seed = roll.seed;
-  next.player.hp = Math.max(0, next.player.hp - roll.damage);
+  const mitigated = applyCradleTechniqueDamageReduction(roll.damage, next.player.techEffects);
+  next.player.hp = Math.max(0, next.player.hp - mitigated);
   next.player.dodgeReady = false;
-  next.log = [...next.log, `${next.enemy.name} (${next.enemy.style}) hits for ${roll.damage}.`].slice(-10);
+  next.log = [...next.log, `${suppressRoll.success ? "Hollow Domain dampens the pattern. " : ""}${next.enemy.name}'s ${enemyTechnique} hits for ${mitigated}.`].slice(-10);
   return next;
 }
 
@@ -466,6 +532,9 @@ export function reduceCrd10Runtime(runtime, action) {
         dodgeBonus: Math.max(0, Number(action.playerDodgeBonus) || 0),
         meleeBonus: Math.max(0, Number(action.playerMeleeBonus) || 0),
         spellBonus: Math.max(0, Number(action.playerSpellBonus) || 0),
+        techEffects: action.playerTechEffects && typeof action.playerTechEffects === "object"
+          ? { ...action.playerTechEffects }
+          : {},
         emptyPalm: action.playerEmptyPalm === true,
       },
       enemy: null,
@@ -559,6 +628,26 @@ export function buildCrd10ActionFromElement(element) {
       playerDodgeBonus: Number(element.getAttribute("data-player-dodge-bonus") || 0),
       playerMeleeBonus: Number(element.getAttribute("data-player-melee-bonus") || 0),
       playerSpellBonus: Number(element.getAttribute("data-player-spell-bonus") || 0),
+      playerTechEffects: {
+        ironBodyDamageReduction: Number(element.getAttribute("data-tech-iron-body") || 0),
+        soulCloakDodgeBonus: Number(element.getAttribute("data-tech-soul-cloak-dodge") || 0),
+        soulCloakMadraDiscount: Number(element.getAttribute("data-tech-soul-cloak-cost") || 0),
+        consumeLifeStealRatio: Number(element.getAttribute("data-tech-consume-life") || 0),
+        consumeMadraStealRatio: Number(element.getAttribute("data-tech-consume-madra") || 0),
+        hollowDomainDamageReduction: Number(element.getAttribute("data-tech-domain-damage") || 0),
+        hollowDomainSuppressChance: Number(element.getAttribute("data-tech-domain-suppress") || 0),
+        dragonBreathFlatDamage: Number(element.getAttribute("data-tech-dragon-flat") || 0),
+        burningCloakDodgeBonus: Number(element.getAttribute("data-tech-burning-dodge") || 0),
+        burningCloakMadraDiscount: Number(element.getAttribute("data-tech-burning-discount") || 0),
+        burningCloakDamageMultiplier: Number(element.getAttribute("data-tech-burning-mult") || 1),
+        voidDragonsDanceDamageMultiplier: Number(element.getAttribute("data-tech-void-mult") || 1),
+        twinStarsCombatDamageMultiplier: Number(element.getAttribute("data-tech-twinstars-mult") || 1),
+        twinStarsCombatMadraOnHit: Number(element.getAttribute("data-tech-twinstars-madra") || 0),
+        drossAttackMultiplier: Number(element.getAttribute("data-tech-dross-atk") || 1),
+        drossDamageReduction: Number(element.getAttribute("data-tech-dross-dr") || 0),
+        drossMadraDiscount: Number(element.getAttribute("data-tech-dross-discount") || 0),
+        drossEmptyPalmBonus: Number(element.getAttribute("data-tech-dross-palm") || 0),
+      },
       playerEmptyPalm: element.getAttribute("data-player-empty-palm") === "true",
       at: nowMs(),
     };
@@ -590,7 +679,7 @@ export function renderCrd10Experience(context) {
     return `
       <article class="crd04-node" data-node-id="${NODE_ID}">
         <section class="crd04-dialog">
-          <h3>CRD10: Road Of The Lord</h3>
+          <h3>Road Of The Lord</h3>
           <p>You have completed the road and stand as a ${escapeHtml(label)}.</p>
         </section>
       </article>
@@ -601,7 +690,7 @@ export function renderCrd10Experience(context) {
     return `
       <article class="crd04-node" data-node-id="${NODE_ID}">
         <section class="crd04-dialog">
-          <h3>CRD10: Road Of The Lord</h3>
+          <h3>Road Of The Lord</h3>
           <p>A choicebound ascent where your declarations decide whether you become Sage or Herald.</p>
           <div class="crd04-actions">
             <button
@@ -615,6 +704,24 @@ export function renderCrd10Experience(context) {
               data-player-dodge-bonus="${escapeHtml(String(profile.dodgeBonus))}"
               data-player-melee-bonus="${escapeHtml(String(profile.meleeBonus))}"
               data-player-spell-bonus="${escapeHtml(String(profile.spellBonus))}"
+              data-tech-iron-body="${escapeHtml(String(profile.techEffects.ironBodyDamageReduction || 0))}"
+              data-tech-soul-cloak-dodge="${escapeHtml(String(profile.techEffects.soulCloakDodgeBonus || 0))}"
+              data-tech-soul-cloak-cost="${escapeHtml(String(profile.techEffects.soulCloakMadraDiscount || 0))}"
+              data-tech-consume-life="${escapeHtml(String(profile.techEffects.consumeLifeStealRatio || 0))}"
+              data-tech-consume-madra="${escapeHtml(String(profile.techEffects.consumeMadraStealRatio || 0))}"
+              data-tech-domain-damage="${escapeHtml(String(profile.techEffects.hollowDomainDamageReduction || 0))}"
+              data-tech-domain-suppress="${escapeHtml(String(profile.techEffects.hollowDomainSuppressChance || 0))}"
+              data-tech-dragon-flat="${escapeHtml(String(profile.techEffects.dragonBreathFlatDamage || 0))}"
+              data-tech-burning-dodge="${escapeHtml(String(profile.techEffects.burningCloakDodgeBonus || 0))}"
+              data-tech-burning-discount="${escapeHtml(String(profile.techEffects.burningCloakMadraDiscount || 0))}"
+              data-tech-burning-mult="${escapeHtml(String(profile.techEffects.burningCloakDamageMultiplier || 1))}"
+              data-tech-void-mult="${escapeHtml(String(profile.techEffects.voidDragonsDanceDamageMultiplier || 1))}"
+              data-tech-twinstars-mult="${escapeHtml(String(profile.techEffects.twinStarsCombatDamageMultiplier || 1))}"
+              data-tech-twinstars-madra="${escapeHtml(String(profile.techEffects.twinStarsCombatMadraOnHit || 0))}"
+              data-tech-dross-atk="${escapeHtml(String(profile.techEffects.drossAttackMultiplier || 1))}"
+              data-tech-dross-dr="${escapeHtml(String(profile.techEffects.drossDamageReduction || 0))}"
+              data-tech-dross-discount="${escapeHtml(String(profile.techEffects.drossMadraDiscount || 0))}"
+              data-tech-dross-palm="${escapeHtml(String(profile.techEffects.drossEmptyPalmBonus || 0))}"
               data-player-empty-palm="${profile.hasEmptyPalm ? "true" : "false"}"
               ${profile.archlordReady ? "" : "disabled"}
             >
@@ -669,7 +776,7 @@ export function renderCrd10Experience(context) {
     <article class="crd04-node" data-node-id="${NODE_ID}">
       <section class="crd04-combat-head">
         <h3>Lordway Clash</h3>
-        <p class="muted">Opponent: ${escapeHtml(enemy.name)} (${escapeHtml(enemy.style)})</p>
+        <p class="muted">Opponent: ${escapeHtml(enemy.name)}</p>
       </section>
 
       <section class="crd04-bars">

@@ -358,7 +358,7 @@ function workshopSlotsMarkup(state, arcane, selectedLootItemId = "") {
         }),
         ariaLabel: "Workshop slot ring",
       })}
-      <p class="muted">${selectedItem ? "Click a socket to place selected loot." : "Select AA focus loot, then click a socket."}</p>
+      <p class="muted">${selectedItem ? "Click a socket to place selected loot." : "Select Arcane Ascension focus loot, then click a socket."}</p>
       <div class="toolbar">
         <button type="button" data-action="toggle-widget" data-widget="loot">Open Loot Panel</button>
       </div>
@@ -431,7 +431,7 @@ function workshopTabMarkup(runtime, arcane) {
         <h3>The Workshop</h3>
         <p>Draw a region rune, then an enhancement rune. Appraise and invest mana to complete the item.</p>
         <button type="button" data-node-id="${NODE_ID}" data-node-action="aa03-start-workshop" ${canStart ? "" : "disabled"}>Begin Enchanting</button>
-        ${canStart ? "" : `<p class="muted">Requires Enchanter attunement and unlocked glyphs from AA02.</p>`}
+        ${canStart ? "" : `<p class="muted">Requires Enchanter attunement and unlocked glyphs from Climber's Court.</p>`}
       </section>
     `;
   } else if (runtime.phase === "draw-region") {

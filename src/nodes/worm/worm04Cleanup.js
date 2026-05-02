@@ -594,8 +594,8 @@ export function reduceWorm04Runtime(runtime, action, context = {}) {
               ? `S9 neutralized: ${current.activeEncounterMember}`
               : "No S9 member encountered this run.",
             fullClear
-              ? "Full-clear rewards queued: CRD + WORM + DCC + Mercy Bell Chime"
-              : "Cleanup loot queued: WORM",
+              ? "Full-clear rewards queued: Cradle + Worm + Dungeon Crawler Carl + Mercy Bell Chime"
+              : "Cleanup loot queued: Worm",
           ]
           : ["No clout awarded.", "No artifact rewards.", "Regroup and redeploy."],
       },
@@ -685,7 +685,7 @@ export function renderWorm04Experience(context) {
   return `
     <article class="worm04-node" data-node-id="${NODE_ID}">
       <section class="card">
-        <h3>WORM04: Brockton Bay Cleanup</h3>
+        <h3>Brockton Bay Cleanup</h3>
         ${
           !runtime.introSeen
             ? `

@@ -548,7 +548,7 @@ function reduceBossRuntime(current, action, context, config) {
           ? [
             `Clout awarded: ${Math.max(0, Number(config.cloutReward || 0))}`,
             "Artifact reward registered for this victory.",
-            "Loot queued: CRD + WORM + DCC drops",
+            "Loot queued: Cradle + Worm + Dungeon Crawler Carl drops",
           ]
           : ["No clout awarded.", "No artifact rewards.", "Regroup and attempt again."],
       },
@@ -678,7 +678,7 @@ function renderBossExperience(context, config) {
 const WORM05_CONFIG = Object.freeze({
   nodeId: WORM05_NODE_ID,
   rootClass: "worm05-node",
-  title: "WORM05: Simurgh Engagement",
+  title: "Simurgh Engagement",
   introText: "A pressure front builds over the coast. Feathers of static spiral in the air.",
   solvedText: "Simurgh is down. The forecast line has gone silent.",
   bossName: "Simurgh",
@@ -724,7 +724,7 @@ const WORM05_CONFIG = Object.freeze({
 const WORM07_CONFIG = Object.freeze({
   nodeId: WORM07_NODE_ID,
   rootClass: "worm07-node",
-  title: "WORM07: Behemoth Engagement",
+  title: "Behemoth Engagement",
   introText: "The ground splits under red light. Heat distorts every edge of the horizon.",
   solvedText: "Behemoth is defeated. The seismic storm has ended.",
   bossName: "Behemoth",
@@ -1167,7 +1167,7 @@ export function reduceWorm06Runtime(runtime, action, context = {}) {
           ? [
             `Clout awarded: ${Math.max(0, Number(isBoss ? 950 : current.pendingCloutReward))}`,
             isBoss ? "Artifact reward registered for this victory." : "No boss artifact on this run.",
-            isBoss ? "Loot queued: CRD + WORM + DCC drops" : "Loot queued: WORM",
+            isBoss ? "Loot queued: Cradle + Worm + Dungeon Crawler Carl drops" : "Loot queued: Worm",
           ]
           : ["No clout awarded.", "No artifact rewards.", "Regroup and retry."],
       },
@@ -1246,7 +1246,7 @@ export function renderWorm06Experience(context) {
   return `
     <article class="worm06-node" data-node-id="${WORM06_NODE_ID}">
       <section class="card">
-        <h3>WORM06: National Cleanup</h3>
+        <h3>National Cleanup</h3>
         ${
   !runtime.introSeen
     ? `
@@ -1516,7 +1516,7 @@ export function reduceWorm08Runtime(runtime, action, context = {}) {
           ? [
             "Clout awarded: 1600",
             "Artifact reward registered for this victory.",
-            "Loot queued: CRD + WORM + DCC drops",
+            "Loot queued: Cradle + Worm + Dungeon Crawler Carl drops",
           ]
           : ["No clout awarded.", "No artifact rewards.", "Retreat and rebuild."],
       },
@@ -1615,7 +1615,7 @@ export function renderWorm08Experience(context) {
   return `
     <article class="worm08-node" data-node-id="${WORM08_NODE_ID}">
       <section class="card">
-        <h3>WORM08: Scion</h3>
+        <h3>Scion</h3>
         <p>The final light waits above a ruined sky. Three Endbringer sigils must lock before it descends.</p>
         ${renderSlotRing({
     slots: ringSlots,

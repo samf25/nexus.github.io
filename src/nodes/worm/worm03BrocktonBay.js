@@ -510,7 +510,7 @@ export function reduceWorm03Runtime(runtime, action, context = {}) {
           ? [
             "Clout awarded: 220",
             "Artifacts awarded: Nightwine Ledger, Leviathan Core Sigil",
-            "Loot queued: CRD + WORM + DCC drops",
+            "Loot queued: Cradle + Worm + Dungeon Crawler Carl drops",
           ]
           : ["No clout awarded.", "No artifact rewards.", "Regroup and try again."],
       },
@@ -609,7 +609,7 @@ export function renderWorm03Experience(context) {
   return `
     <article class="worm03-node" data-node-id="${NODE_ID}">
       <section class="card worm03-intro">
-        <h3>WORM03: Brockton Bay</h3>
+        <h3>Brockton Bay</h3>
         <p>You walk the shattered docks while rain hammers the empty warehouses.</p>
         ${
           runtime.solved

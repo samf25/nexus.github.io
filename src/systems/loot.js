@@ -1004,7 +1004,7 @@ export function consumeLootItem(state, itemInstanceId, now = Date.now()) {
     return {
       nextState: sourceState,
       changed: false,
-      message: "Shard Lattice Sockets must be applied to a specific cape in WORM01.",
+      message: "Shard Lattice Sockets must be applied to a specific cape in The Undersiders' Loft.",
     };
   } else if (item.templateId === "worm_sickbay_slot_token") {
     nextLoot.progression.wormSickbaySlots = clamp(
@@ -1013,7 +1013,7 @@ export function consumeLootItem(state, itemInstanceId, now = Date.now()) {
       SLOT_CAPS.wormSickbaySlots,
     );
     nextLoot.items = decrementOrRemoveItem(nextLoot.items, itemId);
-    message = "WORM sickbay capacity increased.";
+    message = "Worm sickbay capacity increased.";
   } else if (item.templateId === "worm_hiring_window_token") {
     nextLoot.progression.wormHiringRarityBonus = clamp(
       nextLoot.progression.wormHiringRarityBonus + 1,
@@ -1021,7 +1021,7 @@ export function consumeLootItem(state, itemInstanceId, now = Date.now()) {
       SLOT_CAPS.wormHiringRarityBonus,
     );
     nextLoot.items = decrementOrRemoveItem(nextLoot.items, itemId);
-    message = "WORM hiring window quality increased.";
+    message = "Worm hiring window quality increased.";
   } else if (item.templateId === "aa_mana_capacitor") {
     const arcane = normalizeArcaneSystemState(sourceState && sourceState.systems ? sourceState.systems.arcane : {}, now);
     const delta = Math.max(1, Math.floor(effectListFromItem(item)[0]?.value || 10));
@@ -1243,7 +1243,7 @@ export function equipLootItem(state, { region, targetId = "", slotId, itemInstan
       return {
         nextState: sourceState,
         changed: false,
-        message: "Select a cape before using WORM shard loot.",
+        message: "Select a cape before using Worm shard loot.",
       };
     }
     if (item.templateId === "worm_shard_slot_token") {
@@ -1314,7 +1314,7 @@ export function equipLootItem(state, { region, targetId = "", slotId, itemInstan
       return {
         nextState: sourceState,
         changed: false,
-        message: "Only AA focus loot can be equipped in workshop slots.",
+        message: "Only Arcane Ascension focus loot can be equipped in workshop slots.",
       };
     }
     const arcane = normalizeArcaneSystemState(sourceState && sourceState.systems ? sourceState.systems.arcane : {}, Date.now());
