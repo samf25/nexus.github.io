@@ -223,7 +223,6 @@ export function renderShellLayout({
   widgetState,
   currentRoute,
   activeNodeId,
-  activeNodeSolved,
 }) {
   const isDccNode = String(activeNodeId || "") === "DCC01";
   return `
@@ -248,30 +247,12 @@ export function renderShellLayout({
           <button data-action="toggle-widget" data-widget="artifacts">Artifacts</button>
           <button data-action="toggle-widget" data-widget="loot">Loot</button>
           <button data-action="toggle-widget" data-widget="save">Save</button>
-          <button class="ghost" data-action="dev-unlock-final">Dev: Final Kit</button>
-          <button class="ghost" data-action="dev-open-victory">Dev: Victory</button>
           <button class="warn" data-action="reset-progress">Reset</button>
         </nav>
       </header>
 
       <main class="space-main">
         <section class="focus-surface">
-          ${
-            activeNodeId
-              ? `
-                <button
-                  type="button"
-                  class="dev-autocomplete-node"
-                  data-action="dev-autocomplete-node"
-                  data-node-id="${escapeHtml(activeNodeId)}"
-                  ${activeNodeSolved ? "disabled" : ""}
-                  title="Temporary developer shortcut"
-                >
-                  ${activeNodeSolved ? "Autocompleted" : "Autocomplete Node"}
-                </button>
-              `
-              : ""
-          }
           ${contentHtml}
         </section>
       </main>

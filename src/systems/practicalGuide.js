@@ -41,12 +41,10 @@ const WIN_ARTIFACTS = Object.freeze([
   "Underlord Revelation Cipher",
   "Overlord Revelation Cipher",
   "Archlord Revelation Cipher",
-  "Mercy Charter Seal",
-  "Conqueror's Due Process",
-  "Measured Iron Mandate",
-  "Table of Last Reconciliation",
-  "Midnight Carving Accord",
-  "Bell of Unbroken Guest-Right",
+  "Edict of the Turning Knife",
+  "Accord of Borrowed Crowns",
+  "Writ of the Glass Tribunal",
+  "Bridge-Supper Compact",
 ]);
 
 const PERSISTENT_ARTIFACT_SET = Object.freeze(

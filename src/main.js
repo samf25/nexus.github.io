@@ -79,7 +79,6 @@ import {
 } from "./systems/arcaneAscension.js";
 import { wormCardById } from "./nodes/worm/wormData.js";
 import { TWI03_SPECIAL_REWARD_SEQUENCE } from "./nodes/wanderinginn/twi03Inn.js";
-import { FIN01_ARTIFACT_PHASE_METADATA } from "./nodes/final/final01ConvergenceGate.js";
 import { memoryRevealBeatMs, memoryRevealDurationMs } from "./nodes/motheroflearning/memoryGameCore.js";
 
 const root = document.getElementById("app");
@@ -131,7 +130,6 @@ let lastRenderedSectionRoute = "";
 let activeNodeContext = null;
 let routeVisitNonce = 0;
 let lastRouteForVisit = "";
-let forceVictoryPreview = false;
 let mol01RevealTimerId = 0;
 let mol01RevealBeatTimerIds = [];
 const AUTO_RENDER_INTERVAL_MS = 2000;
@@ -140,11 +138,6 @@ const AA_TOME_STEP_MS = 1050;
 const HUB08_ORB_HOLD_MS = 2000;
 const FINAL_VICTORY_ROUTE = "/victory";
 const FINAL_VICTORY_NODE_ID = "FIN01";
-const FINAL_TEST_HARD_LOCK_ARTIFACTS = Object.freeze([
-  "The Transient, Ephemeral, Fleeting Vault of the Mortal World. The Evanescent Safe of Passing Moments, the Faded Chest of Then and Them. The Box of Incontinuity",
-  "The Dungeon Anarchist's Cookbook",
-]);
-const FINAL_TEST_PHASE_ARTIFACTS = Object.freeze(Object.keys(FIN01_ARTIFACT_PHASE_METADATA || {}));
 const NEXUS_MATH_SECTION_ORDER = Object.freeze([
   "Hall of Proofs",
   "Prime Vault",
@@ -167,7 +160,6 @@ const WORM_ARENA_FIRST_WIN_ARTIFACTS = Object.freeze({
   medium: "Red Petition Docket",
   hard: "Saintglass Vial",
 });
-const PGE_STORY_NODE_IDS = Object.freeze(new Set(["PGE02", "PGE03", "PGE04", "PGE05", "PGE06"]));
 const NODE_ARTIFACT_CONSUME_RULES = Object.freeze([
   Object.freeze({
     nodeId: "HUB04",
@@ -731,77 +723,6 @@ function withState(updater) {
   const next = typeof updater === "function" ? updater(appState) : updater;
   appState = stripDeprecatedRewardsFromState(next);
   saveState(appState);
-}
-
-function applyFinalTestKit(state) {
-  const source = state && typeof state === "object" ? state : {};
-  let next = source;
-  const rewardsToGrant = [
-    ...FINAL_TEST_HARD_LOCK_ARTIFACTS,
-    ...FINAL_TEST_PHASE_ARTIFACTS,
-    "Wave-III Passkey",
-  ];
-  const devNode = {
-    node_id: "DEVFINAL",
-    section: "Developer",
-  };
-  for (const reward of rewardsToGrant) {
-    next = grantSupplementalReward(next, reward, devNode);
-  }
-  next = socketRewardKey(next, "Wave-III Passkey", "wave3");
-  next = updateNodeRuntime(
-    next,
-    "CRD02",
-    (runtime) => {
-      const sourceRuntime = runtime && typeof runtime === "object" ? runtime : {};
-      const sourceSoulfire = sourceRuntime.soulfire && typeof sourceRuntime.soulfire === "object"
-        ? sourceRuntime.soulfire
-        : {};
-      return {
-        ...sourceRuntime,
-        madra: Math.max(150000, Number(sourceRuntime.madra || 0)),
-        soulfire: {
-          ...sourceSoulfire,
-          unlocked: true,
-          amount: Math.max(250, Number(sourceSoulfire.amount || 0)),
-          totalGenerated: Math.max(250, Number(sourceSoulfire.totalGenerated || 0)),
-        },
-      };
-    },
-    () => ({
-      madra: 150000,
-      soulfire: { unlocked: true, amount: 250, totalGenerated: 250 },
-    }),
-  );
-  const wormState =
-    next && next.systems && next.systems.worm && typeof next.systems.worm === "object"
-      ? next.systems.worm
-      : {};
-  next = updateSystemState(next, "worm", {
-    ...wormState,
-    clout: Math.max(15000, Number(wormState.clout || 0)),
-  });
-  next = updateNodeRuntime(
-    next,
-    "DCC01",
-    (runtime) => {
-      const sourceRuntime = runtime && typeof runtime === "object" ? runtime : {};
-      const sourceMeta = sourceRuntime.meta && typeof sourceRuntime.meta === "object" ? sourceRuntime.meta : {};
-      return {
-        ...sourceRuntime,
-        meta: {
-          ...sourceMeta,
-          gold: Math.max(15000, Number(sourceMeta.gold || 0)),
-        },
-      };
-    },
-    () => ({ meta: { gold: 15000 } }),
-  );
-  return next;
-}
-
-function isPgeStoryNode(nodeId) {
-  return PGE_STORY_NODE_IDS.has(String(nodeId || ""));
 }
 
 function parseArtifactList(value) {
@@ -2038,16 +1959,6 @@ function dispatchActiveNodeAction(action) {
       const roleArtifact = String(action.roleArtifact || "");
       if (roleArtifact) {
         next = grantPracticalGuideRoleArtifact(next, roleArtifact, "PGE01");
-      }
-    }
-
-    if (isPgeStoryNode(node.node_id) && action.type === "pge-dev-grant-artifacts") {
-      const artifacts = parseArtifactList(action.artifacts);
-      for (const artifact of artifacts) {
-        next = grantSupplementalReward(next, artifact, node);
-      }
-      if (artifacts.length) {
-        setBanner(`Granted ${artifacts.length} test artifact${artifacts.length === 1 ? "" : "s"} for ${node.node_id}.`);
       }
     }
 
@@ -3456,15 +3367,12 @@ function renderApp(route = getCurrentRoute()) {
   const unlockedNodeIds = computeUnlockedNodeIds(blueprintIndex, appState);
   const solvedSet = new Set(appState.solvedNodeIds || []);
   const finalSolved = solvedSet.has(FINAL_VICTORY_NODE_ID);
-  if (route !== FINAL_VICTORY_ROUTE) {
-    forceVictoryPreview = false;
-  }
   if (finalSolved && route !== FINAL_VICTORY_ROUTE) {
     navigate(FINAL_VICTORY_ROUTE);
     return;
   }
   if (route === FINAL_VICTORY_ROUTE) {
-    if (!finalSolved && !forceVictoryPreview) {
+    if (!finalSolved) {
       navigate("/");
       return;
     }
@@ -3485,7 +3393,6 @@ function renderApp(route = getCurrentRoute()) {
   const content = contentForRoute(route, unlockedNodeIds, solvedSet, visibleNexusSections);
   const activeRouteNode = blueprintIndex.nodesByRoute.get(route) || null;
   const activeRouteNodeId = activeRouteNode ? activeRouteNode.node_id : "";
-  const activeRouteNodeSolved = activeRouteNode ? solvedSet.has(activeRouteNode.node_id) : false;
   const backLink = backLinkForRoute(route);
 
   root.innerHTML = renderShellLayout({
@@ -3503,7 +3410,6 @@ function renderApp(route = getCurrentRoute()) {
     widgetState,
     currentRoute: route,
     activeNodeId: activeRouteNodeId,
-    activeNodeSolved: activeRouteNodeSolved,
   });
 
   if (pendingArtifactListScrollRestore) {
@@ -3576,19 +3482,6 @@ function handleClick(event) {
       return;
     }
     navigate("/desk");
-    return;
-  }
-
-  if (action === "dev-unlock-final") {
-    withState((current) => applyFinalTestKit(current));
-    setBanner("Final test kit granted. Wave-III slot primed and finale resources loaded.");
-    renderApp();
-    return;
-  }
-
-  if (action === "dev-open-victory") {
-    forceVictoryPreview = true;
-    navigate(FINAL_VICTORY_ROUTE);
     return;
   }
 
@@ -3911,36 +3804,6 @@ function handleClick(event) {
       ),
     );
     setBanner(`${node.node_id} solved. Reward added: ${solveRewardLabel(node)}.`);
-    if (node.node_id === FINAL_VICTORY_NODE_ID) {
-      navigate(FINAL_VICTORY_ROUTE);
-      return;
-    }
-    renderApp();
-    return;
-  }
-
-  if (action === "dev-autocomplete-node") {
-    const nodeId = button.getAttribute("data-node-id");
-    const node = blueprintIndex.nodesById.get(nodeId);
-    if (!node) {
-      return;
-    }
-    if ((appState.solvedNodeIds || []).includes(node.node_id)) {
-      setBanner(`${node.node_id} already solved.`);
-      renderApp();
-      return;
-    }
-
-    withState((current) => {
-      let next = applyNodeSolveSystemOverrides(markNodeSolvedWithOverrides(current, node), node);
-      next = applyPostSolveArtifactCleanup(next, node);
-      if (node.node_id === "CRD04") {
-        next = grantSupplementalReward(next, "Suriel's Marble", node);
-      }
-      return next;
-    });
-    const bonus = node.node_id === "CRD04" ? " + Suriel's Marble" : "";
-    setBanner(`${node.node_id} autocompleted. Reward added: ${solveRewardLabel(node)}${bonus}.`);
     if (node.node_id === FINAL_VICTORY_NODE_ID) {
       navigate(FINAL_VICTORY_ROUTE);
       return;

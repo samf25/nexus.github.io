@@ -35,10 +35,10 @@ const PHASE_DUAL = "dual";
 const PHASE_SYNTHESIS = "synthesis";
 const PHASE_COMPLETE = "complete";
 const RESOURCE_REQUIREMENTS = Object.freeze({
-  madra: 50000,
-  soulfire: 35,
-  clout: 600,
-  gold: 900,
+  madra: 350000,
+  soulfire: 140,
+  clout: 5000,
+  gold: 7000,
 });
 const RESOURCE_PENDING_FIELD_BY_NAME = Object.freeze({
   madra: "pendingMadraSpend",
@@ -57,20 +57,18 @@ const HARD_LOCK_ARTIFACTS = Object.freeze({
 });
 
 const LATE_ARTIFACT_METADATA = Object.freeze({
-  "Mercy Charter Seal": Object.freeze({ group: "doctrine", memory: true, synthesisOrder: 0, synthesisFamily: "doctrine", synthesisStageRole: "memory", synthesisMechanicUnlock: "rotate" }),
-  "Conqueror's Due Process": Object.freeze({ group: "doctrine", crd: true, synthesisOrder: 1, synthesisFamily: "doctrine", synthesisStageRole: "combat", synthesisMechanicUnlock: "reflect" }),
-  "Measured Iron Mandate": Object.freeze({ group: "doctrine", rhythm: true, synthesisOrder: 2, synthesisFamily: "doctrine", synthesisStageRole: "rhythm", synthesisMechanicUnlock: "swap" }),
-  "Table of Last Reconciliation": Object.freeze({ group: "doctrine", worm: true, synthesisOrder: 3, synthesisFamily: "doctrine", synthesisStageRole: "combat", synthesisMechanicUnlock: "link-bridge" }),
-  "Midnight Carving Accord": Object.freeze({ group: "doctrine", worm: true, synthesisOrder: 4, synthesisFamily: "doctrine", synthesisStageRole: "combat", synthesisMechanicUnlock: "link-bridge" }),
-  "Bell of Unbroken Guest-Right": Object.freeze({ group: "doctrine", worm: true, synthesisOrder: 5, synthesisFamily: "doctrine", synthesisStageRole: "combat", synthesisMechanicUnlock: "link-bridge" }),
-  "Consistency Key": Object.freeze({ group: "cipher", memory: true, synthesisOrder: 0, synthesisFamily: "cipher", synthesisStageRole: "memory", synthesisMechanicUnlock: "rotate" }),
-  "Public-Private Key": Object.freeze({ group: "cipher", rhythm: true, synthesisOrder: 1, synthesisFamily: "cipher", synthesisStageRole: "rhythm", synthesisMechanicUnlock: "swap" }),
-  "Homomorphism Key": Object.freeze({ group: "cipher", rhythm: true, synthesisOrder: 2, synthesisFamily: "cipher", synthesisStageRole: "rhythm", synthesisMechanicUnlock: "swap" }),
-  "Field Marker": Object.freeze({ group: "cipher", crd: true, synthesisOrder: 3, synthesisFamily: "cipher", synthesisStageRole: "combat", synthesisMechanicUnlock: "reflect" }),
-  "Proof Stamp": Object.freeze({ group: "proof", memory: true, synthesisOrder: 0, synthesisFamily: "proof", synthesisStageRole: "memory", synthesisMechanicUnlock: "rotate" }),
-  "Congruence Lens": Object.freeze({ group: "proof", memory: true, synthesisOrder: 1, synthesisFamily: "proof", synthesisStageRole: "memory", synthesisMechanicUnlock: "rotate" }),
-  "Symmetry Mirror": Object.freeze({ group: "proof", rhythm: true, synthesisOrder: 2, synthesisFamily: "proof", synthesisStageRole: "rhythm", synthesisMechanicUnlock: "swap" }),
-  "Curvature Compass": Object.freeze({ group: "proof", crd: true, synthesisOrder: 3, synthesisFamily: "proof", synthesisStageRole: "combat", synthesisMechanicUnlock: "reflect" }),
+  "Edict of the Turning Knife": Object.freeze({ group: "doctrine", memory: true, synthesisOrder: 0, synthesisFamily: "doctrine", synthesisStageRole: "memory", synthesisMechanicUnlock: "rotate" }),
+  "Accord of Borrowed Crowns": Object.freeze({ group: "doctrine", rhythm: true, synthesisOrder: 1, synthesisFamily: "doctrine", synthesisStageRole: "rhythm", synthesisMechanicUnlock: "swap" }),
+  "Writ of the Glass Tribunal": Object.freeze({ group: "doctrine", crd: true, synthesisOrder: 2, synthesisFamily: "doctrine", synthesisStageRole: "combat", synthesisMechanicUnlock: "reflect" }),
+  "Bridge-Supper Compact": Object.freeze({ group: "doctrine", worm: true, synthesisOrder: 3, synthesisFamily: "doctrine", synthesisStageRole: "combat", synthesisMechanicUnlock: "link-bridge" }),
+  "Paradox Ferryman Token": Object.freeze({ group: "cipher", memory: true, synthesisOrder: 0, synthesisFamily: "cipher", synthesisStageRole: "memory", synthesisMechanicUnlock: "rotate" }),
+  "Remainder Rattlekey": Object.freeze({ group: "cipher", rhythm: true, synthesisOrder: 1, synthesisFamily: "cipher", synthesisStageRole: "rhythm", synthesisMechanicUnlock: "swap" }),
+  "Ringbreaker Lookingglass": Object.freeze({ group: "cipher", crd: true, synthesisOrder: 2, synthesisFamily: "cipher", synthesisStageRole: "combat", synthesisMechanicUnlock: "reflect" }),
+  "Atlas Causeway Spike": Object.freeze({ group: "cipher", worm: true, synthesisOrder: 3, synthesisFamily: "cipher", synthesisStageRole: "combat", synthesisMechanicUnlock: "link-bridge" }),
+  "Gyre of Modus Tollens": Object.freeze({ group: "proof", memory: true, synthesisOrder: 0, synthesisFamily: "proof", synthesisStageRole: "memory", synthesisMechanicUnlock: "rotate" }),
+  "Clock of Chinese Lanterns": Object.freeze({ group: "proof", rhythm: true, synthesisOrder: 1, synthesisFamily: "proof", synthesisStageRole: "rhythm", synthesisMechanicUnlock: "swap" }),
+  "Dihedral Oathmirror": Object.freeze({ group: "proof", crd: true, synthesisOrder: 2, synthesisFamily: "proof", synthesisStageRole: "combat", synthesisMechanicUnlock: "reflect" }),
+  "Compass of Bent Roads": Object.freeze({ group: "proof", worm: true, synthesisOrder: 3, synthesisFamily: "proof", synthesisStageRole: "combat", synthesisMechanicUnlock: "link-bridge" }),
 });
 const LATE_ARTIFACTS = Object.freeze(Object.keys(LATE_ARTIFACT_METADATA));
 export const FIN01_ARTIFACT_PHASE_METADATA = LATE_ARTIFACT_METADATA;
@@ -87,10 +85,10 @@ const SYNTH_MECHANIC_LABELS = Object.freeze({
   "link-bridge": "Link-Bridge",
 });
 const SYNTH_STAGE_LABELS = Object.freeze({
-  [SYNTH_STAGE_1]: "Stage 1: Locking Ring",
-  [SYNTH_STAGE_2]: "Stage 2: Rotation Board",
-  [SYNTH_STAGE_3]: "Stage 3: Wiring Overlay",
-  [SYNTH_STAGE_4]: "Stage 4: Seal Assembly",
+  [SYNTH_STAGE_1]: "Locking Ring",
+  [SYNTH_STAGE_2]: "Rotation Board",
+  [SYNTH_STAGE_3]: "Wiring Overlay",
+  [SYNTH_STAGE_4]: "Seal Assembly",
   [SYNTH_STAGE_SOLVED]: "Synthesis Solved",
 });
 const SYNTH_FAMILY_RANK = Object.freeze({
@@ -105,6 +103,7 @@ const SYNTH_LOCK_SLOT_DEFS = Object.freeze([
   Object.freeze({ slotId: "slot-3", unlock: "reflect" }),
   Object.freeze({ slotId: "slot-4", unlock: "link-bridge" }),
 ]);
+const SYNTH_UNLOCK_TARGET_ORDER = Object.freeze([SYNTH_STAGE_2, SYNTH_STAGE_3, SYNTH_STAGE_4]);
 const SYNTH_ROTATION_TARGETS = Object.freeze([
   Object.freeze({ pieceId: "p1", requiredPosition: 0, requiredRotation: 0, requiredMirror: false }),
   Object.freeze({ pieceId: "p2", requiredPosition: 1, requiredRotation: 1, requiredMirror: true }),
@@ -113,6 +112,14 @@ const SYNTH_ROTATION_TARGETS = Object.freeze([
   Object.freeze({ pieceId: "p5", requiredPosition: 4, requiredRotation: 1, requiredMirror: true }),
   Object.freeze({ pieceId: "p6", requiredPosition: 5, requiredRotation: 2, requiredMirror: false }),
 ]);
+const SYNTH_ROTATION_LINKS_BY_POSITION = Object.freeze({
+  0: Object.freeze([2, 4]),
+  1: Object.freeze([3, 5]),
+  2: Object.freeze([1, 3]),
+  3: Object.freeze([0, 2]),
+  4: Object.freeze([1, 5]),
+  5: Object.freeze([0, 4]),
+});
 const SYNTH_BASE_EDGES = Object.freeze([
   Object.freeze({ edgeId: "a-b", a: "A", b: "B" }),
   Object.freeze({ edgeId: "b-c", a: "B", b: "C" }),
@@ -128,29 +135,14 @@ const SYNTH_BRIDGE_EDGES = Object.freeze([
 ]);
 const SYNTH_REQUIRED_BRIDGE_EDGES = Object.freeze(new Set(["a-d", "c-f"]));
 const SYNTH_SEAL_GROUP_IDS = Object.freeze(["circle-1", "circle-2", "circle-3", "circle-4"]);
-const SYNTH_WIRING_CANONICAL_MODES = Object.freeze({
-  "a-b": 1,
-  "b-c": 2,
-  "c-d": 1,
-  "d-e": 2,
-  "e-f": 1,
-  "f-a": 2,
-  "a-d": 1,
-  "b-e": 2,
-  "c-f": 1,
+const SYNTH_WIRE_MODE_MAX = 3;
+const SYNTH_SEAL_GROUP_LAYOUT = Object.freeze({
+  "circle-1": Object.freeze({ x: 24, y: 28 }),
+  "circle-2": Object.freeze({ x: 76, y: 28 }),
+  "circle-3": Object.freeze({ x: 24, y: 72 }),
+  "circle-4": Object.freeze({ x: 76, y: 72 }),
 });
-const SYNTH_WIRING_NODE_TARGETS = Object.freeze((() => {
-  const charges = {};
-  for (const node of ["A", "B", "C", "D", "E", "F"]) {
-    charges[node] = 0;
-  }
-  for (const edge of [...SYNTH_BASE_EDGES, ...SYNTH_BRIDGE_EDGES]) {
-    const mode = Math.max(0, Math.min(2, Number(SYNTH_WIRING_CANONICAL_MODES[edge.edgeId] || 0)));
-    charges[edge.a] += mode;
-    charges[edge.b] += mode;
-  }
-  return charges;
-})());
+const SYNTH_SEAL_GROUP_DROP_RADIUS = 17;
 const SYNTH_ECHO_ARTIFACTS = Object.freeze([
   Object.freeze({ name: "Convergence Echo Alpha", source: "Convergence", section: "Final Arc" }),
   Object.freeze({ name: "Convergence Echo Beta", source: "Convergence", section: "Final Arc" }),
@@ -257,10 +249,16 @@ function memoryTargetForRoleSummary(summary) {
 function finalizeRelevantArtifact(rewardName, rewardData) {
   void rewardData;
   const name = safeText(rewardName);
-  if (!name || name === HARD_LOCK_ARTIFACTS.box || name === HARD_LOCK_ARTIFACTS.cookbook) {
+  if (
+    !name ||
+    name === HARD_LOCK_ARTIFACTS.box ||
+    name === HARD_LOCK_ARTIFACTS.cookbook ||
+    name === "Wave-III Passkey" ||
+    name === "Wave 3 Passkey"
+  ) {
     return false;
   }
-  return true;
+  return Boolean(LATE_ARTIFACT_METADATA[name]);
 }
 
 function fallbackMetaForArtifact(artifactName, rewardData) {
@@ -310,6 +308,22 @@ function ensureUnlockCoverage(catalog) {
     const target = adjustable[adjustCursor] || source[adjustCursor];
     adjustCursor += 1;
     if (!target || !target.meta) {
+      const echoSeed = SYNTH_ECHO_ARTIFACTS.find((entry) => !source.some((existing) => safeText(existing.name) === safeText(entry.name)));
+      if (!echoSeed) {
+        continue;
+      }
+      const meta = {
+        ...synthMetaForArtifact(echoSeed.name, echoSeed),
+        synthesisMechanicUnlock: mechanic,
+        synthesisStageRole: mechanic === "rotate" ? "memory" : mechanic === "swap" ? "rhythm" : "combat",
+      };
+      source.push({
+        name: echoSeed.name,
+        source: echoSeed.source,
+        section: echoSeed.section,
+        meta,
+      });
+      counts[mechanic] = 1;
       continue;
     }
     target.meta = {
@@ -320,6 +334,19 @@ function ensureUnlockCoverage(catalog) {
     counts[mechanic] = 1;
   }
   return source;
+}
+
+function deterministicShuffle(source, seedText) {
+  const list = Array.isArray(source) ? [...source] : [];
+  let seed = seededHash(seedText);
+  for (let index = list.length - 1; index > 0; index -= 1) {
+    seed = Math.imul(seed ^ (index + 31), 1664525) + 1013904223;
+    const swapIndex = Math.abs(seed >>> 0) % (index + 1);
+    const temp = list[index];
+    list[index] = list[swapIndex];
+    list[swapIndex] = temp;
+  }
+  return list;
 }
 
 function synthesisArtifactCatalog(state) {
@@ -357,22 +384,49 @@ function normalizeUnlockedMechanics(candidate) {
 }
 
 function defaultRotationBoardState() {
-  const scrambled = SYNTH_ROTATION_TARGETS.map((target, index) => ({
+  const scrambled = SYNTH_ROTATION_TARGETS.map((target) => ({
     pieceId: target.pieceId,
-    position: index,
+    position: target.requiredPosition,
     rotation: target.requiredRotation,
     mirrored: target.requiredMirror,
   }));
-  const swapPairs = [[0, 3], [1, 4], [2, 5]];
-  for (const [left, right] of swapPairs) {
-    const leftId = SYNTH_ROTATION_TARGETS[left].pieceId;
-    const rightId = SYNTH_ROTATION_TARGETS[right].pieceId;
-    for (const piece of scrambled) {
-      if (piece.pieceId === leftId) {
-        piece.position = right;
-      } else if (piece.pieceId === rightId) {
-        piece.position = left;
+  const operations = 72;
+  for (let step = 0; step < operations; step += 1) {
+    const roll = Math.random();
+    if (roll < 0.38) {
+      const anchor = Math.floor(Math.random() * SYNTH_ROTATION_TARGETS.length);
+      const rotated = rotateCoupledPieces(scrambled, anchor);
+      for (let i = 0; i < scrambled.length; i += 1) {
+        scrambled[i] = rotated[i];
       }
+      continue;
+    }
+    if (roll < 0.66) {
+      const anchor = Math.floor(Math.random() * SYNTH_ROTATION_TARGETS.length);
+      const reflected = reflectCoupledPieces(scrambled, anchor);
+      for (let i = 0; i < scrambled.length; i += 1) {
+        scrambled[i] = reflected[i];
+      }
+      continue;
+    }
+    const first = Math.floor(Math.random() * SYNTH_ROTATION_TARGETS.length);
+    let second = Math.floor(Math.random() * SYNTH_ROTATION_TARGETS.length);
+    if (second === first) {
+      second = (second + 1) % SYNTH_ROTATION_TARGETS.length;
+    }
+    const firstPiece = scrambled.find((piece) => piece.position === first);
+    const secondPiece = scrambled.find((piece) => piece.position === second);
+    if (!firstPiece || !secondPiece) {
+      continue;
+    }
+    const temp = firstPiece.position;
+    firstPiece.position = secondPiece.position;
+    secondPiece.position = temp;
+  }
+  if (rotationSolved({ pieces: scrambled }, { rotate: true, reflect: true, swap: true, "link-bridge": true })) {
+    const fallback = rotateCoupledPieces(scrambled, 0);
+    for (let i = 0; i < scrambled.length; i += 1) {
+      scrambled[i] = fallback[i];
     }
   }
   return {
@@ -401,7 +455,7 @@ function normalizeRotationBoardState(candidate) {
   });
   return {
     pieces,
-    selectedPieceId: safeText(source.selectedPieceId),
+    selectedPieceId: safeText(source.selectedPieceId) || (pieces[0] ? pieces[0].pieceId : ""),
     swapArmed: Boolean(source.swapArmed),
     status: safeText(source.status),
   };
@@ -410,6 +464,8 @@ function normalizeRotationBoardState(candidate) {
 function defaultWiringState() {
   return {
     edgeModes: Object.fromEntries([...SYNTH_BASE_EDGES, ...SYNTH_BRIDGE_EDGES].map((edge) => [edge.edgeId, 0])),
+    solutionModes: {},
+    nodeTargets: {},
     status: "",
   };
 }
@@ -423,19 +479,67 @@ function normalizeWiringState(candidate) {
   const legacyActiveEdges = source.activeEdges && typeof source.activeEdges === "object"
     ? source.activeEdges
     : {};
+  const solutionModes = source.solutionModes && typeof source.solutionModes === "object"
+    ? source.solutionModes
+    : {};
+  const nodeTargets = source.nodeTargets && typeof source.nodeTargets === "object"
+    ? source.nodeTargets
+    : {};
   const normalizedModes = {};
+  const normalizedSolution = {};
   for (const entry of [...SYNTH_BASE_EDGES, ...SYNTH_BRIDGE_EDGES]) {
     if (Number.isFinite(Number(edgeModes[entry.edgeId]))) {
-      normalizedModes[entry.edgeId] = clamp(Math.floor(Number(edgeModes[entry.edgeId])), 0, 2);
+      normalizedModes[entry.edgeId] = clamp(Math.floor(Number(edgeModes[entry.edgeId])), 0, SYNTH_WIRE_MODE_MAX);
     } else if (legacyActiveEdges[entry.edgeId]) {
       normalizedModes[entry.edgeId] = 1;
     } else {
       normalizedModes[entry.edgeId] = fallback.edgeModes[entry.edgeId];
     }
+    if (Number.isFinite(Number(solutionModes[entry.edgeId]))) {
+      normalizedSolution[entry.edgeId] = clamp(Math.floor(Number(solutionModes[entry.edgeId])), 0, SYNTH_WIRE_MODE_MAX);
+    } else {
+      normalizedSolution[entry.edgeId] = 0;
+    }
+  }
+  const normalizedTargets = {};
+  for (const node of ["A", "B", "C", "D", "E", "F"]) {
+    if (Number.isFinite(Number(nodeTargets[node]))) {
+      normalizedTargets[node] = Math.max(0, Math.floor(Number(nodeTargets[node])));
+    } else {
+      normalizedTargets[node] = 0;
+    }
   }
   return {
     edgeModes: normalizedModes,
+    solutionModes: normalizedSolution,
+    nodeTargets: normalizedTargets,
     status: safeText(source.status),
+  };
+}
+
+function buildWiringSolution(seed, catalog) {
+  const key = `${Number(seed) || 0}:${(Array.isArray(catalog) ? catalog : []).map((entry) => safeText(entry.name)).join("|")}`;
+  const edges = deterministicShuffle([...SYNTH_BASE_EDGES, ...SYNTH_BRIDGE_EDGES], key);
+  const modes = {};
+  let cursor = seededHash(key);
+  for (const edge of edges) {
+    cursor = Math.imul(cursor ^ seededHash(edge.edgeId), 1103515245) + 12345;
+    modes[edge.edgeId] = 1 + ((cursor >>> 0) % SYNTH_WIRE_MODE_MAX);
+  }
+  for (const edgeId of SYNTH_REQUIRED_BRIDGE_EDGES) {
+    if (modes[edgeId] === 0) {
+      modes[edgeId] = 1;
+    }
+  }
+  const nodeTargets = Object.fromEntries(["A", "B", "C", "D", "E", "F"].map((node) => [node, 0]));
+  for (const edge of [...SYNTH_BASE_EDGES, ...SYNTH_BRIDGE_EDGES]) {
+    const mode = clamp(Math.floor(Number(modes[edge.edgeId]) || 0), 0, SYNTH_WIRE_MODE_MAX);
+    nodeTargets[edge.a] += mode;
+    nodeTargets[edge.b] += mode;
+  }
+  return {
+    modes,
+    nodeTargets,
   };
 }
 
@@ -461,16 +565,22 @@ function sealTargetFromCatalog(catalog) {
 function defaultSealAssemblyState(catalog) {
   const sealTarget = sealTargetFromCatalog(catalog);
   const rotations = {};
-  for (const entry of sealTarget) {
+  const positions = {};
+  for (const [index, entry] of sealTarget.entries()) {
     const seeded = seededHash(entry.name);
     const raw = (seeded % 4 + 1) % 4;
     rotations[entry.name] = raw;
+    const scatterSeed = seededHash(`${entry.name}:${index}:scatter`);
+    const x = 12 + ((scatterSeed % 760) / 10);
+    const y = 10 + ((Math.floor(scatterSeed / 13) % 760) / 10);
+    positions[entry.name] = {
+      x: clamp(x, 6, 94),
+      y: clamp(y, 8, 92),
+    };
   }
   return {
-    phase: "orient",
-    selectedArtifact: "",
-    groupSelected: "",
-    groups: Object.fromEntries(SYNTH_SEAL_GROUP_IDS.map((groupId) => [groupId, []])),
+    selectedArtifact: sealTarget[0] ? sealTarget[0].name : "",
+    positions,
     rotations,
     status: "",
   };
@@ -479,36 +589,38 @@ function defaultSealAssemblyState(catalog) {
 function normalizeSealAssemblyState(candidate, catalog) {
   const source = candidate && typeof candidate === "object" ? candidate : {};
   const fallback = defaultSealAssemblyState(catalog);
-  const phase = safeText(source.phase) === "group" ? "group" : "orient";
-  const groups = source.groups && typeof source.groups === "object" ? source.groups : {};
   const rotations = source.rotations && typeof source.rotations === "object" ? source.rotations : {};
+  const positions = source.positions && typeof source.positions === "object" ? source.positions : {};
   const validNames = new Set((Array.isArray(catalog) ? catalog : []).map((entry) => entry.name));
-  const normalizedGroups = {};
-  for (const groupId of SYNTH_SEAL_GROUP_IDS) {
-    const entries = Array.isArray(groups[groupId]) ? groups[groupId] : [];
-    const deduped = [];
-    for (const artifactName of entries) {
-      const name = safeText(artifactName);
-      if (!name || !validNames.has(name) || deduped.includes(name)) {
-        continue;
-      }
-      deduped.push(name);
-    }
-    normalizedGroups[groupId] = deduped;
-  }
   const normalizedRotations = {};
+  const normalizedPositions = {};
   for (const entry of Array.isArray(catalog) ? catalog : []) {
     if (Number.isFinite(Number(rotations[entry.name]))) {
       normalizedRotations[entry.name] = ((Math.floor(Number(rotations[entry.name])) % 4) + 4) % 4;
     } else {
       normalizedRotations[entry.name] = fallback.rotations[entry.name] || 0;
     }
+    const pos = positions[entry.name] && typeof positions[entry.name] === "object" ? positions[entry.name] : {};
+    const rawX = Number(pos.x);
+    const rawY = Number(pos.y);
+    const fallbackPos = fallback.positions[entry.name] && typeof fallback.positions[entry.name] === "object"
+      ? fallback.positions[entry.name]
+      : { x: 50, y: 50 };
+    normalizedPositions[entry.name] = {
+      x: Number.isFinite(rawX) ? clamp(rawX, 6, 94) : clamp(Number(fallbackPos.x) || 50, 6, 94),
+      y: Number.isFinite(rawY) ? clamp(rawY, 8, 92) : clamp(Number(fallbackPos.y) || 50, 8, 92),
+    };
   }
   return {
-    phase,
-    selectedArtifact: validNames.has(safeText(source.selectedArtifact)) ? safeText(source.selectedArtifact) : "",
-    groupSelected: SYNTH_SEAL_GROUP_IDS.includes(safeText(source.groupSelected)) ? safeText(source.groupSelected) : "",
-    groups: normalizedGroups,
+    selectedArtifact: (() => {
+      const selected = safeText(source.selectedArtifact);
+      if (validNames.has(selected)) {
+        return selected;
+      }
+      const first = Array.isArray(catalog) && catalog[0] ? safeText(catalog[0].name) : "";
+      return validNames.has(first) ? first : "";
+    })(),
+    positions: normalizedPositions,
     rotations: normalizedRotations,
     status: safeText(source.status),
   };
@@ -521,6 +633,13 @@ function defaultSynthesisState(catalog) {
       locking: {},
     },
     unlockedMechanics: {},
+    stageUnlocks: {
+      [SYNTH_STAGE_2]: false,
+      [SYNTH_STAGE_3]: false,
+      [SYNTH_STAGE_4]: false,
+    },
+    lockUsedArtifacts: [],
+    lockSpinUntil: 0,
     rotationBoardState: defaultRotationBoardState(),
     wiringState: defaultWiringState(),
     sealAssemblyState: defaultSealAssemblyState(catalog),
@@ -550,12 +669,25 @@ function normalizeSynthesisState(candidate, catalog) {
   const stageSolvedFlags = source.stageSolvedFlags && typeof source.stageSolvedFlags === "object"
     ? source.stageSolvedFlags
     : {};
+  const stageUnlocks = source.stageUnlocks && typeof source.stageUnlocks === "object"
+    ? source.stageUnlocks
+    : {};
+  const used = Array.isArray(source.lockUsedArtifacts)
+    ? source.lockUsedArtifacts.map((value) => safeText(value)).filter(Boolean)
+    : [];
   return {
     currentStage,
     placedArtifacts: {
       locking,
     },
     unlockedMechanics: normalizeUnlockedMechanics(source.unlockedMechanics),
+    stageUnlocks: {
+      [SYNTH_STAGE_2]: Boolean(stageUnlocks[SYNTH_STAGE_2]),
+      [SYNTH_STAGE_3]: Boolean(stageUnlocks[SYNTH_STAGE_3]),
+      [SYNTH_STAGE_4]: Boolean(stageUnlocks[SYNTH_STAGE_4]),
+    },
+    lockUsedArtifacts: [...new Set(used.filter((name) => validNames.has(name)))],
+    lockSpinUntil: Number.isFinite(Number(source.lockSpinUntil)) ? Number(source.lockSpinUntil) : 0,
     rotationBoardState: normalizeRotationBoardState(source.rotationBoardState),
     wiringState: normalizeWiringState(source.wiringState),
     sealAssemblyState: normalizeSealAssemblyState(source.sealAssemblyState, catalog),
@@ -780,6 +912,7 @@ function normalizeRuntime(runtime, context = {}) {
   const activeArtifacts = synthesisCatalog.map((entry) => entry.name);
   const roles = artifactRoleSummary(activeArtifacts);
   const memoryTarget = memoryTargetForRoleSummary(roles);
+  const normalizedSeed = Number.isFinite(Number(source.seed)) ? (Number(source.seed) >>> 0) : (Date.now() >>> 0);
   const phase = [PHASE_ENTRY, PHASE_MEMORY, PHASE_RHYTHM, PHASE_DUAL, PHASE_SYNTHESIS, PHASE_COMPLETE].includes(String(source.phase || ""))
     ? String(source.phase)
     : PHASE_ENTRY;
@@ -794,7 +927,7 @@ function normalizeRuntime(runtime, context = {}) {
   return {
     phase,
     solved: Boolean(source.solved),
-    seed: Number.isFinite(Number(source.seed)) ? (Number(source.seed) >>> 0) : (Date.now() >>> 0),
+    seed: normalizedSeed,
     entrySockets: {
       box: Boolean(source.entrySockets && source.entrySockets.box),
       cookbook: Boolean(source.entrySockets && source.entrySockets.cookbook),
@@ -821,14 +954,43 @@ function normalizeRuntime(runtime, context = {}) {
     dual: normalizeDual(source.dual, state, roles),
     synthesis: (() => {
       const normalized = normalizeSynthesisState(source.synthesis, synthesisCatalog);
+      const unlockState = {
+        [SYNTH_STAGE_2]: Boolean(normalized.stageUnlocks[SYNTH_STAGE_2]),
+        [SYNTH_STAGE_3]: Boolean(normalized.stageUnlocks[SYNTH_STAGE_3]),
+        [SYNTH_STAGE_4]: Boolean(normalized.stageUnlocks[SYNTH_STAGE_4]),
+      };
+      const unlocksFromLocking = {};
+      for (const slot of SYNTH_LOCK_SLOT_DEFS) {
+        unlocksFromLocking[slot.unlock] = Boolean(normalized.unlockedMechanics[slot.unlock]);
+      }
+      if (unlockState[SYNTH_STAGE_2]) {
+        unlocksFromLocking.rotate = true;
+        unlocksFromLocking.swap = true;
+        unlocksFromLocking.reflect = true;
+      }
+      if (unlockState[SYNTH_STAGE_3]) {
+        unlocksFromLocking["link-bridge"] = true;
+      }
+      const wiringSolution = buildWiringSolution(normalizedSeed, synthesisCatalog);
       return {
         currentStage: normalized.currentStage,
         placedArtifacts: normalized.placedArtifacts,
-        unlockedMechanics: normalized.unlockedMechanics,
+        unlockedMechanics: unlocksFromLocking,
+        stageUnlocks: unlockState,
+        lockUsedArtifacts: Array.isArray(normalized.lockUsedArtifacts)
+          ? [...normalized.lockUsedArtifacts]
+          : [],
+        lockSpinUntil: normalized.lockSpinUntil,
         rotationBoardState: normalized.rotationBoardState,
-        wiringState: normalized.wiringState,
+        wiringState: {
+          ...normalized.wiringState,
+          solutionModes: wiringSolution.modes,
+          nodeTargets: wiringSolution.nodeTargets,
+        },
         sealAssemblyState: normalized.sealAssemblyState,
-        stageSolvedFlags: normalized.stageSolvedFlags,
+        stageSolvedFlags: {
+          ...normalized.stageSolvedFlags,
+        },
         statusMessage: normalized.statusMessage,
       };
     })(),
@@ -915,6 +1077,60 @@ function synthCatalogEntry(runtime, artifactName) {
   return source.find((entry) => safeText(entry.name) === safeText(artifactName)) || null;
 }
 
+function lockingRequiredArtifactsForStage(runtime, unlockTargetStage) {
+  const stage = safeText(unlockTargetStage);
+  if (!stage) {
+    return {};
+  }
+  const synthesis = runtime && runtime.synthesis && typeof runtime.synthesis === "object"
+    ? runtime.synthesis
+    : {};
+  const usedSet = new Set(
+    Array.isArray(synthesis.lockUsedArtifacts)
+      ? synthesis.lockUsedArtifacts.map((value) => safeText(value)).filter(Boolean)
+      : [],
+  );
+  const catalog = Array.isArray(runtime && runtime.artifactPuzzleState && runtime.artifactPuzzleState.synthesisCatalog)
+    ? [...runtime.artifactPuzzleState.synthesisCatalog]
+    : [];
+  catalog.sort((a, b) => {
+    const score = synthSortScore(a) - synthSortScore(b);
+    if (score !== 0) {
+      return score;
+    }
+    return safeText(a.name).localeCompare(safeText(b.name));
+  });
+  const picked = new Set();
+  const requiredBySlot = {};
+  for (const slot of SYNTH_LOCK_SLOT_DEFS) {
+    const match = catalog.find((entry) => {
+      const name = safeText(entry && entry.name);
+      if (!name || usedSet.has(name) || picked.has(name)) {
+        return false;
+      }
+      return synthUnlockFromMeta(entry.meta) === slot.unlock;
+    });
+    if (!match) {
+      requiredBySlot[slot.slotId] = "";
+      continue;
+    }
+    const name = safeText(match.name);
+    requiredBySlot[slot.slotId] = name;
+    picked.add(name);
+  }
+  return requiredBySlot;
+}
+
+function nextSynthesisUnlockStage(stageUnlocks) {
+  const source = stageUnlocks && typeof stageUnlocks === "object" ? stageUnlocks : {};
+  for (const stageId of SYNTH_UNLOCK_TARGET_ORDER) {
+    if (!source[stageId]) {
+      return stageId;
+    }
+  }
+  return "";
+}
+
 function synthEffectiveUnlocks(synthesis) {
   const base = synthesis && synthesis.unlockedMechanics && typeof synthesis.unlockedMechanics === "object"
     ? synthesis.unlockedMechanics
@@ -930,10 +1146,9 @@ function synthEffectiveUnlocks(synthesis) {
 
 function rotationLinkedPositions(position) {
   const base = clamp(Math.floor(Number(position) || 0), 0, SYNTH_ROTATION_TARGETS.length - 1);
-  return [
-    (base + 2) % SYNTH_ROTATION_TARGETS.length,
-    (base + 4) % SYNTH_ROTATION_TARGETS.length,
-  ];
+  return SYNTH_ROTATION_LINKS_BY_POSITION[base]
+    ? [...SYNTH_ROTATION_LINKS_BY_POSITION[base]]
+    : [];
 }
 
 function rotateCoupledPieces(pieces, anchorPosition) {
@@ -983,7 +1198,7 @@ function wiringNodeCharges(wiringState) {
     ? wiringState.edgeModes
     : {};
   for (const edge of [...SYNTH_BASE_EDGES, ...SYNTH_BRIDGE_EDGES]) {
-    const mode = clamp(Math.floor(Number(modes[edge.edgeId]) || 0), 0, 2);
+    const mode = clamp(Math.floor(Number(modes[edge.edgeId]) || 0), 0, SYNTH_WIRE_MODE_MAX);
     nodes[edge.a] += mode;
     nodes[edge.b] += mode;
   }
@@ -991,29 +1206,15 @@ function wiringNodeCharges(wiringState) {
 }
 
 function wiringSolved(wiringState, unlockedMechanics) {
-  const modes = wiringState && wiringState.edgeModes && typeof wiringState.edgeModes === "object"
-    ? wiringState.edgeModes
+  void unlockedMechanics;
+  const targets = wiringState && wiringState.nodeTargets && typeof wiringState.nodeTargets === "object"
+    ? wiringState.nodeTargets
     : {};
   const charges = wiringNodeCharges(wiringState);
-  for (const node of Object.keys(SYNTH_WIRING_NODE_TARGETS)) {
-    if (charges[node] !== SYNTH_WIRING_NODE_TARGETS[node]) {
+  for (const node of Object.keys(charges)) {
+    if (charges[node] !== Number(targets[node] || 0)) {
       return false;
     }
-  }
-  const hasBridge = synthEffectiveUnlocks({ unlockedMechanics })["link-bridge"];
-  if (hasBridge) {
-    for (const edgeId of SYNTH_REQUIRED_BRIDGE_EDGES) {
-      if (clamp(Math.floor(Number(modes[edgeId]) || 0), 0, 2) === 0) {
-        return false;
-      }
-    }
-  }
-  const highStateCount = [...SYNTH_BASE_EDGES, ...SYNTH_BRIDGE_EDGES].reduce((count, edge) => {
-    const mode = clamp(Math.floor(Number(modes[edge.edgeId]) || 0), 0, 2);
-    return count + (mode === 2 ? 1 : 0);
-  }, 0);
-  if (highStateCount < 2) {
-    return false;
   }
   return true;
 }
@@ -1040,6 +1241,32 @@ function sealOrientationSolved(runtime) {
   return true;
 }
 
+function sealArtifactGroupIdByPosition(position) {
+  const source = position && typeof position === "object" ? position : {};
+  const x = Number(source.x);
+  const y = Number(source.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return "";
+  }
+  let bestGroup = "";
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const groupId of SYNTH_SEAL_GROUP_IDS) {
+    const center = SYNTH_SEAL_GROUP_LAYOUT[groupId];
+    if (!center) {
+      continue;
+    }
+    const distance = Math.hypot(x - center.x, y - center.y);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestGroup = groupId;
+    }
+  }
+  if (!bestGroup || bestDistance > SYNTH_SEAL_GROUP_DROP_RADIUS) {
+    return "";
+  }
+  return bestGroup;
+}
+
 function sealGroupingSolved(runtime) {
   const synthesis = runtime.synthesis;
   const catalog = runtime.artifactPuzzleState.synthesisCatalog || [];
@@ -1048,42 +1275,82 @@ function sealGroupingSolved(runtime) {
   if (!target.length) {
     return true;
   }
-  const allPlaced = new Set();
   const tuneToGroup = {};
-  for (const groupId of SYNTH_SEAL_GROUP_IDS) {
-    const names = Array.isArray(seal.groups[groupId]) ? seal.groups[groupId] : [];
-    if (!names.length) {
+  const groupMembers = Object.fromEntries(SYNTH_SEAL_GROUP_IDS.map((groupId) => [groupId, []]));
+  for (const entry of target) {
+    const groupId = sealArtifactGroupIdByPosition(seal.positions[entry.name]);
+    if (!groupId) {
       return false;
     }
-    let groupTune = "";
+    groupMembers[groupId].push(entry.name);
+  }
+  for (const groupId of SYNTH_SEAL_GROUP_IDS) {
+    const names = groupMembers[groupId];
+    if (!Array.isArray(names) || !names.length) {
+      return false;
+    }
+    const tuneSet = new Set();
     for (const name of names) {
-      if (allPlaced.has(name)) {
-        return false;
-      }
-      allPlaced.add(name);
       const entry = synthCatalogEntry(runtime, name);
       if (!entry) {
         return false;
       }
-      const tune = synthUnlockFromMeta(entry.meta);
-      if (!groupTune) {
-        groupTune = tune;
-      } else if (groupTune !== tune) {
-        return false;
-      }
+      tuneSet.add(synthUnlockFromMeta(entry.meta));
     }
-    if (!groupTune) {
+    if (tuneSet.size !== 1) {
       return false;
     }
+    const [groupTune] = [...tuneSet];
     if (tuneToGroup[groupTune]) {
       return false;
     }
     tuneToGroup[groupTune] = groupId;
   }
-  if (allPlaced.size !== target.length) {
-    return false;
-  }
   return true;
+}
+
+function sealGroupMembers(runtime) {
+  const groups = Object.fromEntries(SYNTH_SEAL_GROUP_IDS.map((groupId) => [groupId, []]));
+  const catalog = sealTargetFromCatalog(runtime.artifactPuzzleState.synthesisCatalog || []);
+  const seal = runtime.synthesis.sealAssemblyState;
+  for (const entry of catalog) {
+    const groupId = sealArtifactGroupIdByPosition(seal.positions[entry.name]);
+    if (groupId && groups[groupId]) {
+      groups[groupId].push(entry.name);
+    }
+  }
+  return groups;
+}
+
+function sealGroupTuneForDisplay(runtime, groupId) {
+  const groups = sealGroupMembers(runtime);
+  const members = groups[groupId] || [];
+  if (!members.length) {
+    return "";
+  }
+  const target = sealTargetFromCatalog(runtime.artifactPuzzleState.synthesisCatalog || []);
+  const tuneCounts = {};
+  for (const entry of target) {
+    const tune = synthUnlockFromMeta(entry.meta);
+    tuneCounts[tune] = (tuneCounts[tune] || 0) + 1;
+  }
+  const tunes = new Set();
+  for (const name of members) {
+    const entry = synthCatalogEntry(runtime, name);
+    if (!entry) {
+      return "";
+    }
+    tunes.add(synthUnlockFromMeta(entry.meta));
+  }
+  if (tunes.size !== 1) {
+    return "";
+  }
+  const [groupTune] = [...tunes];
+  const totalForTune = Number(tuneCounts[groupTune] || 0);
+  if (!totalForTune || members.length !== totalForTune) {
+    return "";
+  }
+  return groupTune || "";
 }
 
 export function initialFinal01Runtime() {
@@ -1124,7 +1391,65 @@ export function initialFinal01Runtime() {
 }
 
 export function synchronizeFinal01Runtime(runtime, context = {}) {
-  const normalized = normalizeRuntime(runtime, context);
+  let normalized = normalizeRuntime(runtime, context);
+  if (normalized.phase === PHASE_SYNTHESIS) {
+    const synth = normalized.synthesis;
+    const nextFlags = { ...synth.stageSolvedFlags };
+    const rotationSolvedNow =
+      Boolean(synth.stageUnlocks[SYNTH_STAGE_2]) &&
+      rotationSolved(synth.rotationBoardState, synth.unlockedMechanics);
+    if (rotationSolvedNow) {
+      nextFlags[SYNTH_STAGE_2] = true;
+    }
+    const wiringSolvedNow =
+      Boolean(synth.stageUnlocks[SYNTH_STAGE_3]) &&
+      wiringSolved(synth.wiringState, synth.unlockedMechanics);
+    if (wiringSolvedNow) {
+      nextFlags[SYNTH_STAGE_3] = true;
+    }
+    const sealSolvedNow =
+      Boolean(synth.stageUnlocks[SYNTH_STAGE_4]) &&
+      sealOrientationSolved(normalized) &&
+      sealGroupingSolved(normalized);
+    if (sealSolvedNow) {
+      nextFlags[SYNTH_STAGE_4] = true;
+    }
+    const allSolved = [SYNTH_STAGE_1, SYNTH_STAGE_2, SYNTH_STAGE_3, SYNTH_STAGE_4].every((id) => Boolean(nextFlags[id]));
+    normalized = {
+      ...normalized,
+      synthesis: {
+        ...synth,
+        stageSolvedFlags: nextFlags,
+      },
+    };
+    if (allSolved) {
+      normalized = {
+        ...normalized,
+        phase: PHASE_COMPLETE,
+        solved: true,
+        checkpoints: {
+          ...normalized.checkpoints,
+          synthesis: true,
+        },
+        synthesis: {
+          ...normalized.synthesis,
+          currentStage: SYNTH_STAGE_SOLVED,
+          statusMessage: "Synthesis complete. Convergence sealed.",
+        },
+        artifactPuzzleState: {
+          ...normalized.artifactPuzzleState,
+          synthesisSolved: true,
+        },
+        lastMessage: "Convergence complete. The final proof route opens.",
+      };
+    }
+  }
+  if (normalized.phase !== PHASE_COMPLETE && normalized.solved) {
+    normalized = {
+      ...normalized,
+      solved: false,
+    };
+  }
   if (normalized.phase === PHASE_COMPLETE || normalized.solved) {
     return {
       ...normalized,
@@ -1141,192 +1466,6 @@ export function reduceFinal01Runtime(runtime, action, context = {}) {
   }
   const state = context.state || {};
   const resources = readResources(state);
-
-  if (action.type === "fin01-dev-skip-phase") {
-    const rawTarget = safeText(action.targetPhase).toLowerCase();
-    const [target, synthStepRaw] = rawTarget.split(":");
-    const synthStep = clamp(Math.floor(Number(synthStepRaw) || 1), 1, 4);
-    const checkpointsBase = {
-      lockin: false,
-      memory: false,
-      rhythm: false,
-      dual: false,
-      synthesis: false,
-    };
-    const memoryTarget = memoryTargetForRoleSummary(current.artifactPuzzleState.roleSummary);
-    const forcedEntry = {
-      ...current,
-      solved: false,
-      phase: PHASE_ENTRY,
-      entrySockets: {
-        box: true,
-        cookbook: true,
-      },
-      lockInvestments: {
-        madra: true,
-        soulfire: true,
-        clout: true,
-        gold: true,
-      },
-      checkpoints: checkpointsBase,
-      pendingMadraSpend: 0,
-      pendingSoulfireSpend: 0,
-      pendingCloutSpend: 0,
-      pendingGoldSpend: 0,
-      memoryGame: createMemoryGameRuntime({
-        targetSuccesses: memoryTarget,
-        roll: Math.random(),
-      }),
-      rhythm: {
-        ...current.rhythm,
-        active: false,
-        patternStep: 0,
-        patternIndex: FINAL_RHYTHM_PATTERN_INDICES[0] || 0,
-        streak: 0,
-        lastBeatOrdinal: -1,
-        target: FINAL_RHYTHM_STREAK_TARGET,
-        toleranceMs: FINAL_RHYTHM_HIT_TOLERANCE_MS,
-      },
-      synthesis: defaultSynthesisState(current.artifactPuzzleState.synthesisCatalog || []),
-      artifactPuzzleState: {
-        ...current.artifactPuzzleState,
-        synthesisSolved: false,
-      },
-    };
-
-    if (target === PHASE_ENTRY) {
-      return {
-        ...forcedEntry,
-        phase: PHASE_ENTRY,
-        lastMessage: "Dev skip: Entry restored.",
-      };
-    }
-    if (target === PHASE_MEMORY) {
-      return {
-        ...forcedEntry,
-        phase: PHASE_MEMORY,
-        checkpoints: {
-          ...checkpointsBase,
-          lockin: true,
-        },
-        lastMessage: "Dev skip: Memory trial ready.",
-      };
-    }
-    if (target === PHASE_RHYTHM) {
-      return {
-        ...forcedEntry,
-        phase: PHASE_RHYTHM,
-        checkpoints: {
-          ...checkpointsBase,
-          lockin: true,
-          memory: true,
-        },
-        memoryGame: {
-          ...forcedEntry.memoryGame,
-          phase: "input",
-          solved: true,
-          successCount: forcedEntry.memoryGame.targetSuccesses,
-          inputIndex: forcedEntry.memoryGame.sequence.length,
-        },
-        lastMessage: "Dev skip: Rhythm trial ready.",
-      };
-    }
-    if (target === PHASE_DUAL) {
-      return startDualBattle({
-        ...forcedEntry,
-        phase: PHASE_DUAL,
-        checkpoints: {
-          ...checkpointsBase,
-          lockin: true,
-          memory: true,
-          rhythm: true,
-        },
-        memoryGame: {
-          ...forcedEntry.memoryGame,
-          phase: "input",
-          solved: true,
-          successCount: forcedEntry.memoryGame.targetSuccesses,
-          inputIndex: forcedEntry.memoryGame.sequence.length,
-        },
-        lastMessage: "Dev skip: Dual trial ready.",
-      }, state);
-    }
-    if (target === PHASE_SYNTHESIS) {
-      const stageByStep = [SYNTH_STAGE_1, SYNTH_STAGE_2, SYNTH_STAGE_3, SYNTH_STAGE_4];
-      const unlockedMechanics = {
-        rotate: true,
-        swap: synthStep >= 2,
-        reflect: synthStep >= 3,
-        "link-bridge": synthStep >= 4,
-      };
-      return {
-        ...forcedEntry,
-        phase: PHASE_SYNTHESIS,
-        checkpoints: {
-          ...checkpointsBase,
-          lockin: true,
-          memory: true,
-          rhythm: true,
-          dual: true,
-        },
-        memoryGame: {
-          ...forcedEntry.memoryGame,
-          phase: "input",
-          solved: true,
-          successCount: forcedEntry.memoryGame.targetSuccesses,
-          inputIndex: forcedEntry.memoryGame.sequence.length,
-        },
-        dual: {
-          ...forcedEntry.dual,
-          subphase: "won",
-        },
-        synthesis: {
-          ...forcedEntry.synthesis,
-          currentStage: stageByStep[synthStep - 1],
-          stageSolvedFlags: {
-            ...forcedEntry.synthesis.stageSolvedFlags,
-            [SYNTH_STAGE_1]: synthStep > 1,
-            [SYNTH_STAGE_2]: synthStep > 2,
-            [SYNTH_STAGE_3]: synthStep > 3,
-          },
-          unlockedMechanics,
-          statusMessage: `Dev skip active: ${SYNTH_STAGE_LABELS[stageByStep[synthStep - 1]] || "Synthesis"} ready.`,
-        },
-        lastMessage: "Dev skip: Synthesis board ready.",
-      };
-    }
-    if (target === PHASE_COMPLETE) {
-      return {
-        ...forcedEntry,
-        phase: PHASE_COMPLETE,
-        solved: true,
-        checkpoints: {
-          lockin: true,
-          memory: true,
-          rhythm: true,
-          dual: true,
-          synthesis: true,
-        },
-        artifactPuzzleState: {
-          ...forcedEntry.artifactPuzzleState,
-          synthesisSolved: true,
-        },
-        synthesis: {
-          ...forcedEntry.synthesis,
-          currentStage: SYNTH_STAGE_SOLVED,
-          stageSolvedFlags: {
-            [SYNTH_STAGE_1]: true,
-            [SYNTH_STAGE_2]: true,
-            [SYNTH_STAGE_3]: true,
-            [SYNTH_STAGE_4]: true,
-          },
-          statusMessage: "Synthesis complete.",
-        },
-        lastMessage: "Convergence complete. The final proof route opens.",
-      };
-    }
-    return current;
-  }
 
   if (current.phase === PHASE_COMPLETE || current.solved) {
     return {
@@ -1612,11 +1751,24 @@ export function reduceFinal01Runtime(runtime, action, context = {}) {
   }
 
   if (action.type === "fin01-synth-lock-place" && current.phase === PHASE_SYNTHESIS) {
+    if (current.synthesis.currentStage !== SYNTH_STAGE_1) {
+      return current;
+    }
     const slotId = safeText(action.slotId);
     const artifact = safeText(action.artifact);
     const slot = SYNTH_LOCK_SLOT_DEFS.find((entry) => entry.slotId === slotId);
     if (!slot) {
       return current;
+    }
+    const unlockTargetStage = nextSynthesisUnlockStage(current.synthesis.stageUnlocks);
+    if (!unlockTargetStage) {
+      return {
+        ...current,
+        synthesis: {
+          ...current.synthesis,
+          statusMessage: "All synthesis stages are already unlocked.",
+        },
+      };
     }
     if (!current.artifactPuzzleState.activeArtifacts.includes(artifact)) {
       return {
@@ -1636,16 +1788,23 @@ export function reduceFinal01Runtime(runtime, action, context = {}) {
         },
       };
     }
-    const slotIndex = SYNTH_LOCK_SLOT_DEFS.findIndex((entry) => entry.slotId === slotId);
-    const requiredPrevious = SYNTH_LOCK_SLOT_DEFS.slice(0, slotIndex).every(
-      (entry) => Boolean(current.synthesis.unlockedMechanics[entry.unlock]),
-    );
-    if (!requiredPrevious) {
+    const requiredBySlot = lockingRequiredArtifactsForStage(current, unlockTargetStage);
+    const requiredArtifact = safeText(requiredBySlot[slot.slotId]);
+    if (!requiredArtifact) {
       return {
         ...current,
         synthesis: {
           ...current.synthesis,
-          statusMessage: "That socket remains dormant until prior channels are aligned.",
+          statusMessage: "No viable resonance set remains for this unlock target.",
+        },
+      };
+    }
+    if (artifact !== requiredArtifact) {
+      return {
+        ...current,
+        synthesis: {
+          ...current.synthesis,
+          statusMessage: "That artifact does not match this socket's current resonance target.",
         },
       };
     }
@@ -1669,22 +1828,44 @@ export function reduceFinal01Runtime(runtime, action, context = {}) {
     };
     const nextUnlocked = {
       ...current.synthesis.unlockedMechanics,
-      [unlock]: true,
+      [slot.unlock]: true,
     };
-    const solvedStage = SYNTH_LOCK_SLOT_DEFS.every((entry) => Boolean(nextUnlocked[entry.unlock]));
+    const solvedStage = SYNTH_LOCK_SLOT_DEFS.every((entry) => {
+      const name = safeText(nextLocking[entry.slotId]);
+      if (!name) {
+        return false;
+      }
+      const hit = synthCatalogEntry(current, name);
+      return hit ? synthUnlockFromMeta(hit.meta) === entry.unlock : false;
+    });
+    const nextStageUnlocks = {
+      ...current.synthesis.stageUnlocks,
+      ...(solvedStage ? { [unlockTargetStage]: true } : {}),
+    };
+    const nextUsedArtifacts = solvedStage
+      ? [...new Set([...(current.synthesis.lockUsedArtifacts || []), ...Object.values(nextLocking).map((value) => safeText(value)).filter(Boolean)])]
+      : current.synthesis.lockUsedArtifacts;
+    const clearLocking = solvedStage
+      ? Object.fromEntries(SYNTH_LOCK_SLOT_DEFS.map((entry) => [entry.slotId, null]))
+      : nextLocking;
     return {
       ...current,
       synthesis: {
         ...current.synthesis,
         placedArtifacts: {
           ...current.synthesis.placedArtifacts,
-          locking: nextLocking,
+          locking: clearLocking,
         },
+        stageUnlocks: nextStageUnlocks,
+        lockUsedArtifacts: nextUsedArtifacts,
         unlockedMechanics: nextUnlocked,
-        statusMessage: `Mechanic unlocked: ${SYNTH_MECHANIC_LABELS[unlock] || unlock}.`,
+        lockSpinUntil: solvedStage ? Date.now() + 650 : current.synthesis.lockSpinUntil,
+        statusMessage: solvedStage
+          ? `${SYNTH_STAGE_LABELS[unlockTargetStage] || "Next board"} unlocked.`
+          : `Mechanic unlocked: ${SYNTH_MECHANIC_LABELS[slot.unlock] || slot.unlock}.`,
         stageSolvedFlags: {
           ...current.synthesis.stageSolvedFlags,
-          [SYNTH_STAGE_1]: solvedStage,
+          [SYNTH_STAGE_1]: SYNTH_UNLOCK_TARGET_ORDER.every((stageId) => Boolean(nextStageUnlocks[stageId])),
         },
       },
       lastMessage: "",
@@ -1697,7 +1878,8 @@ export function reduceFinal01Runtime(runtime, action, context = {}) {
     if (from !== currentStage) {
       return current;
     }
-    if (from === SYNTH_STAGE_1 && !current.synthesis.stageSolvedFlags[SYNTH_STAGE_1]) {
+    const lockingSolvedNow = SYNTH_UNLOCK_TARGET_ORDER.every((stageId) => Boolean(current.synthesis.stageUnlocks[stageId]));
+    if (from === SYNTH_STAGE_1 && !lockingSolvedNow) {
       return {
         ...current,
         synthesis: {
@@ -1716,6 +1898,10 @@ export function reduceFinal01Runtime(runtime, action, context = {}) {
       synthesis: {
         ...current.synthesis,
         currentStage: order[idx + 1],
+        stageSolvedFlags: {
+          ...current.synthesis.stageSolvedFlags,
+          ...(from === SYNTH_STAGE_1 ? { [SYNTH_STAGE_1]: true } : {}),
+        },
         statusMessage: "",
       },
       lastMessage: "",
@@ -1775,7 +1961,7 @@ export function reduceFinal01Runtime(runtime, action, context = {}) {
   }
 
   if (action.type === "fin01-synth-rotation-toggle-swap" && current.phase === PHASE_SYNTHESIS) {
-    if (current.synthesis.currentStage !== SYNTH_STAGE_2 || !synthEffectiveUnlocks(current.synthesis).swap) {
+    if (current.synthesis.currentStage !== SYNTH_STAGE_2) {
       return current;
     }
     const selected = safeText(current.synthesis.rotationBoardState.selectedPieceId);
@@ -1806,7 +1992,7 @@ export function reduceFinal01Runtime(runtime, action, context = {}) {
   }
 
   if (action.type === "fin01-synth-rotation-rotate" && current.phase === PHASE_SYNTHESIS) {
-    if (current.synthesis.currentStage !== SYNTH_STAGE_2 || !synthEffectiveUnlocks(current.synthesis).rotate) {
+    if (current.synthesis.currentStage !== SYNTH_STAGE_2) {
       return current;
     }
     const pieceId = safeText(action.pieceId || current.synthesis.rotationBoardState.selectedPieceId);
@@ -1829,7 +2015,7 @@ export function reduceFinal01Runtime(runtime, action, context = {}) {
   }
 
   if (action.type === "fin01-synth-rotation-reflect" && current.phase === PHASE_SYNTHESIS) {
-    if (current.synthesis.currentStage !== SYNTH_STAGE_2 || !synthEffectiveUnlocks(current.synthesis).reflect) {
+    if (current.synthesis.currentStage !== SYNTH_STAGE_2) {
       return current;
     }
     const pieceId = safeText(action.pieceId || current.synthesis.rotationBoardState.selectedPieceId);
@@ -1851,38 +2037,6 @@ export function reduceFinal01Runtime(runtime, action, context = {}) {
     };
   }
 
-  if (action.type === "fin01-synth-rotation-commit" && current.phase === PHASE_SYNTHESIS) {
-    if (current.synthesis.currentStage !== SYNTH_STAGE_2) {
-      return current;
-    }
-    const solved = rotationSolved(current.synthesis.rotationBoardState, current.synthesis.unlockedMechanics);
-    if (!solved) {
-      return {
-        ...current,
-        synthesis: {
-          ...current.synthesis,
-          rotationBoardState: {
-            ...current.synthesis.rotationBoardState,
-            status: "Pattern mismatch detected. Reorient the lattice.",
-          },
-        },
-      };
-    }
-    return {
-      ...current,
-      synthesis: {
-        ...current.synthesis,
-        currentStage: SYNTH_STAGE_3,
-        stageSolvedFlags: {
-          ...current.synthesis.stageSolvedFlags,
-          [SYNTH_STAGE_2]: true,
-        },
-        statusMessage: "Rotation board locked. Wiring overlay engaged.",
-      },
-      lastMessage: "",
-    };
-  }
-
   if (action.type === "fin01-synth-wire-toggle" && current.phase === PHASE_SYNTHESIS) {
     if (current.synthesis.currentStage !== SYNTH_STAGE_3) {
       return current;
@@ -1892,22 +2046,10 @@ export function reduceFinal01Runtime(runtime, action, context = {}) {
     if (!edge) {
       return current;
     }
-    if (!synthEffectiveUnlocks(current.synthesis)["link-bridge"] && SYNTH_REQUIRED_BRIDGE_EDGES.has(edgeId)) {
-      return {
-        ...current,
-        synthesis: {
-          ...current.synthesis,
-          wiringState: {
-            ...current.synthesis.wiringState,
-            status: "Bridge channel still dormant.",
-          },
-        },
-      };
-    }
-    const currentMode = clamp(Math.floor(Number(current.synthesis.wiringState.edgeModes[edgeId]) || 0), 0, 2);
+    const currentMode = clamp(Math.floor(Number(current.synthesis.wiringState.edgeModes[edgeId]) || 0), 0, SYNTH_WIRE_MODE_MAX);
     const nextModes = {
       ...current.synthesis.wiringState.edgeModes,
-      [edgeId]: (currentMode + 1) % 3,
+      [edgeId]: (currentMode + 1) % (SYNTH_WIRE_MODE_MAX + 1),
     };
     return {
       ...current,
@@ -1918,38 +2060,6 @@ export function reduceFinal01Runtime(runtime, action, context = {}) {
           edgeModes: nextModes,
           status: "",
         },
-      },
-      lastMessage: "",
-    };
-  }
-
-  if (action.type === "fin01-synth-wire-commit" && current.phase === PHASE_SYNTHESIS) {
-    if (current.synthesis.currentStage !== SYNTH_STAGE_3) {
-      return current;
-    }
-    const solved = wiringSolved(current.synthesis.wiringState, current.synthesis.unlockedMechanics);
-    if (!solved) {
-      return {
-        ...current,
-        synthesis: {
-          ...current.synthesis,
-          wiringState: {
-            ...current.synthesis.wiringState,
-            status: "Circuit incomplete. Critical nodes remain dark.",
-          },
-        },
-      };
-    }
-    return {
-      ...current,
-      synthesis: {
-        ...current.synthesis,
-        currentStage: SYNTH_STAGE_4,
-        stageSolvedFlags: {
-          ...current.synthesis.stageSolvedFlags,
-          [SYNTH_STAGE_3]: true,
-        },
-        statusMessage: "Circuit complete. Final seal assembly unlocked.",
       },
       lastMessage: "",
     };
@@ -1976,77 +2086,8 @@ export function reduceFinal01Runtime(runtime, action, context = {}) {
     };
   }
 
-  if (action.type === "fin01-synth-seal-place" && current.phase === PHASE_SYNTHESIS) {
-    if (current.synthesis.currentStage !== SYNTH_STAGE_4) {
-      return current;
-    }
-    if (current.synthesis.sealAssemblyState.phase !== "group") {
-      return current;
-    }
-    const groupId = safeText(action.groupId);
-    const selectedArtifact = safeText(current.synthesis.sealAssemblyState.selectedArtifact);
-    if (!selectedArtifact || !SYNTH_SEAL_GROUP_IDS.includes(groupId)) {
-      return current;
-    }
-    const groups = {};
-    for (const id of SYNTH_SEAL_GROUP_IDS) {
-      const items = Array.isArray(current.synthesis.sealAssemblyState.groups[id])
-        ? [...current.synthesis.sealAssemblyState.groups[id]]
-        : [];
-      groups[id] = items.filter((name) => name !== selectedArtifact);
-    }
-    if (!groups[groupId].includes(selectedArtifact)) {
-      groups[groupId].push(selectedArtifact);
-    }
-    return {
-      ...current,
-      synthesis: {
-        ...current.synthesis,
-        sealAssemblyState: {
-          ...current.synthesis.sealAssemblyState,
-          groups,
-          groupSelected: groupId,
-          status: "",
-        },
-      },
-    };
-  }
-
-  if (action.type === "fin01-synth-seal-remove" && current.phase === PHASE_SYNTHESIS) {
-    if (current.synthesis.currentStage !== SYNTH_STAGE_4 || current.synthesis.sealAssemblyState.phase !== "group") {
-      return current;
-    }
-    const groupId = safeText(action.groupId);
-    const artifact = safeText(action.artifact);
-    if (!SYNTH_SEAL_GROUP_IDS.includes(groupId) || !artifact) {
-      return current;
-    }
-    const groups = {};
-    for (const id of SYNTH_SEAL_GROUP_IDS) {
-      const items = Array.isArray(current.synthesis.sealAssemblyState.groups[id])
-        ? [...current.synthesis.sealAssemblyState.groups[id]]
-        : [];
-      if (id === groupId) {
-        groups[id] = items.filter((name) => name !== artifact);
-      } else {
-        groups[id] = items;
-      }
-    }
-    return {
-      ...current,
-      synthesis: {
-        ...current.synthesis,
-        sealAssemblyState: {
-          ...current.synthesis.sealAssemblyState,
-          groups,
-          status: "",
-        },
-      },
-    };
-  }
-
   if (action.type === "fin01-synth-seal-rotate" && current.phase === PHASE_SYNTHESIS) {
-    if (current.synthesis.currentStage !== SYNTH_STAGE_4 || !synthEffectiveUnlocks(current.synthesis).rotate) {
+    if (current.synthesis.currentStage !== SYNTH_STAGE_4) {
       return current;
     }
     const artifact = safeText(action.artifact || current.synthesis.sealAssemblyState.selectedArtifact);
@@ -2054,6 +2095,8 @@ export function reduceFinal01Runtime(runtime, action, context = {}) {
       return current;
     }
     const currentRotation = ((Math.floor(Number(current.synthesis.sealAssemblyState.rotations[artifact]) || 0) % 4) + 4) % 4;
+    const step = Number(action.step || 1) < 0 ? -1 : 1;
+    const nextRotation = ((currentRotation + step) % 4 + 4) % 4;
     return {
       ...current,
       synthesis: {
@@ -2062,7 +2105,7 @@ export function reduceFinal01Runtime(runtime, action, context = {}) {
           ...current.synthesis.sealAssemblyState,
           rotations: {
             ...current.synthesis.sealAssemblyState.rotations,
-            [artifact]: (currentRotation + 1) % 4,
+            [artifact]: nextRotation,
           },
           status: "",
         },
@@ -2070,83 +2113,77 @@ export function reduceFinal01Runtime(runtime, action, context = {}) {
     };
   }
 
-  if (action.type === "fin01-synth-seal-commit" && current.phase === PHASE_SYNTHESIS) {
+  if (action.type === "fin01-synth-seal-drop" && current.phase === PHASE_SYNTHESIS) {
     if (current.synthesis.currentStage !== SYNTH_STAGE_4) {
       return current;
     }
-    if (current.synthesis.sealAssemblyState.phase === "orient") {
-      const solvedOrient = sealOrientationSolved(current);
-      if (!solvedOrient) {
-        return {
-          ...current,
-          synthesis: {
-            ...current.synthesis,
-            sealAssemblyState: {
-              ...current.synthesis.sealAssemblyState,
-              status: "Some sigils are still misaligned.",
-            },
-            statusMessage: "Seal orientation is incomplete.",
-          },
-        };
-      }
-      return {
-        ...current,
-        synthesis: {
-          ...current.synthesis,
-          sealAssemblyState: {
-            ...current.synthesis.sealAssemblyState,
-            phase: "group",
-            status: "",
-          },
-          statusMessage: "Orientation complete. Group sigils by matching tune.",
-        },
-      };
+    const artifact = safeText(action.artifact);
+    if (!artifact || !Object.prototype.hasOwnProperty.call(current.synthesis.sealAssemblyState.positions, artifact)) {
+      return current;
     }
-    const solved = sealGroupingSolved(current);
-    if (!solved) {
-      return {
-        ...current,
-        synthesis: {
-          ...current.synthesis,
-          sealAssemblyState: {
-            ...current.synthesis.sealAssemblyState,
-            status: "Grouping mismatch. Each circle must contain one tune only.",
-          },
-          statusMessage: "Final seal did not converge.",
-        },
-      };
+    const x = clamp(Number(action.xPercent), 6, 94);
+    const y = clamp(Number(action.yPercent), 8, 92);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return current;
     }
     return {
       ...current,
-      phase: PHASE_COMPLETE,
-      solved: true,
-      checkpoints: {
-        ...current.checkpoints,
-        synthesis: true,
-      },
       synthesis: {
         ...current.synthesis,
-        currentStage: SYNTH_STAGE_SOLVED,
-        stageSolvedFlags: {
-          ...current.synthesis.stageSolvedFlags,
-          [SYNTH_STAGE_4]: true,
+        sealAssemblyState: {
+          ...current.synthesis.sealAssemblyState,
+          selectedArtifact: artifact,
+          positions: {
+            ...current.synthesis.sealAssemblyState.positions,
+            [artifact]: { x, y },
+          },
+          status: "",
         },
-        statusMessage: "Synthesis complete. Convergence sealed.",
       },
-      artifactPuzzleState: {
-        ...current.artifactPuzzleState,
-        synthesisSolved: true,
+    };
+  }
+
+  if (action.type === "fin01-synth-seal-nudge" && current.phase === PHASE_SYNTHESIS) {
+    if (current.synthesis.currentStage !== SYNTH_STAGE_4) {
+      return current;
+    }
+    const artifact = safeText(action.artifact || current.synthesis.sealAssemblyState.selectedArtifact);
+    if (!artifact || !Object.prototype.hasOwnProperty.call(current.synthesis.sealAssemblyState.positions, artifact)) {
+      return current;
+    }
+    const dx = Number(action.dx || 0);
+    const dy = Number(action.dy || 0);
+    const currentPos = current.synthesis.sealAssemblyState.positions[artifact] || { x: 50, y: 50 };
+    const x = clamp(Number(currentPos.x) + dx, 6, 94);
+    const y = clamp(Number(currentPos.y) + dy, 8, 92);
+    return {
+      ...current,
+      synthesis: {
+        ...current.synthesis,
+        sealAssemblyState: {
+          ...current.synthesis.sealAssemblyState,
+          positions: {
+            ...current.synthesis.sealAssemblyState.positions,
+            [artifact]: { x, y },
+          },
+          status: "",
+        },
       },
-      lastMessage: "Convergence complete. The final proof route opens.",
     };
   }
 
   if (action.type === "fin01-synth-jump-stage" && current.phase === PHASE_SYNTHESIS) {
     const targetStage = safeText(action.targetStage);
-    if (![SYNTH_STAGE_1, SYNTH_STAGE_4].includes(targetStage)) {
+    if (![SYNTH_STAGE_1, SYNTH_STAGE_2, SYNTH_STAGE_3, SYNTH_STAGE_4].includes(targetStage)) {
       return current;
     }
-    if (targetStage === SYNTH_STAGE_4 && (!current.synthesis.stageSolvedFlags[SYNTH_STAGE_2] || !current.synthesis.stageSolvedFlags[SYNTH_STAGE_3])) {
+    if (targetStage === SYNTH_STAGE_2 && !current.synthesis.stageUnlocks[SYNTH_STAGE_2]) {
+      return current;
+    }
+    if (targetStage === SYNTH_STAGE_3 && !current.synthesis.stageUnlocks[SYNTH_STAGE_3]) {
+      return current;
+    }
+    if (targetStage === SYNTH_STAGE_4 && !current.synthesis.stageUnlocks[SYNTH_STAGE_4]) {
       return current;
     }
     return {
@@ -2154,9 +2191,7 @@ export function reduceFinal01Runtime(runtime, action, context = {}) {
       synthesis: {
         ...current.synthesis,
         currentStage: targetStage,
-        statusMessage: targetStage === SYNTH_STAGE_1
-          ? "Reviewing lock tunes."
-          : "Returned to seal assembly.",
+        statusMessage: "",
       },
     };
   }
@@ -2291,24 +2326,6 @@ function memoryMarkup(runtime) {
       actionName: "fin01-memory-pick",
       game,
     })}
-  `;
-}
-
-function devSkipMarkup() {
-  return `
-    <section class="card final01-card">
-      <h3>Dev Phase Skip</h3>
-      <div class="toolbar">
-        <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="fin01-dev-skip-phase" data-target-phase="${PHASE_MEMORY}">Memory</button>
-        <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="fin01-dev-skip-phase" data-target-phase="${PHASE_RHYTHM}">Rhythm</button>
-        <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="fin01-dev-skip-phase" data-target-phase="${PHASE_DUAL}">Dual</button>
-        <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="fin01-dev-skip-phase" data-target-phase="${PHASE_SYNTHESIS}">Synthesis</button>
-        <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="fin01-dev-skip-phase" data-target-phase="${PHASE_SYNTHESIS}:2">Synth-2</button>
-        <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="fin01-dev-skip-phase" data-target-phase="${PHASE_SYNTHESIS}:3">Synth-3</button>
-        <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="fin01-dev-skip-phase" data-target-phase="${PHASE_SYNTHESIS}:4">Synth-4</button>
-        <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="fin01-dev-skip-phase" data-target-phase="${PHASE_COMPLETE}">Complete</button>
-      </div>
-    </section>
   `;
 }
 
@@ -2537,6 +2554,11 @@ function synthesisStageRailMarkup(synthesis) {
       ${order.map((stage, index) => {
         const solved = Boolean(synthesis.stageSolvedFlags[stage]);
         const active = current === stage;
+        const canJump =
+          stage === SYNTH_STAGE_1 ||
+          (stage === SYNTH_STAGE_2 && synthesis.stageUnlocks[SYNTH_STAGE_2]) ||
+          (stage === SYNTH_STAGE_3 && synthesis.stageUnlocks[SYNTH_STAGE_3]) ||
+          (stage === SYNTH_STAGE_4 && synthesis.stageUnlocks[SYNTH_STAGE_4]);
         const classes = ["final01-synth-rail-step"];
         if (solved) {
           classes.push("is-solved");
@@ -2544,7 +2566,19 @@ function synthesisStageRailMarkup(synthesis) {
         if (active) {
           classes.push("is-active");
         }
-        return `<article class="${classes.join(" ")}"><span>${index + 1}</span><p>${escapeHtml(SYNTH_STAGE_LABELS[stage])}</p></article>`;
+        return `
+          <button
+            type="button"
+            class="${classes.join(" ")}"
+            data-node-id="${NODE_ID}"
+            data-node-action="fin01-synth-jump-stage"
+            data-target-stage="${escapeHtml(stage)}"
+            ${canJump ? "" : "disabled"}
+          >
+            <span>${index + 1}</span>
+            <p>${escapeHtml(SYNTH_STAGE_LABELS[stage])}</p>
+          </button>
+        `;
       }).join("")}
     </section>
   `;
@@ -2552,24 +2586,27 @@ function synthesisStageRailMarkup(synthesis) {
 
 function synthesisLockingStageMarkup(runtime, selectedArtifact) {
   const synthesis = runtime.synthesis;
-  const catalog = runtime.artifactPuzzleState.synthesisCatalog || [];
-  const stageSolved = Boolean(synthesis.stageSolvedFlags[SYNTH_STAGE_1]);
-  const canReturnToSeal = Boolean(synthesis.stageSolvedFlags[SYNTH_STAGE_2] && synthesis.stageSolvedFlags[SYNTH_STAGE_3]);
+  const stageSolved = SYNTH_UNLOCK_TARGET_ORDER.every((stageId) => Boolean(synthesis.stageUnlocks[stageId]));
+  const unlockTargetStage = nextSynthesisUnlockStage(synthesis.stageUnlocks);
+  const requiredBySlot = lockingRequiredArtifactsForStage(runtime, unlockTargetStage);
   const selectedEntry = selectedArtifact ? synthCatalogEntry(runtime, selectedArtifact) : null;
   const selectedUnlock = selectedEntry ? synthUnlockFromMeta(selectedEntry.meta) : "";
   const slots = SYNTH_LOCK_SLOT_DEFS.map((slot, index) => {
-    const locked = index > 0 && !synthesis.unlockedMechanics[SYNTH_LOCK_SLOT_DEFS[index - 1].unlock];
+    const locked = false;
     const filledArtifact = synthesis.placedArtifacts.locking[slot.slotId];
-    const ready = !filledArtifact && !locked && selectedArtifact && selectedUnlock === slot.unlock;
+    const requiredArtifact = safeText(requiredBySlot[slot.slotId]);
+    const ready = !filledArtifact && !locked && selectedArtifact && selectedArtifact === requiredArtifact;
     return {
       filled: Boolean(filledArtifact),
       ready: Boolean(ready),
-      clickable: !locked,
+      clickable: !locked && Boolean(requiredArtifact),
       title: filledArtifact
         ? `${SYNTH_MECHANIC_LABELS[slot.unlock]} unlocked by ${filledArtifact}`
         : locked
           ? "Requires prior socket alignment."
-          : `${SYNTH_MECHANIC_LABELS[slot.unlock]} socket`,
+          : requiredArtifact
+            ? `${SYNTH_MECHANIC_LABELS[slot.unlock]} socket`
+            : `${SYNTH_MECHANIC_LABELS[slot.unlock]} socket (no available artifact)`,
       symbolHtml: filledArtifact
         ? renderArtifactSymbol({ artifactName: filledArtifact, className: "slot-ring-symbol artifact-symbol" })
         : "",
@@ -2582,35 +2619,23 @@ function synthesisLockingStageMarkup(runtime, selectedArtifact) {
     };
   });
 
-  const available = catalog.filter((entry) => !Object.values(synthesis.placedArtifacts.locking).includes(entry.name));
   return `
     <section class="final01-synth-stage">
       ${renderSlotRing({
         slots,
-        className: "final01-synth-lock-ring",
+        className: `final01-synth-lock-ring ${synthesis.lockSpinUntil > Date.now() ? "is-spinning" : ""}`,
         radiusPct: 42,
         centerHtml: `<div class="final01-synth-core">${renderRegionSymbol({ symbolKey: FINAL_SYMBOL_KEY, className: "slot-ring-center-symbol final01-center-symbol" })}</div>`,
         ariaLabel: "Synthesis locking ring",
       })}
-      <p class="muted">Each socket accepts a matching resonance artifact. Fill all four sockets to open the rotation board.</p>
+      <p class="muted">Each socket accepts a matching resonance artifact. Fill all four sockets to unlock another board.</p>
+      <p class="muted">Artifact tune: ${selectedArtifact ? escapeHtml(SYNTH_MECHANIC_LABELS[selectedUnlock] || "Unknown") : "None selected"}</p>
       ${
-        selectedArtifact
-          ? `<p class="muted">Selected artifact tunes: ${escapeHtml(SYNTH_MECHANIC_LABELS[selectedUnlock] || "No resonance")}</p>`
+        unlockTargetStage
+          ? `<p class="muted">Current unlock target: ${escapeHtml(SYNTH_STAGE_LABELS[unlockTargetStage] || unlockTargetStage)}</p>`
           : ""
       }
-      <div class="final01-synth-chip-row">
-        ${available.length
-          ? available.map((entry) => `<span class="final01-synth-chip">${renderArtifactSymbol({ artifactName: entry.name, className: "slot-ring-symbol artifact-symbol" })}<span>${escapeHtml(entry.name)}</span></span>`).join("")
-          : `<span class="muted">No additional finale artifacts detected. Echo fragments are active.</span>`}
-      </div>
-      <div class="toolbar">
-        <button type="button" data-node-id="${NODE_ID}" data-node-action="fin01-synth-stage-next" data-from-stage="${SYNTH_STAGE_1}" ${stageSolved ? "" : "disabled"}>Proceed to Rotation Board</button>
-        ${
-          canReturnToSeal
-            ? `<button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="fin01-synth-jump-stage" data-target-stage="${SYNTH_STAGE_4}">Return to Seal Assembly</button>`
-            : ""
-        }
-      </div>
+      ${stageSolved ? `<section class="final01-stage-complete"><p>Board complete.</p></section>` : ""}
     </section>
   `;
 }
@@ -2618,89 +2643,101 @@ function synthesisLockingStageMarkup(runtime, selectedArtifact) {
 function synthesisRotationStageMarkup(runtime) {
   const synthesis = runtime.synthesis;
   const board = synthesis.rotationBoardState;
+  const stageSolved = Boolean(synthesis.stageSolvedFlags[SYNTH_STAGE_2]);
   const sorted = [...board.pieces].sort((a, b) => a.position - b.position);
   const selected = safeText(board.selectedPieceId);
-  const unlocks = synthEffectiveUnlocks(synthesis);
   const targetByPosition = Object.fromEntries(SYNTH_ROTATION_TARGETS.map((entry) => [entry.requiredPosition, entry]));
   const catalog = sealTargetFromCatalog(runtime.artifactPuzzleState.synthesisCatalog || []);
   const pieceSymbolMap = Object.fromEntries(
     SYNTH_ROTATION_TARGETS.map((target, index) => [target.pieceId, catalog[index % Math.max(1, catalog.length)] ? catalog[index % Math.max(1, catalog.length)].name : "Convergence Echo Alpha"]),
   );
+  const selectedPiece = selected ? synthesisPieceById(runtime, selected) : null;
+  const linked = selectedPiece ? rotationLinkedPositions(selectedPiece.position) : [];
   return `
     <section class="final01-synth-stage">
-      <section class="final01-rotation-visual">
+      <section class="final01-rotation-board">
         <section class="final01-rotation-goal-ring">
           ${Array.from({ length: SYNTH_ROTATION_TARGETS.length }, (_, position) => {
             const target = targetByPosition[position];
             const rotDeg = (((Number(target.requiredRotation) || 0) % 4) + 4) % 4 * 90;
             const mirrorScale = target.requiredMirror ? -1 : 1;
             const artifact = pieceSymbolMap[target.pieceId] || "Convergence Echo Alpha";
-            return `<span class="final01-rotation-goal-slot" style="--idx:${position};"><span class="final01-rotation-sigil final01-rotation-glyph-goal" style="transform: rotate(${rotDeg}deg) scaleX(${mirrorScale});">${renderArtifactSymbol({ artifactName: artifact, className: "artifact-symbol" })}</span></span>`;
-          }).join("")}
-          <div class="final01-rotation-goal-core">Goal</div>
-        </section>
-      </section>
-      <section class="final01-rotation-grid">
-        ${sorted.map((piece) => {
-          const classes = ["final01-rotation-piece"];
-          if (piece.pieceId === selected) {
-            classes.push("is-selected");
-          }
-          if (piece.mirrored) {
-            classes.push("is-mirrored");
-          }
-          if (board.swapArmed && selected && selected !== piece.pieceId) {
-            classes.push("is-swap-target");
-          }
-          const rotDeg = (((Number(piece.rotation) || 0) % 4) + 4) % 4 * 90;
-          const mirrorScale = piece.mirrored ? -1 : 1;
-          const artifact = pieceSymbolMap[piece.pieceId] || "Convergence Echo Alpha";
-          return `
-            <button
-              type="button"
-              class="${classes.join(" ")}"
-              data-node-id="${NODE_ID}"
-              data-node-action="fin01-synth-rotation-select"
-              data-piece-id="${escapeHtml(piece.pieceId)}"
-              aria-label="${escapeHtml(`Rotation piece ${piece.pieceId}`)}"
-            >
-              <span class="final01-rotation-sigil-wrap">
-                <span class="final01-rotation-sigil" style="transform: rotate(${rotDeg}deg) scaleX(${mirrorScale});">
+            return `
+              <span class="final01-rotation-goal-slot" style="--idx:${position};">
+                <span class="final01-rotation-sigil final01-rotation-glyph-goal" style="transform: rotate(${rotDeg}deg) scaleX(${mirrorScale});">
                   ${renderArtifactSymbol({ artifactName: artifact, className: "artifact-symbol" })}
                 </span>
               </span>
-            </button>
-          `;
-        }).join("")}
+            `;
+          }).join("")}
+        </section>
+        <section class="final01-rotation-live-ring">
+          ${sorted.map((piece, index) => {
+            const classes = ["final01-rotation-piece"];
+            if (piece.pieceId === selected) {
+              classes.push("is-selected");
+              if (board.swapArmed) {
+                classes.push("is-swap-armed");
+              }
+            }
+            if (piece.mirrored) {
+              classes.push("is-mirrored");
+            }
+            if (board.swapArmed && selected && selected !== piece.pieceId) {
+              classes.push("is-swap-target");
+            }
+            if (linked.includes(piece.position)) {
+              classes.push("is-linked");
+            }
+            const rotDeg = (((Number(piece.rotation) || 0) % 4) + 4) % 4 * 90;
+            const mirrorScale = piece.mirrored ? -1 : 1;
+            const artifact = pieceSymbolMap[piece.pieceId] || "Convergence Echo Alpha";
+            return `
+              <button
+                type="button"
+                class="${classes.join(" ")}"
+                style="--idx:${index};"
+                data-node-id="${NODE_ID}"
+                data-node-action="fin01-synth-rotation-select"
+                data-piece-id="${escapeHtml(piece.pieceId)}"
+                aria-label="${escapeHtml(`Rotation piece ${piece.pieceId}`)}"
+              >
+                <span class="final01-rotation-sigil-wrap">
+                  <span class="final01-rotation-sigil" style="transform: rotate(${rotDeg}deg) scaleX(${mirrorScale});">
+                    ${renderArtifactSymbol({ artifactName: artifact, className: "artifact-symbol" })}
+                  </span>
+                </span>
+              </button>
+            `;
+          }).join("")}
+        </section>
       </section>
-      <p class="muted">Match each outer piece to the goal ring. Rotate/Reflect apply to linked slots as well.</p>
       <div class="toolbar">
-        <button type="button" data-node-id="${NODE_ID}" data-node-action="fin01-synth-rotation-rotate" data-piece-id="${escapeHtml(selected)}" ${selected && unlocks.rotate ? "" : "disabled"}>Rotate</button>
-        <button type="button" data-node-id="${NODE_ID}" data-node-action="fin01-synth-rotation-reflect" data-piece-id="${escapeHtml(selected)}" ${selected && unlocks.reflect ? "" : "disabled"}>Reflect</button>
-        <button type="button" data-node-id="${NODE_ID}" data-node-action="fin01-synth-rotation-toggle-swap" ${unlocks.swap ? "" : "disabled"}>${board.swapArmed ? "Cancel Swap" : "Arm Swap"}</button>
-        <button type="button" data-node-id="${NODE_ID}" data-node-action="fin01-synth-rotation-commit">Commit Rotation Board</button>
+        <button type="button" data-node-id="${NODE_ID}" data-node-action="fin01-synth-rotation-rotate" data-piece-id="${escapeHtml(selected)}" ${selected ? "" : "disabled"}>Rotate</button>
+        <button type="button" data-node-id="${NODE_ID}" data-node-action="fin01-synth-rotation-reflect" data-piece-id="${escapeHtml(selected)}" ${selected ? "" : "disabled"}>Reflect</button>
+        <button type="button" data-node-id="${NODE_ID}" data-node-action="fin01-synth-rotation-toggle-swap" ${selected ? "" : "disabled"}>${board.swapArmed ? "Cancel Swap" : "Arm Swap"}</button>
       </div>
-      ${board.status ? `<p class="muted">${escapeHtml(board.status)}</p>` : ""}
+      ${stageSolved ? `<section class="final01-stage-complete"><p>Board complete.</p></section>` : ""}
     </section>
   `;
 }
 
 function synthesisWiringStageMarkup(runtime) {
   const synthesis = runtime.synthesis;
-  const unlocks = synthEffectiveUnlocks(synthesis);
-  const edges = unlocks["link-bridge"] ? [...SYNTH_BASE_EDGES, ...SYNTH_BRIDGE_EDGES] : SYNTH_BASE_EDGES;
+  const stageSolved = Boolean(synthesis.stageSolvedFlags[SYNTH_STAGE_3]);
+  const edges = [...SYNTH_BASE_EDGES, ...SYNTH_BRIDGE_EDGES];
   const charges = wiringNodeCharges(synthesis.wiringState);
-  const modeLabel = (mode) => mode === 2 ? "II" : mode === 1 ? "I" : "0";
+  const modeLabel = (mode) => (mode === 3 ? "III" : mode === 2 ? "II" : mode === 1 ? "I" : "0");
   return `
     <section class="final01-synth-stage">
       <section class="final01-wire-grid">
         ${edges.map((edge) => {
-          const mode = clamp(Math.floor(Number(synthesis.wiringState.edgeModes[edge.edgeId]) || 0), 0, 2);
+          const mode = clamp(Math.floor(Number(synthesis.wiringState.edgeModes[edge.edgeId]) || 0), 0, SYNTH_WIRE_MODE_MAX);
           const active = mode > 0;
           return `
             <button
               type="button"
-              class="final01-wire-edge ${active ? "is-active" : ""} ${mode === 2 ? "is-boosted" : ""}"
+              class="final01-wire-edge ${active ? "is-active" : ""} ${mode >= 2 ? "is-boosted" : ""}"
               data-node-id="${NODE_ID}"
               data-node-action="fin01-synth-wire-toggle"
               data-edge-id="${escapeHtml(edge.edgeId)}"
@@ -2712,18 +2749,14 @@ function synthesisWiringStageMarkup(runtime) {
         }).join("")}
       </section>
       <section class="final01-wire-targets">
-        ${Object.keys(SYNTH_WIRING_NODE_TARGETS).map((node) => `
-          <article class="final01-wire-node ${charges[node] === SYNTH_WIRING_NODE_TARGETS[node] ? "is-hit" : ""}">
+        ${Object.keys(synthesis.wiringState.nodeTargets || {}).map((node) => `
+          <article class="final01-wire-node ${charges[node] === Number(synthesis.wiringState.nodeTargets[node] || 0) ? "is-hit" : ""}">
             <span>${escapeHtml(node)}</span>
-            <small>${escapeHtml(String(charges[node]))} / ${escapeHtml(String(SYNTH_WIRING_NODE_TARGETS[node]))}</small>
+            <small>${escapeHtml(String(charges[node]))} / ${escapeHtml(String(Math.floor(Number(synthesis.wiringState.nodeTargets[node] || 0))))}</small>
           </article>
         `).join("")}
       </section>
-      <div class="toolbar">
-        <button type="button" data-node-id="${NODE_ID}" data-node-action="fin01-synth-wire-commit">Commit Wiring Overlay</button>
-        <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="fin01-synth-jump-stage" data-target-stage="${SYNTH_STAGE_1}">Review Locking Ring</button>
-      </div>
-      ${synthesis.wiringState.status ? `<p class="muted">${escapeHtml(synthesis.wiringState.status)}</p>` : ""}
+      ${stageSolved ? `<section class="final01-stage-complete"><p>Board complete.</p></section>` : ""}
     </section>
   `;
 }
@@ -2733,91 +2766,48 @@ function synthesisSealStageMarkup(runtime) {
   const seal = synthesis.sealAssemblyState;
   const target = sealTargetFromCatalog(runtime.artifactPuzzleState.synthesisCatalog || []);
   const selected = safeText(seal.selectedArtifact);
-  const groupedSet = new Set(SYNTH_SEAL_GROUP_IDS.flatMap((groupId) => seal.groups[groupId] || []));
-  const phase = seal.phase === "group" ? "group" : "orient";
-  const ungrouped = target.filter((entry) => !groupedSet.has(entry.name));
+  const orientationSolved = sealOrientationSolved(runtime);
+  const groupingSolved = sealGroupingSolved(runtime);
   return `
     <section class="final01-synth-stage">
-      ${
-        phase === "orient"
-          ? `
-            <section class="final01-synth-chip-row final01-seal-orient-row">
-              ${target.map((entry) => {
-                const rot = ((Math.floor(Number(seal.rotations[entry.name]) || 0) % 4) + 4) % 4;
-                const isSelected = selected === entry.name;
-                return `
-                  <button
-                    type="button"
-                    class="final01-seal-piece ${isSelected ? "is-selected" : ""}"
-                    data-node-id="${NODE_ID}"
-                    data-node-action="fin01-synth-seal-select"
-                    data-artifact="${escapeHtml(entry.name)}"
-                    aria-label="${escapeHtml(`Seal sigil ${entry.name}`)}"
-                  >
-                    <span class="final01-seal-symbol-wrap" style="transform: rotate(${rot * 90}deg);">
-                      ${renderArtifactSymbol({ artifactName: entry.name, className: "slot-ring-symbol artifact-symbol" })}
-                    </span>
-                  </button>
-                `;
-              }).join("")}
-            </section>
-            <div class="toolbar">
-              <button type="button" data-node-id="${NODE_ID}" data-node-action="fin01-synth-seal-rotate" data-artifact="${escapeHtml(selected)}" ${selected ? "" : "disabled"}>Rotate Selected Sigil</button>
-              <button type="button" data-node-id="${NODE_ID}" data-node-action="fin01-synth-seal-commit">Lock Orientation</button>
-              <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="fin01-synth-jump-stage" data-target-stage="${SYNTH_STAGE_1}">Review Locking Ring</button>
-            </div>
-          `
-          : `
-            <section class="final01-seal-groups">
-              ${SYNTH_SEAL_GROUP_IDS.map((groupId) => `
-                <article class="final01-seal-group-circle">
-                  <button
-                    type="button"
-                    class="final01-seal-group-drop"
-                    data-node-id="${NODE_ID}"
-                    data-node-action="fin01-synth-seal-place"
-                    data-group-id="${escapeHtml(groupId)}"
-                    ${selected ? "" : "disabled"}
-                  >
-                    <span>${escapeHtml(groupId.replace("circle-", "Circle "))}</span>
-                  </button>
-                  <div class="final01-seal-group-items">
-                    ${(seal.groups[groupId] || []).map((artifact) => `
-                      <button
-                        type="button"
-                        class="final01-seal-group-item"
-                        data-node-id="${NODE_ID}"
-                        data-node-action="fin01-synth-seal-remove"
-                        data-group-id="${escapeHtml(groupId)}"
-                        data-artifact="${escapeHtml(artifact)}"
-                      >
-                        ${renderArtifactSymbol({ artifactName: artifact, className: "slot-ring-symbol artifact-symbol" })}
-                      </button>
-                    `).join("")}
-                  </div>
-                </article>
-              `).join("")}
-            </section>
-            <section class="final01-synth-chip-row final01-seal-orient-row">
-              ${ungrouped.map((entry) => `
-                <button
-                  type="button"
-                  class="final01-seal-piece ${selected === entry.name ? "is-selected" : ""}"
-                  data-node-id="${NODE_ID}"
-                  data-node-action="fin01-synth-seal-select"
-                  data-artifact="${escapeHtml(entry.name)}"
-                >
-                  ${renderArtifactSymbol({ artifactName: entry.name, className: "slot-ring-symbol artifact-symbol" })}
-                </button>
-              `).join("")}
-            </section>
-            <div class="toolbar">
-              <button type="button" data-node-id="${NODE_ID}" data-node-action="fin01-synth-seal-commit">Resolve Synthesis</button>
-              <button type="button" class="ghost" data-node-id="${NODE_ID}" data-node-action="fin01-synth-jump-stage" data-target-stage="${SYNTH_STAGE_1}">Review Locking Ring</button>
-            </div>
-          `
-      }
-      ${seal.status ? `<p class="muted">${escapeHtml(seal.status)}</p>` : ""}
+      <section class="final01-seal-table" data-node-dropzone="fin01-seal" data-node-id="${NODE_ID}">
+        ${SYNTH_SEAL_GROUP_IDS.map((groupId) => {
+          const pos = SYNTH_SEAL_GROUP_LAYOUT[groupId];
+          const lockedTune = sealGroupTuneForDisplay(runtime, groupId);
+          return `
+            <article class="final01-seal-group-circle is-active ${lockedTune ? "is-locked" : ""}" data-tune="${escapeHtml(lockedTune)}" style="left:${pos.x}%;top:${pos.y}%;"></article>
+          `;
+        }).join("")}
+        ${target.map((entry) => {
+          const rot = ((Math.floor(Number(seal.rotations[entry.name]) || 0) % 4) + 4) % 4;
+          const isSelected = selected === entry.name;
+          const pos = seal.positions[entry.name] && typeof seal.positions[entry.name] === "object"
+            ? seal.positions[entry.name]
+            : { x: 50, y: 50 };
+          return `
+            <button
+              type="button"
+              class="final01-seal-piece final01-seal-floating-piece ${isSelected ? "is-selected" : ""}"
+              style="left:${escapeHtml(String(clamp(Number(pos.x), 6, 94)))}%;top:${escapeHtml(String(clamp(Number(pos.y), 8, 92)))}%;"
+              data-node-id="${NODE_ID}"
+              data-node-action="fin01-synth-seal-select"
+              data-artifact="${escapeHtml(entry.name)}"
+              data-node-piece="true"
+              data-piece-id="${escapeHtml(entry.name)}"
+              draggable="true"
+              aria-label="${escapeHtml(`Seal sigil ${entry.name}`)}"
+            >
+              <span class="final01-seal-symbol-wrap" style="transform: rotate(${rot * 90}deg);">
+                ${renderArtifactSymbol({ artifactName: entry.name, className: "slot-ring-symbol artifact-symbol" })}
+              </span>
+            </button>
+          `;
+        }).join("")}
+      </section>
+      <section class="final01-seal-progress">
+        <span class="${orientationSolved ? "is-hit" : ""}"></span>
+        <span class="${groupingSolved ? "is-hit" : ""}"></span>
+      </section>
     </section>
   `;
 }
@@ -2839,7 +2829,6 @@ function synthesisMarkup(runtime, context) {
     <section class="card final01-card">
       <h3>Phase E: Synthesis</h3>
       ${synthesisStageRailMarkup(synthesis)}
-      <section class="final01-synth-status"><p>${escapeHtml(synthesis.statusMessage || " ")}</p></section>
       ${stageBody}
     </section>
   `;
@@ -2868,7 +2857,6 @@ export function renderFinal01Experience(context) {
 
   return `
     <article class="final01-node" data-node-id="${NODE_ID}">
-      ${devSkipMarkup()}
       ${body}
     </article>
   `;
@@ -2917,13 +2905,6 @@ export function buildFinal01ActionFromElement(element) {
   }
   if (actionName === "fin01-begin-memory") {
     return { type: "fin01-begin-memory", at: Date.now() };
-  }
-  if (actionName === "fin01-dev-skip-phase") {
-    return {
-      type: "fin01-dev-skip-phase",
-      targetPhase: element.getAttribute("data-target-phase") || "",
-      at: Date.now(),
-    };
   }
   if (actionName === "fin01-memory-begin") {
     return { type: "fin01-memory-begin", at: Date.now() };
@@ -2994,18 +2975,12 @@ export function buildFinal01ActionFromElement(element) {
   if (actionName === "fin01-synth-rotation-toggle-swap") {
     return { type: "fin01-synth-rotation-toggle-swap", at: Date.now() };
   }
-  if (actionName === "fin01-synth-rotation-commit") {
-    return { type: "fin01-synth-rotation-commit", at: Date.now() };
-  }
   if (actionName === "fin01-synth-wire-toggle") {
     return {
       type: "fin01-synth-wire-toggle",
       edgeId: element.getAttribute("data-edge-id") || "",
       at: Date.now(),
     };
-  }
-  if (actionName === "fin01-synth-wire-commit") {
-    return { type: "fin01-synth-wire-commit", at: Date.now() };
   }
   if (actionName === "fin01-synth-seal-select") {
     return {
@@ -3014,30 +2989,13 @@ export function buildFinal01ActionFromElement(element) {
       at: Date.now(),
     };
   }
-  if (actionName === "fin01-synth-seal-place") {
-    return {
-      type: "fin01-synth-seal-place",
-      groupId: element.getAttribute("data-group-id") || "",
-      at: Date.now(),
-    };
-  }
-  if (actionName === "fin01-synth-seal-remove") {
-    return {
-      type: "fin01-synth-seal-remove",
-      groupId: element.getAttribute("data-group-id") || "",
-      artifact: element.getAttribute("data-artifact") || "",
-      at: Date.now(),
-    };
-  }
   if (actionName === "fin01-synth-seal-rotate") {
     return {
       type: "fin01-synth-seal-rotate",
       artifact: element.getAttribute("data-artifact") || "",
+      step: 1,
       at: Date.now(),
     };
-  }
-  if (actionName === "fin01-synth-seal-commit") {
-    return { type: "fin01-synth-seal-commit", at: Date.now() };
   }
   if (actionName === "fin01-synth-jump-stage") {
     return {
@@ -3050,8 +3008,103 @@ export function buildFinal01ActionFromElement(element) {
   return null;
 }
 
-export function buildFinal01KeyAction(event, runtime) {
+export function buildFinal01DropAction(payload, runtime) {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  const pieceId = safeText(payload.pieceId);
+  const xPercent = Number(payload.xPercent);
+  const yPercent = Number(payload.yPercent);
+  if (!pieceId || !Number.isFinite(xPercent) || !Number.isFinite(yPercent)) {
+    return null;
+  }
   const current = synchronizeFinal01Runtime(runtime, { state: {} });
+  if (current.phase !== PHASE_SYNTHESIS || current.synthesis.currentStage !== SYNTH_STAGE_4) {
+    return null;
+  }
+  if (!Object.prototype.hasOwnProperty.call(current.synthesis.sealAssemblyState.positions || {}, pieceId)) {
+    return null;
+  }
+  return {
+    type: "fin01-synth-seal-drop",
+    artifact: pieceId,
+    xPercent,
+    yPercent,
+    at: Date.now(),
+  };
+}
+
+export function buildFinal01KeyAction(event, runtime) {
+  const current = runtime && typeof runtime === "object" ? runtime : initialFinal01Runtime();
+  const isEditableTarget =
+    event.target instanceof Element &&
+    (event.target.matches("input, textarea, select, [contenteditable='true'], [contenteditable='']") ||
+      event.target.closest("[contenteditable='true'], [contenteditable='']"));
+  if (isEditableTarget) {
+    return null;
+  }
+  if (
+    current.phase === PHASE_SYNTHESIS &&
+    current.synthesis.currentStage === SYNTH_STAGE_4
+  ) {
+    const selected = safeText(current.synthesis.sealAssemblyState.selectedArtifact);
+    const fallbackSelected = selected || safeText(Object.keys(current.synthesis.sealAssemblyState.positions || {})[0]);
+    if (!fallbackSelected) {
+      return null;
+    }
+    if (event.key === "q" || event.key === "Q" || event.key === "[") {
+      return {
+        type: "fin01-synth-seal-rotate",
+        artifact: fallbackSelected,
+        step: -1,
+        at: Date.now(),
+      };
+    }
+    if (event.key === "e" || event.key === "E" || event.key === "]") {
+      return {
+        type: "fin01-synth-seal-rotate",
+        artifact: fallbackSelected,
+        step: 1,
+        at: Date.now(),
+      };
+    }
+    if (event.key === "w" || event.key === "W" || event.key === "ArrowUp") {
+      return {
+        type: "fin01-synth-seal-nudge",
+        artifact: fallbackSelected,
+        dx: 0,
+        dy: -1.8,
+        at: Date.now(),
+      };
+    }
+    if (event.key === "s" || event.key === "S" || event.key === "ArrowDown") {
+      return {
+        type: "fin01-synth-seal-nudge",
+        artifact: fallbackSelected,
+        dx: 0,
+        dy: 1.8,
+        at: Date.now(),
+      };
+    }
+    if (event.key === "a" || event.key === "A" || event.key === "ArrowLeft") {
+      return {
+        type: "fin01-synth-seal-nudge",
+        artifact: fallbackSelected,
+        dx: -1.8,
+        dy: 0,
+        at: Date.now(),
+      };
+    }
+    if (event.key === "d" || event.key === "D" || event.key === "ArrowRight") {
+      return {
+        type: "fin01-synth-seal-nudge",
+        artifact: fallbackSelected,
+        dx: 1.8,
+        dy: 0,
+        at: Date.now(),
+      };
+    }
+  }
   if (current.phase !== PHASE_RHYTHM || !current.rhythm.active) {
     return null;
   }
@@ -3075,5 +3128,6 @@ export const FIN01_NODE_EXPERIENCE = {
   reduceRuntime: reduceFinal01Runtime,
   validateRuntime: validateFinal01Runtime,
   buildActionFromElement: buildFinal01ActionFromElement,
+  buildDropAction: buildFinal01DropAction,
   buildKeyAction: buildFinal01KeyAction,
 };

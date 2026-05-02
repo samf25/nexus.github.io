@@ -4127,7 +4127,7 @@
       "writes_state": [
         "inventory.homomorphism_key"
       ],
-      "reward": "Homomorphism Key",
+      "reward": "Ringbreaker Lookingglass",
       "surface": "A workshop presents a ring map with candidate homomorphisms, ideals, and quotient outcomes.",
       "mechanics": "Choose the only map that preserves addition and multiplication while sending the enchanted component to the required class; the image labels of the surviving classes spell the Homomorphism Key.",
       "validation": "Validation is chosen map plus quotient selection.",
@@ -4448,7 +4448,7 @@
       "writes_state": [
         "inventory.field_marker"
       ],
-      "reward": "Field Marker",
+      "reward": "Atlas Causeway Spike",
       "surface": "A garden plot displays vector arrows over a surface, with singularities hidden under flowers and one geometric line pattern from the Aon puzzle.",
       "mechanics": "Identify the index of each visible singularity and place the missing singularity so the total index matches the curvature clue; the chosen flower bed yields the Field Marker.",
       "validation": "Validation is singularity classification plus missing singularity placement.",
@@ -4882,7 +4882,7 @@
       "writes_state": [
         "inventory.public_private_key"
       ],
-      "reward": "Public-Private Key",
+      "reward": "Remainder Rattlekey",
       "surface": "A telegraph machine shows a tiny RSA-style cipher with public modulus, small exponent, and a note about which messages are coprime.",
       "mechanics": "Use Euler phi to derive the private exponent, decode the three encrypted bursts, and then use the Cauldron Vials ordering as a transposition key to extract the Public-Private Key.",
       "validation": "Validation is correct decrypted burst set plus transposition order.",
@@ -5093,7 +5093,7 @@
       "writes_state": [
         "inventory.curvature_compass"
       ],
-      "reward": "Curvature Compass",
+      "reward": "Compass of Bent Roads",
       "surface": "A cartographer's desk overlays surface charts, transported arrows, and singularity markers onto one manifold map.",
       "mechanics": "Use the Curvature Chip to choose the correct manifold family, the Transport Arrow to orient the atlas, and the Field Marker to place the final singularity. The resulting correctly charted manifold awards the Curvature Compass.",
       "validation": "Validation is manifold choice plus orientation plus singularity placement.",
@@ -5364,7 +5364,7 @@
       "writes_state": [
         "inventory.consistency_key"
       ],
-      "reward": "Consistency Key",
+      "reward": "Paradox Ferryman Token",
       "surface": "A prison cell wall contains five self-referential plaques, each making a statement about the others and about an oath from PGE.",
       "mechanics": "Determine which plaques can consistently be true together and which generate contradiction; the surviving plaque numbers unlock the Consistency Key.",
       "validation": "Validation is a unique consistent truth-assignment over all plaques.",
@@ -5646,7 +5646,7 @@
       "writes_state": [
         "inventory.congruence_lens"
       ],
-      "reward": "Congruence Lens",
+      "reward": "Clock of Chinese Lanterns",
       "surface": "A wall calendar combines residue classes, prime symbols, and cipher dates into one final modular tapestry.",
       "mechanics": "Use all four prior artifacts to select a year cycle, a day cycle, a residue mask, and a decryption order; applying them together reveals the Congruence Lens.",
       "validation": "Validation is the correct combined mask and extracted lens text.",
@@ -5745,7 +5745,7 @@
       "writes_state": [
         "inventory.symmetry_mirror"
       ],
-      "reward": "Symmetry Mirror",
+      "reward": "Dihedral Oathmirror",
       "surface": "A final algebra screen asks the player to describe how a group action permutes archive states and stabilizes one hidden object.",
       "mechanics": "Use the Mirror Pair to identify equivalent states, the Lattice Hook to identify stabilizers, and the Homomorphism Key to project onto the visible quotient. The fixed object's label is the Symmetry Mirror.",
       "validation": "Validation is a correct action/stabilizer mapping and fixed-object choice.",
@@ -6024,7 +6024,7 @@
       "writes_state": [
         "inventory.proof_stamp"
       ],
-      "reward": "Proof Stamp",
+      "reward": "Gyre of Modus Tollens",
       "surface": "A circular proof chamber presents four unlocked seals, each tied to one earlier logic artifact, around a final theorem door.",
       "mechanics": "Each seal corresponds to a mini proof obligation: witness choice, deduction skeleton, modal classification, and paradox resolution. Satisfy all four, then use the resulting theorem labels as premises in a final short proof whose conclusion is the Proof Stamp.",
       "validation": "Validation requires all subproofs plus the final proof; partial progress should save by seal.",

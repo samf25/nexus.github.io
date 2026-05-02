@@ -1573,9 +1573,9 @@ const PGE_STORIES = Object.freeze({
         },
       ]),
       failScene("PGE05-MISS-ending", "Your decree fails under witness challenge. Districts revert to private vendettas."),
-      winScene("PGE05-W1", "Mercy survives because you made it enforceable, not sentimental.", ["Ashen Treaty Pins", "Red Petition Docket"], [], "Mercy Charter Seal"),
-      winScene("PGE05-W2", "You turn vengeance into process and process into legitimacy.", ["Red Petition Docket", "Saintglass Vial"], [], "Conqueror's Due Process"),
-      winScene("PGE05-W3", "Fear opens the door, then limits close it before the realm tears itself apart.", ["Ashen Treaty Pins"], [], "Measured Iron Mandate"),
+      winScene("PGE05-W1", "Mercy survives because you made it enforceable, not sentimental.", ["Ashen Treaty Pins", "Red Petition Docket"], [], "Edict of the Turning Knife"),
+      winScene("PGE05-W2", "You turn vengeance into process and process into legitimacy.", ["Red Petition Docket", "Saintglass Vial"], [], "Accord of Borrowed Crowns"),
+      winScene("PGE05-W3", "Fear opens the door, then limits close it before the realm tears itself apart.", ["Ashen Treaty Pins"], [], "Writ of the Glass Tribunal"),
       failScene("PGE05-L1", "Reprisal outruns command. You keep the city and lose the realm."),
       failScene("PGE05-L2", "By refusing doctrine, you inherit every atrocity committed in your name."),
     ]),
@@ -1774,9 +1774,9 @@ const PGE_STORIES = Object.freeze({
         },
       ]),
       failScene("PGE06-MISS-ending", "Banquet law collapses. The coalition survives only as a rumor for one night."),
-      winScene("PGE06-W1", "Guest-right holds through poison and panic. The truce outlives the table.", ["Ivory Truce Fork", "Nightwine Ledger"], [], "Table of Last Reconciliation"),
-      winScene("PGE06-W2", "You make accountability faster than vengeance, and the hall chooses process.", ["Nightwine Ledger", "Mercy Bell Chime"], [], "Midnight Carving Accord"),
-      winScene("PGE06-W3", "No speech saves the room; a private surrender does, and history credits peace.", ["Ivory Truce Fork"], ["Thief", "Ranger", "Bard"], "Bell of Unbroken Guest-Right"),
+      winScene("PGE06-W1", "Guest-right holds through poison and panic. The truce outlives the table.", ["Ivory Truce Fork", "Nightwine Ledger"], [], "Bridge-Supper Compact"),
+      winScene("PGE06-W2", "You make accountability faster than vengeance, and the hall chooses process.", ["Nightwine Ledger", "Mercy Bell Chime"], [], "Accord of Borrowed Crowns"),
+      winScene("PGE06-W3", "No speech saves the room; a private surrender does, and history credits peace.", ["Ivory Truce Fork"], ["Thief", "Ranger", "Bard"], "Writ of the Glass Tribunal"),
       failScene("PGE06-L1", "You turn suspicion into civil fracture. The feast becomes the first battle."),
       failScene("PGE06-L2", "You keep immediate control and lose every ally by dawn."),
     ]),
@@ -2005,28 +2005,6 @@ function renderChoices(nodeId, currentScene, runtime, context, story) {
   `;
 }
 
-function renderDevGrant(nodeId, story, state) {
-  const rewards = rewardsMap(state);
-  const missing = (story.devArtifacts || []).filter((artifact) => !rewards[artifact]);
-  if (!missing.length) {
-    return "";
-  }
-  return `
-    <section class="card pge-dev-tools">
-      <h4>Testing Helper</h4>
-      <p class="muted">Missing: ${escapeHtml(missing.join(", "))}</p>
-      <button
-        type="button"
-        data-node-id="${escapeHtml(nodeId)}"
-        data-node-action="pge-dev-grant-artifacts"
-        data-artifacts="${escapeHtml(missing.join("|"))}"
-      >
-        Grant Missing Test Artifacts
-      </button>
-    </section>
-  `;
-}
-
 function renderTerminal(nodeId, story, runtime, currentScene) {
   if (!currentScene || currentScene.type !== "terminal") {
     return "";
@@ -2120,13 +2098,6 @@ function reduceAdventureRuntime(nodeId, runtime, action, context) {
     return {
       ...createInitialRuntime(story),
       lastMessage: "Story rewound.",
-    };
-  }
-
-  if (action.type === "pge-dev-grant-artifacts") {
-    return {
-      ...current,
-      lastMessage: "Test artifacts requested.",
     };
   }
 
@@ -2345,7 +2316,6 @@ function renderAdventure(nodeId, context) {
       }
 
       ${renderTerminal(nodeId, story, runtime, currentScene)}
-      ${renderDevGrant(nodeId, story, context.state)}
     </article>
   `;
 }
@@ -2372,17 +2342,6 @@ function buildAdventureActionFromElement(nodeId, element) {
     return {
       type: "pge01-claim-role",
       roleArtifact: element.getAttribute("data-role-artifact") || "",
-      at: Date.now(),
-    };
-  }
-  if (actionName === "pge-dev-grant-artifacts") {
-    const raw = String(element.getAttribute("data-artifacts") || "");
-    return {
-      type: "pge-dev-grant-artifacts",
-      artifacts: raw
-        .split("|")
-        .map((entry) => entry.trim())
-        .filter((entry) => entry),
       at: Date.now(),
     };
   }

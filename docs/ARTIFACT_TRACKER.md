@@ -21,7 +21,7 @@ Snapshot date: 2026-04-26
   - Overlord: `Overlord Revelation I`, `Overlord Revelation II`, `Overlord Revelation Cipher`
   - Archlord: `Archlord Revelation I`, `Archlord Revelation II`, `Archlord Revelation Cipher`
 - Finale puzzle artifacts (persistent phase modifiers):
-  - `Mercy Charter Seal`, `Conqueror's Due Process`, `Measured Iron Mandate`, `Table of Last Reconciliation`, `Midnight Carving Accord`, `Bell of Unbroken Guest-Right`, `Consistency Key`, `Public-Private Key`, `Homomorphism Key`, `Field Marker`, `Proof Stamp`, `Congruence Lens`, `Symmetry Mirror`, `Curvature Compass`
+  - `Edict of the Turning Knife`, `Accord of Borrowed Crowns`, `Writ of the Glass Tribunal`, `Bridge-Supper Compact`, `Paradox Ferryman Token`, `Remainder Rattlekey`, `Ringbreaker Lookingglass`, `Atlas Causeway Spike`, `Gyre of Modus Tollens`, `Clock of Chinese Lanterns`, `Dihedral Oathmirror`, `Compass of Bent Roads`
 
 ## Referenced but Not Fully Implemented
 

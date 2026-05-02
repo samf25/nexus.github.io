@@ -96,7 +96,7 @@ const LOG05_CONFIG = {
   nodeId: "LOG05",
   title: "Quantifier Chamber",
   subtitle: "Domain is {-2,-1,0,1,2}. Resolve truth values and quantifier negation.",
-  solvedMessage: "CONSISTENCY KEY Recovered",
+  solvedMessage: "PARADOX FERRYMAN TOKEN Recovered",
   stages: [
     {
       id: "log05-s1",
@@ -141,7 +141,7 @@ const LOG06_CONFIG = {
   nodeId: "LOG06",
   title: "Proof of Passage",
   subtitle: "Name the inference instrument or resulting form at each checkpoint.",
-  solvedMessage: "PROOF STAMP Recovered",
+  solvedMessage: "GYRE OF MODUS TOLLENS Recovered",
   stages: [
     {
       id: "log06-s1",
@@ -276,7 +276,7 @@ const NUM05_CONFIG = {
   nodeId: "NUM05",
   title: "Cycle Observatory",
   subtitle: "Use multiplicative order and cycle length to shortcut huge exponents.",
-  solvedMessage: "PUBLIC-PRIVATE KEY Recovered",
+  solvedMessage: "REMAINDER RATTLEKEY Recovered",
   stages: [
     {
       id: "num05-s1",
@@ -321,7 +321,7 @@ const NUM06_CONFIG = {
   nodeId: "NUM06",
   title: "Chinese Gate",
   subtitle: "Build a CRT solution step-by-step, then verify and count classes.",
-  solvedMessage: "CONGRUENCE LENS Recovered",
+  solvedMessage: "CLOCK OF CHINESE LANTERNS Recovered",
   stages: [
     {
       id: "num06-s1",
@@ -546,7 +546,7 @@ const ALG05_CONFIG = {
   nodeId: "ALG05",
   title: "Ringwork Workshop",
   subtitle: "Factor, divide, and classify polynomial behavior.",
-  solvedMessage: "HOMOMORPHISM KEY Recovered",
+  solvedMessage: "RINGBREAKER LOOKINGGLASS Recovered",
   stages: [
     {
       id: "alg05-s1",
@@ -591,7 +591,7 @@ const ALG06_CONFIG = {
   nodeId: "ALG06",
   title: "Action on the Archive",
   subtitle: "Resolve rank, nullity, and determinant constraints to finish symmetry control.",
-  solvedMessage: "SYMMETRY MIRROR Recovered",
+  solvedMessage: "DIHEDRAL OATHMIRROR Recovered",
   stages: [
     {
       id: "alg06-s1",
@@ -816,7 +816,7 @@ const GEO05_CONFIG = {
   nodeId: "GEO05",
   title: "Topology Lantern",
   subtitle: "Use Euler characteristic and genus relations for closed orientable surfaces.",
-  solvedMessage: "FIELD MARKER Recovered",
+  solvedMessage: "ATLAS CAUSEWAY SPIKE Recovered",
   stages: [
     {
       id: "geo05-s1",
@@ -861,7 +861,7 @@ const GEO06_CONFIG = {
   nodeId: "GEO06",
   title: "Cartographer's Manifold",
   subtitle: "Blend shortest-path geometry with great-circle distance and geodesic intuition.",
-  solvedMessage: "CURVATURE COMPASS Recovered",
+  solvedMessage: "COMPASS OF BENT ROADS Recovered",
   stages: [
     {
       id: "geo06-s1",

@@ -19,7 +19,6 @@ const REQUIRED_ARTIFACT = "Starter Core";
 const MANUAL_STREAK_TARGET = 5;
 const MANUAL_HIT_TOLERANCE_MS = 180;
 const OFFLINE_CAP_SECONDS = 60 * 60 * 12;
-const DEBUG_MADRA_STEP = 2500;
 const MANUAL_PATTERNS = CRD02_MANUAL_RHYTHM_PATTERNS;
 const BREAKTHROUGH_COSTS = Object.freeze({
   foundation: 200,
@@ -876,15 +875,6 @@ export function reduceCrd02Runtime(runtime, action) {
     };
   }
 
-  if (action.type === "crd02-debug-madra") {
-    const gain = Math.max(1, Number(action.amount) || DEBUG_MADRA_STEP);
-    return {
-      ...current,
-      madra: roundMadra(current.madra + gain),
-      lastMessage: `Debug gain: +${Math.round(gain)} madra.`,
-    };
-  }
-
   if (action.type === "crd02-breakthrough") {
     const stage = normalizeStage(current.cultivationStage);
     if (stage === "foundation") {
@@ -1277,14 +1267,6 @@ export function buildCrd02ActionFromElement(element) {
   if (actionName === "crd02-close-techniques") {
     return {
       type: "crd02-close-techniques",
-      at: nowMs(),
-    };
-  }
-
-  if (actionName === "crd02-debug-madra") {
-    return {
-      type: "crd02-debug-madra",
-      amount: Number(element.getAttribute("data-debug-amount")) || DEBUG_MADRA_STEP,
       at: nowMs(),
     };
   }
@@ -2066,15 +2048,6 @@ export function renderCrd02Experience(context) {
           ${canSeeMenus ? "" : "disabled"}
         >
           Open Techniques
-        </button>
-        <button
-          type="button"
-          class="ghost"
-          data-node-id="${NODE_ID}"
-          data-node-action="crd02-debug-madra"
-          data-debug-amount="${DEBUG_MADRA_STEP}"
-        >
-          +${DEBUG_MADRA_STEP} Madra (Test)
         </button>
         <button
           type="button"
